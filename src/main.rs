@@ -7,16 +7,16 @@ use serde_json::json;
 use tools_rs::{FunctionCall, FunctionResponse};
 
 use crate::core::chat::ChatBuilder;
+use crate::core::messages::Messages;
 use crate::core::messages::content::{Content, RoleEnum};
 use crate::core::messages::parts::PartEnum;
-use crate::providers;
 
 fn main() {
     let prompt = messages::from_user(vec!["Hello there mom!"]);
     let sys_prompt = messages::from_system(vec![
         "Answer the user with clarity at all times. Be a good boy.",
     ]);
-    let mut messages = vec![sys_prompt, prompt];
+    let mut messages = Messages(vec![sys_prompt, prompt]);
 
     // Dummy responses
     let reasoning_part =
@@ -63,4 +63,6 @@ fn main() {
         .with_max_steps(5)
         .with_max_retries(2)
         .build();
+
+    model.complete(&mut messages);
 }

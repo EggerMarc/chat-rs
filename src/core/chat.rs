@@ -7,24 +7,28 @@ use crate::core::{
 };
 
 #[derive(Default)]
-pub struct Chat<C: ChatProvider, Shape: serde::de::DeserializeOwned + Clone + Default + Sync> {
-    model: C,
-    model_options: ChatOptions<Shape>,
+pub struct Chat<CP: ChatProvider> {
+    model: CP,
+    model_options: ChatOptions,
     max_steps: Option<i16>,
     max_retries: Option<i16>,
     tools: Option<ToolCollection>,
 }
 
-impl<C: ChatProvider, Shape: serde::de::DeserializeOwned + Clone + Default + Sync> Chat<C, Shape> {
+impl<CP: ChatProvider> Chat<CP> {
     #[async_recursion]
-    async fn complete(
+    pub async fn complete(
         &self,
         messages: &mut Messages,
     ) -> Result<Content, Box<dyn std::error::Error + Send + Sync>> {
         // Let's first do it without structured outputs
         let mut completion = self
             .model
-            .complete(messages, self.tools.as_ref(), self.model_options.clone())
+            .complete(
+                messages,
+                self.tools.as_ref(),
+                Some(self.model_options.clone()),
+            )
             .await?;
 
         if let Some(tools) = &self.tools {
@@ -60,17 +64,15 @@ impl<C: ChatProvider, Shape: serde::de::DeserializeOwned + Clone + Default + Syn
     }
 }
 
-pub struct ChatBuilder<C: ChatProvider, Shape: serde::de::DeserializeOwned + Clone + Default> {
+pub struct ChatBuilder<C: ChatProvider> {
     model: Option<C>,
-    model_options: Option<ChatOptions<Shape>>,
+    model_options: Option<ChatOptions>,
     max_steps: Option<i16>,
     max_retries: Option<i16>,
     tools: Option<ToolCollection>,
 }
 
-impl<C: ChatProvider, Shape: serde::de::DeserializeOwned + Clone + Default + Sync>
-    ChatBuilder<C, Shape>
-{
+impl<C: ChatProvider> ChatBuilder<C> {
     pub fn new() -> Self {
         ChatBuilder {
             model: None,
@@ -101,7 +103,7 @@ impl<C: ChatProvider, Shape: serde::de::DeserializeOwned + Clone + Default + Syn
         self
     }
 
-    pub fn build(self) -> Chat<C, Shape> {
+    pub fn build(self) -> Chat<C> {
         Chat {
             model: self.model.expect("Need to set a model"),
             max_steps: self.max_steps,

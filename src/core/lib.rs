@@ -8,11 +8,11 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait ChatProvider: Send + Sync {
-    async fn complete<Shape: serde::de::DeserializeOwned + Default + Clone>(
+    async fn complete(
         &self,
         messages: &Messages,
         tools: Option<&ToolCollection>,
-        options: ChatOptions<Shape>,
+        options: Option<ChatOptions>,
     ) -> Result<Content, ChatError>;
 }
 
@@ -26,11 +26,10 @@ pub trait ChatStreamProvider {
 */
 
 #[derive(Debug, Clone, Default)]
-pub struct ChatOptions<Shape: serde::de::DeserializeOwned + Default + Clone> {
+pub struct ChatOptions {
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
     pub metadata: HashMap<String, Value>, // provider-specific extensions
-    pub structured_output: Option<Shape>,
 }
 
 #[derive(Debug, Error)]

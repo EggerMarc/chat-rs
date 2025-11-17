@@ -4,6 +4,7 @@ use serde_json::Value;
 use serde_json::json;
 use tools_rs::ToolCollection;
 
+use crate::core::lib::ChatOptions;
 use crate::core::{
     lib::{ChatError, ChatProvider},
     messages::{Messages, content::Content},
@@ -33,6 +34,7 @@ impl ChatProvider for GeminiClient {
         &self,
         messages: &Messages,
         tools: Option<&ToolCollection>,
+        _options: Option<ChatOptions>,
     ) -> Result<Content, ChatError> {
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
