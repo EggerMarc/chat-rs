@@ -34,6 +34,15 @@ impl Parts {
         self
     }
 
+    pub fn extend(&mut self, parts: Parts) -> &mut Self {
+        self.0.extend(parts.0);
+        self
+    }
+
+    pub fn last(&self) -> Option<&PartEnum> {
+        self.0.last()
+    }
+
     pub fn text_parts(&self) -> impl Iterator<Item = &Text> + '_ {
         self.0.iter().filter_map(|p| match p {
             PartEnum::Text(text) => Some(text),

@@ -14,6 +14,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.89"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.110",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -30,8 +41,10 @@ name = "chat-rs"
 version = "0.1.0"
 dependencies = [
  "async-recursion",
+ "async-trait",
  "serde",
  "serde_json",
+ "thiserror",
  "tokio",
  "tools-rs",
 ]
@@ -426,9 +439,9 @@ dependencies = [
 
 [[package]]
 name = "tools-rs"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e89ca8f3b3d2eeb7aef7ec76ee5303b425ffc7f9e777244d7817b5efc94b527"
+checksum = "15ccc804c668b8d23cd0cc1c23f29912ef359ee868570805c311d0acbf70bbdb"
 dependencies = [
  "inventory",
  "serde",

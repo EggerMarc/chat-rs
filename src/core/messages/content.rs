@@ -6,7 +6,7 @@ pub struct Content {
     pub role: RoleEnum,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum RoleEnum {
     #[default]
     User,

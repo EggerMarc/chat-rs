@@ -44,7 +44,14 @@ pub struct Messages(pub Vec<Content>);
 
 impl Messages {
     pub fn push(&mut self, content: Content) -> &mut Self {
-        self.0.push(content);
+        // We push only if content diffs from last
+        if let Some(last_content) = self.0.last_mut() {
+            if last_content.role == content.role {
+                last_content.parts.extend(content.parts.clone());
+            }
+        } else {
+            self.0.push(content);
+        }
         self
     }
 }
