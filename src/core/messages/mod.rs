@@ -1,10 +1,10 @@
 pub mod content;
 pub mod parts;
+pub mod structured;
 pub mod text;
 
 use content::{Content, RoleEnum};
 use parts::{PartEnum, Parts};
-
 pub fn from_user(prompts: Vec<&str>) -> Content {
     let role = RoleEnum::User;
     let parts = Parts(

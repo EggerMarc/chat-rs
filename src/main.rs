@@ -1,12 +1,15 @@
 mod core;
+mod providers;
 use core::messages;
 use core::messages::parts::Parts;
 
 use serde_json::json;
 use tools_rs::{FunctionCall, FunctionResponse};
 
+use crate::core::chat::ChatBuilder;
 use crate::core::messages::content::{Content, RoleEnum};
 use crate::core::messages::parts::PartEnum;
+use crate::providers;
 
 fn main() {
     let prompt = messages::from_user(vec!["Hello there mom!"]);
@@ -53,4 +56,11 @@ fn main() {
             .parts
             .function_response(fc.id.expect("didn't set a function id")),
     );
+
+    let model = ChatBuilder::new()
+        //.with_model(providers::gemini::Client)
+        .with_model(providers::gemini::GeminiClient::new("flash-1.5"))
+        .with_max_steps(5)
+        .with_max_retries(2)
+        .build();
 }

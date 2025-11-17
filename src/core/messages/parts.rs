@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
 use crate::core::messages::text::Text;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tools_rs::{CallId, FunctionCall, FunctionResponse};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct Parts(pub Vec<PartEnum>);
 
@@ -92,7 +92,7 @@ impl Parts {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", content = "value")]
 pub enum PartEnum {
     Reasoning(Text),
