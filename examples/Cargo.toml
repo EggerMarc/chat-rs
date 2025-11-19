@@ -1,0 +1,17 @@
+[package]
+name = "chat-rs-examples"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+chat-rs = { path = ".." }   
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+tools-rs = { workspace = true }
+async-trait = { workspace = true }
+
+[[example]]
+name = "gemini"
+path = "./gemini.rs"

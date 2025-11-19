@@ -11,22 +11,19 @@ use crate::core::{
     messages::{Messages, content::Content},
 };
 
-const GEMINI_ENDPOINT: &str = "https://generativelanguage.googleapis.com/v1beta/models/{model_str}:generateContent?key={api_key}";
-
 pub struct GeminiClient {
     model_name: String,
     api_key: String,
 }
 
 impl GeminiClient {
-    pub fn new(model_name: &str) -> Self {
-        let api_key =
-            env::var("GEMINI_API_KEY").expect("Couldn't find GEMINI_API_KEY in your .env");
+    pub fn new(model_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let api_key = env::var("GEMINI_API_KEY")?;
 
-        GeminiClient {
+        Ok(GeminiClient {
             model_name: model_name.to_string(),
             api_key,
-        }
+        })
     }
 }
 
