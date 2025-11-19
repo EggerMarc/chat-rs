@@ -8,7 +8,7 @@ use tools_rs::{FunctionCall, FunctionResponse};
 
 use crate::core::chat::ChatBuilder;
 use crate::core::messages::Messages;
-use crate::core::messages::content::{Content, RoleEnum};
+use crate::core::messages::content::{CompleteReasonEnum, Content, RoleEnum};
 use crate::core::messages::parts::PartEnum;
 
 fn main() {
@@ -46,7 +46,9 @@ fn main() {
         parts: Parts(vec![reasoning_part, fc_part, fr_part])
             .push(response_part)
             .to_owned(),
+        complete_reason: CompleteReasonEnum::Stop,
     };
+
     messages.push(ai_content.clone());
     println!("{:#?}", messages);
     println!(
@@ -57,7 +59,7 @@ fn main() {
             .function_response(fc.id.expect("didn't set a function id")),
     );
 
-    let model = ChatBuilder::new()
+    let mut model = ChatBuilder::new()
         //.with_model(providers::gemini::Client)
         .with_model(providers::gemini::GeminiClient::new("flash-1.5"))
         .with_max_steps(5)

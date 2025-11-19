@@ -1,5 +1,6 @@
 use std::env;
 
+use async_trait::async_trait;
 use serde_json::Value;
 use serde_json::json;
 use tools_rs::ToolCollection;
@@ -29,12 +30,13 @@ impl GeminiClient {
     }
 }
 
+#[async_trait]
 impl ChatProvider for GeminiClient {
     async fn complete(
         &self,
         messages: &Messages,
         tools: Option<&ToolCollection>,
-        _options: Option<ChatOptions>,
+        _options: Option<&ChatOptions>,
     ) -> Result<Content, ChatError> {
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",

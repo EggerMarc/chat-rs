@@ -3,8 +3,9 @@ pub mod parts;
 pub mod structured;
 pub mod text;
 
-use content::{Content, RoleEnum};
+use content::{CompleteReasonEnum, Content, RoleEnum};
 use parts::{PartEnum, Parts};
+
 pub fn from_user(prompts: Vec<&str>) -> Content {
     let role = RoleEnum::User;
     let parts = Parts(
@@ -13,7 +14,11 @@ pub fn from_user(prompts: Vec<&str>) -> Content {
             .map(|prompt| PartEnum::from_text(prompt.to_string()))
             .collect(),
     );
-    Content { role, parts }
+    Content {
+        role,
+        parts,
+        complete_reason: CompleteReasonEnum::None,
+    }
 }
 
 pub fn from_system(prompts: Vec<&str>) -> Content {
@@ -24,9 +29,14 @@ pub fn from_system(prompts: Vec<&str>) -> Content {
             .map(|prompt| PartEnum::from_text(prompt.to_string()))
             .collect(),
     );
-    Content { role, parts }
+    Content {
+        role,
+        parts,
+        complete_reason: CompleteReasonEnum::None,
+    }
 }
 
+// TODO CompleteReasonEnum
 pub fn from_model(prompts: Vec<String>) -> Content {
     let role = RoleEnum::Model;
     let parts = Parts(
@@ -35,7 +45,12 @@ pub fn from_model(prompts: Vec<String>) -> Content {
             .map(|prompt| PartEnum::from_text(prompt.to_string()))
             .collect(),
     );
-    Content { role, parts }
+
+    Content {
+        role,
+        parts,
+        complete_reason: CompleteReasonEnum::Stop,
+    }
 }
 
 #[derive(Clone, Debug, Default)]
