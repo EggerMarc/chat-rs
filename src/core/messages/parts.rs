@@ -19,6 +19,10 @@ impl Parts {
             .next()
     }
 
+    pub fn length(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn structured_response(&self) -> Option<&serde_json::Value> {
         self.0
             .iter()

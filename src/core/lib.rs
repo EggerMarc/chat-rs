@@ -12,7 +12,7 @@ pub trait ChatProvider: Send + Sync {
         &self,
         messages: &Messages,
         tools: Option<&ToolCollection>,
-        options: Option<ChatOptions>,
+        options: Option<&ChatOptions>,
     ) -> Result<Content, ChatError>;
 }
 

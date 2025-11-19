@@ -6,6 +6,7 @@ use crate::core::messages::parts::Parts;
 pub struct Content {
     pub parts: Parts,
     pub role: RoleEnum,
+    pub complete_reason: CompleteReasonEnum,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -14,4 +15,15 @@ pub enum RoleEnum {
     User,
     System,
     Model,
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompleteReasonEnum {
+    ToolCall,
+    Stop,
+    MaxTokens,
+    ContentFilter,
+    Recitation,
+    #[default]
+    None,
 }

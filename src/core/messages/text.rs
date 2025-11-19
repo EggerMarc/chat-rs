@@ -19,6 +19,12 @@ impl Text {
     }
 }
 
+impl Into<String> for Text {
+    fn into(self) -> String {
+        self.0
+    }
+}
+
 impl From<String> for Text {
     fn from(s: String) -> Self {
         Self(s)
