@@ -20,7 +20,7 @@ pub struct Chat<CP: ChatProvider> {
 
 impl<CP: ChatProvider> Chat<CP> {
     pub async fn complete(&mut self, messages: &mut Messages) -> Result<Content, ChatError> {
-        let max_retries = self.max_retries.unwrap_or(0);
+        let max_retries = self.max_retries.unwrap_or(1);
         for _ in 0..max_retries {
             let retry_messages = messages.clone();
             return match self.call_loop(&retry_messages).await {
@@ -49,7 +49,7 @@ impl<CP: ChatProvider> Chat<CP> {
     }
 
     async fn call_loop(&mut self, messages: &Messages) -> Result<Content, ChatError> {
-        for _ in 0..self.max_steps.unwrap_or(0) {
+        for _ in 0..self.max_steps.unwrap_or(1) {
             let mut response = self
                 .model
                 .complete(messages, self.tools.as_ref(), self.model_options.as_ref())
