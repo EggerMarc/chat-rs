@@ -163,3 +163,9 @@ impl<CP: ChatProvider> ChatBuilder<CP> {
         }
     }
 }
+
+impl<CP: ChatProvider> Default for ChatBuilder<CP> {
+    fn default() -> Self {
+        ChatBuilder::new()
+    }
+}

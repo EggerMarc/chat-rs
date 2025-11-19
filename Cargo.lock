@@ -71,19 +71,8 @@ dependencies = [
  "thiserror",
  "tokio",
  "tools-rs",
-]
-
-[[package]]
-name = "chat-rs-examples"
-version = "0.0.1"
-dependencies = [
- "async-trait",
- "chat-rs",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "tools-rs",
+ "tools_core",
+ "tools_macros",
 ]
 
 [[package]]

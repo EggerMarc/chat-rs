@@ -6,7 +6,7 @@ pub mod text;
 use content::{CompleteReasonEnum, Content, RoleEnum};
 use parts::{PartEnum, Parts};
 
-pub fn from_user(prompts: Vec<&str>) -> Content {
+pub fn from_user(prompts: Vec<&str>) -> Messages {
     let role = RoleEnum::User;
     let parts = Parts(
         prompts
@@ -14,14 +14,14 @@ pub fn from_user(prompts: Vec<&str>) -> Content {
             .map(|prompt| PartEnum::from_text(prompt.to_string()))
             .collect(),
     );
-    Content {
+    Messages(vec![Content {
         role,
         parts,
         complete_reason: CompleteReasonEnum::None,
-    }
+    }])
 }
 
-pub fn from_system(prompts: Vec<&str>) -> Content {
+pub fn from_system(prompts: Vec<&str>) -> Messages {
     let role = RoleEnum::System;
     let parts = Parts(
         prompts
@@ -29,15 +29,15 @@ pub fn from_system(prompts: Vec<&str>) -> Content {
             .map(|prompt| PartEnum::from_text(prompt.to_string()))
             .collect(),
     );
-    Content {
+    Messages(vec![Content {
         role,
         parts,
         complete_reason: CompleteReasonEnum::None,
-    }
+    }])
 }
 
 // TODO CompleteReasonEnum
-pub fn from_model(prompts: Vec<String>) -> Content {
+pub fn from_model(prompts: Vec<String>) -> Messages {
     let role = RoleEnum::Model;
     let parts = Parts(
         prompts
@@ -46,11 +46,11 @@ pub fn from_model(prompts: Vec<String>) -> Content {
             .collect(),
     );
 
-    Content {
+    Messages(vec![Content {
         role,
         parts,
         complete_reason: CompleteReasonEnum::Stop,
-    }
+    }])
 }
 
 #[derive(Clone, Debug, Default)]
@@ -67,6 +67,11 @@ impl Messages {
         } else {
             self.0.push(content);
         }
+        self
+    }
+
+    pub fn extend(&mut self, messages: Messages) -> &mut Self {
+        self.0.extend(messages.0);
         self
     }
 }
