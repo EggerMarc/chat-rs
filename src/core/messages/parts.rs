@@ -91,6 +91,16 @@ impl Parts {
         self.0.is_empty()
     }
 
+    /// Get the number of parts contained in this `Parts` wrapper.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::core::messages::parts::{Parts, PartEnum};
+    ///
+    /// let parts = Parts(vec![PartEnum::from_text("hello")]);
+    /// assert_eq!(parts.len(), 1);
+    /// ```
     fn len(&self) -> usize {
         self.0.len()
     }
