@@ -23,6 +23,28 @@ pub struct GeminiClient {
 }
 
 impl GeminiClient {
+    /// Creates a `GeminiClient` configured for the given model.
+    ///
+    /// The function obtains the Gemini API key from the `GEMINI_API_KEY` environment variable and
+    /// returns an error if the key is not present or cannot be read.
+    ///
+    /// # Parameters
+    ///
+    /// * `model_name` - The identifier of the Gemini model to use (e.g., `"gemini-pro"`).
+    ///
+    /// # Returns
+    ///
+    /// `Ok(GeminiClient)` containing the provided model name and the API key from `GEMINI_API_KEY`,
+    /// `Err` if the environment variable is missing or cannot be read.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::env;
+    /// env::set_var("GEMINI_API_KEY", "test-key");
+    /// let client = crate::providers::gemini::GeminiClient::new("gemini-pro").unwrap();
+    /// assert_eq!(client.model_name, "gemini-pro");
+    /// ```
     pub fn new(model_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let api_key = env::var("GEMINI_API_KEY")?;
 
@@ -35,6 +57,35 @@ impl GeminiClient {
 
 #[async_trait]
 impl ChatProvider for GeminiClient {
+    /// Send the given messages to the Google Gemini generateContent endpoint and return the parsed Content.
+    ///
+    /// The request body is constructed from `messages` and, if provided, includes tool function declarations from `tools`.
+    /// The response is parsed into the crate's `Content` representation.
+    ///
+    /// # Parameters
+    ///
+    /// - `messages`: conversation messages to send to the model.
+    /// - `tools`: optional collection of tools whose function declarations will be included in the request.
+    /// - `_options`: currently unused chat options (kept for API compatibility).
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Content)` with the parsed content on success; `Err(ChatError)` on failure.
+    /// Returns `ChatError::Provider` for HTTP or response-read errors, and `ChatError::InvalidResponse` for JSON parse or content-parsing errors.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use crate::providers::gemini::GeminiClient;
+    /// # use crate::chat::{Messages, ToolCollection, ChatOptions};
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = GeminiClient::new("models/example")?;
+    /// let messages = Messages::default();
+    /// let content = client.complete(&messages, None, None).await?;
+    /// // inspect content...
+    /// # Ok(())
+    /// # }
+    /// ```
     async fn complete(
         &self,
         messages: &Messages,
@@ -83,12 +134,38 @@ impl ChatProvider for GeminiClient {
 }
 
 impl Messages {
+    /// Converts the message sequence into a Gemini-formatted JSON array.
+    ///
+    /// Each message is transformed with its `into_gemini` representation and collected into a JSON array value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // Construct a Messages value containing one simple text content.
+    /// let msgs = Messages(vec![Content::from_text("hello")]);
+    /// let json = msgs.into_gemini();
+    /// assert!(json.is_array());
+    /// ```
     fn into_gemini(&self) -> Value {
         self.0.iter().map(|content| content.into_gemini()).collect()
     }
 }
 
 impl Content {
+    /// Convert this Content into the Gemini API JSON shape.
+    ///
+    /// The returned JSON object has a `"parts"` array where each element is the Gemini-formatted
+    /// representation of a single part produced by `PartEnum::into_gemini`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // Construct a Content with a single text part and convert it to Gemini JSON.
+    /// // (Types shown for illustration; adjust to actual constructors in this crate.)
+    /// let content = Content { parts: Parts(vec![PartEnum::Text(Text::new("hello".into()))]) };
+    /// let value = content.into_gemini();
+    /// assert!(value.get("parts").is_some());
+    /// ```
     fn into_gemini(&self) -> Value {
         json!({
             "parts": self.parts.0.iter().map(|part| part.into_gemini()).collect::<Vec<Value>>()
@@ -97,6 +174,17 @@ impl Content {
 }
 
 impl PartEnum {
+    /// Convert this PartEnum into the JSON shape expected by the Gemini API.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use serde_json::json;
+    /// // assume PartEnum::Text is available in scope
+    /// let part = PartEnum::Text("hello".into());
+    /// let v = part.into_gemini();
+    /// assert_eq!(v, json!({"text": "hello"}));
+    /// ```
     fn into_gemini(&self) -> Value {
         match self {
             PartEnum::Reasoning(text) => json!({"reasoning": text}),
@@ -108,6 +196,42 @@ impl PartEnum {
     }
 }
 
+/// Parse a Gemini API response candidate into the crate's internal `Content` representation.
+///
+/// The function extracts the first candidate's `content`, converts its `parts` into `PartEnum` values
+/// (currently supports `text` and `functionCall`), maps the content `role` to `RoleEnum`, and
+/// maps the candidate `finishReason` to `CompleteReasonEnum`.
+///
+/// # Parameters
+///
+/// - `json`: The full JSON response from the Gemini API; the function reads `candidates[0]["content"]`
+///   and related fields.
+///
+/// # Returns
+///
+/// `Ok(Content)` with populated `parts`, `role`, and `complete_reason` on success, or `Err(ChatError)`
+/// if required fields for a function call (name or args) are missing or cannot be serialized.
+///
+/// # Examples
+///
+/// ```
+/// use serde_json::json;
+///
+/// let resp = json!({
+///     "candidates": [
+///         {
+///             "content": {
+///                 "parts": [ { "text": "hello" } ],
+///                 "role": "model"
+///             },
+///             "finishReason": "STOP"
+///         }
+///     ]
+/// });
+///
+/// let content = parse_gemini_content(&resp).unwrap();
+/// assert_eq!(content.parts.len(), 1);
+/// ```
 fn parse_gemini_content(json: &serde_json::Value) -> Result<Content, ChatError> {
     let content_json = &json["candidates"][0]["content"];
 
