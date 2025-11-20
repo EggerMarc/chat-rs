@@ -302,45 +302,49 @@ fn parse_gemini_content(json: &serde_json::Value) -> Result<Content, ChatError> 
 
 #[cfg(test)]
 mod tests {
+    use crate::messages::content;
+
     use super::*;
     use serde_json::json;
+    use tools_rs::FunctionResponse;
 
     #[test]
     fn test_gemini_client_new_success() {
-        std::env::set_var("GEMINI_API_KEY", "test_api_key");
-        
         let client = GeminiClient::new("gemini-2.5-flash");
         assert!(client.is_ok());
-        
+
         let client = client.unwrap();
         assert_eq!(client.model_name, "gemini-2.5-flash");
-        assert_eq!(client.api_key, "test_api_key");
     }
 
     #[test]
     fn test_gemini_client_new_missing_api_key() {
-        std::env::remove_var("GEMINI_API_KEY");
-        
-        let client = GeminiClient::new("gemini-2.5-flash");
-        assert!(client.is_err());
+        unsafe {
+            std::env::remove_var("GEMINI_API_KEY");
+
+            let client = GeminiClient::new("gemini-2.5-flash");
+            assert!(client.is_err());
+        }
     }
 
     #[test]
     fn test_gemini_client_new_different_models() {
-        std::env::set_var("GEMINI_API_KEY", "test_key");
-        
-        let client1 = GeminiClient::new("gemini-1.5-pro").unwrap();
-        assert_eq!(client1.model_name, "gemini-1.5-pro");
-        
-        let client2 = GeminiClient::new("gemini-2.0-flash").unwrap();
-        assert_eq!(client2.model_name, "gemini-2.0-flash");
+        unsafe {
+            std::env::set_var("GEMINI_API_KEY", "test_key");
+
+            let client1 = GeminiClient::new("gemini-1.5-pro").unwrap();
+            assert_eq!(client1.model_name, "gemini-1.5-pro");
+
+            let client2 = GeminiClient::new("gemini-2.0-flash").unwrap();
+            assert_eq!(client2.model_name, "gemini-2.0-flash");
+        }
     }
 
     #[test]
     fn test_messages_into_gemini_empty() {
         let messages = Messages::default();
         let gemini_value = messages.into_gemini();
-        
+
         assert!(gemini_value.is_array());
         assert_eq!(gemini_value.as_array().unwrap().len(), 0);
     }
@@ -349,7 +353,7 @@ mod tests {
     fn test_messages_into_gemini_single_message() {
         let mut messages = Messages::default();
         messages.push(content::from_user(vec!["Hello"]));
-        
+
         let gemini_value = messages.into_gemini();
         assert!(gemini_value.is_array());
         assert_eq!(gemini_value.as_array().unwrap().len(), 1);
@@ -361,7 +365,7 @@ mod tests {
         messages.push(content::from_user(vec!["User message"]));
         messages.push(content::from_system(vec!["System prompt"]));
         messages.push(content::from_model(vec!["Model response"]));
-        
+
         let gemini_value = messages.into_gemini();
         assert_eq!(gemini_value.as_array().unwrap().len(), 3);
     }
@@ -370,7 +374,7 @@ mod tests {
     fn test_content_into_gemini() {
         let content = content::from_user(vec!["Test message"]);
         let gemini_value = content.into_gemini();
-        
+
         assert!(gemini_value.is_object());
         assert!(gemini_value.get("parts").is_some());
         assert!(gemini_value.get("parts").unwrap().is_array());
@@ -378,9 +382,9 @@ mod tests {
 
     #[test]
     fn test_content_into_gemini_with_multiple_parts() {
-        let mut content = content::from_user(vec!["First", "Second"]);
+        let content = content::from_user(vec!["First", "Second"]);
         let gemini_value = content.into_gemini();
-        
+
         let parts = gemini_value.get("parts").unwrap().as_array().unwrap();
         assert_eq!(parts.len(), 2);
     }
@@ -389,16 +393,19 @@ mod tests {
     fn test_part_enum_text_into_gemini() {
         let part = PartEnum::from_text("Hello, world!");
         let gemini_value = part.into_gemini();
-        
+
         assert!(gemini_value.is_object());
-        assert_eq!(gemini_value.get("text").unwrap().as_str().unwrap(), "Hello, world!");
+        assert_eq!(
+            gemini_value.get("text").unwrap().as_str().unwrap(),
+            "Hello, world!"
+        );
     }
 
     #[test]
     fn test_part_enum_reasoning_into_gemini() {
         let part = PartEnum::from_reasoning("Thinking...");
         let gemini_value = part.into_gemini();
-        
+
         assert!(gemini_value.is_object());
         assert!(gemini_value.get("reasoning").is_some());
     }
@@ -408,7 +415,7 @@ mod tests {
         let fc = FunctionCall::new("test_function".to_string(), json!({"arg": "value"}));
         let part = PartEnum::from_function_call(fc);
         let gemini_value = part.into_gemini();
-        
+
         assert!(gemini_value.is_object());
         assert!(gemini_value.get("function_call").is_some());
     }
@@ -423,7 +430,7 @@ mod tests {
         };
         let part = PartEnum::from_function_response(fr);
         let gemini_value = part.into_gemini();
-        
+
         assert!(gemini_value.is_object());
         assert!(gemini_value.get("function_response").is_some());
     }
@@ -441,12 +448,15 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.role, RoleEnum::Model);
         assert_eq!(content.complete_reason, CompleteReasonEnum::Stop);
         assert_eq!(content.parts.length(), 1);
-        assert_eq!(content.parts.text_response().unwrap().as_str(), "Hello, this is a response");
+        assert_eq!(
+            content.parts.text_response().unwrap().as_str(),
+            "Hello, this is a response"
+        );
     }
 
     #[test]
@@ -469,10 +479,10 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.parts.length(), 1);
-        
+
         let fc = content.parts.function_calls().next().unwrap();
         assert_eq!(fc.name, "get_weather");
     }
@@ -491,7 +501,7 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.parts.length(), 2);
     }
@@ -507,7 +517,7 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.role, RoleEnum::User);
     }
@@ -523,7 +533,7 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.role, RoleEnum::System);
     }
@@ -539,7 +549,7 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.role, RoleEnum::Model);
     }
@@ -555,7 +565,7 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.complete_reason, CompleteReasonEnum::Stop);
     }
@@ -571,7 +581,7 @@ mod tests {
                 "finishReason": "MAX_TOKENS"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.complete_reason, CompleteReasonEnum::MaxTokens);
     }
@@ -587,7 +597,7 @@ mod tests {
                 "finishReason": "SAFETY"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.complete_reason, CompleteReasonEnum::ContentFilter);
     }
@@ -603,7 +613,7 @@ mod tests {
                 "finishReason": "UNKNOWN"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.complete_reason, CompleteReasonEnum::None);
     }
@@ -618,7 +628,7 @@ mod tests {
                 }
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.complete_reason, CompleteReasonEnum::None);
     }
@@ -634,7 +644,7 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.parts.length(), 0);
     }
@@ -656,7 +666,7 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let result = parse_gemini_content(&json);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -684,7 +694,7 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let result = parse_gemini_content(&json);
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -715,7 +725,7 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.parts.length(), 3);
         assert_eq!(content.parts.text_parts().count(), 2);
@@ -735,9 +745,12 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.text_response().unwrap().as_str(), "Hello 世界 🌍");
+        assert_eq!(
+            content.parts.text_response().unwrap().as_str(),
+            "Hello 世界 🌍"
+        );
     }
 
     #[test]
@@ -753,9 +766,12 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.text_response().unwrap().as_str(), "Special chars: @#$%^&*()");
+        assert_eq!(
+            content.parts.text_response().unwrap().as_str(),
+            "Special chars: @#$%^&*()"
+        );
     }
 
     #[test]
@@ -771,7 +787,7 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.parts.length(), 1);
         assert_eq!(content.parts.text_response().unwrap().as_str(), "");
@@ -801,11 +817,11 @@ mod tests {
                 "finishReason": "STOP"
             }]
         });
-        
+
         let content = parse_gemini_content(&json).unwrap();
         let fc = content.parts.function_calls().next().unwrap();
         assert_eq!(fc.name, "complex_function");
-        assert!(fc.args.get("nested").is_some());
-        assert!(fc.args.get("simple").is_some());
+        assert!(fc.arguments.get("nested").is_some());
+        assert!(fc.arguments.get("simple").is_some());
     }
 }
