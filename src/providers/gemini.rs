@@ -421,7 +421,7 @@ mod tests {
         let gemini_value = part.into_gemini();
 
         assert!(gemini_value.is_object());
-        assert!(gemini_value.get("function_call").is_some());
+        assert!(gemini_value.get("functionCall").is_some());
     }
 
     #[test]
@@ -436,7 +436,7 @@ mod tests {
         let gemini_value = part.into_gemini();
 
         assert!(gemini_value.is_object());
-        assert!(gemini_value.get("function_response").is_some());
+        assert!(gemini_value.get("functionResponse").is_some());
     }
 
     #[test]

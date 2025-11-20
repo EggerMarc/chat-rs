@@ -207,7 +207,7 @@ mod tests {
     fn test_from_model_creates_content_with_correct_role() {
         let content = from_model(vec!["Model response"]);
         // Note: There appears to be a bug - from_model sets role to System instead of Model
-        assert_eq!(content.role, RoleEnum::System);
+        assert_eq!(content.role, RoleEnum::Model);
     }
 
     #[test]

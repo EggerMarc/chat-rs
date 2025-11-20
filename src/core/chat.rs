@@ -28,7 +28,7 @@ impl<CP: ChatProvider> Chat<CP> {
     /// # Examples
     ///
     /// ```
-    /// # use your_crate::{Chat, Messages, ChatBuilder};
+    /// # use chat_rs::{Chat, Messages, ChatBuilder};
     /// # async fn example() {
     /// let mut chat = ChatBuilder::new()
     ///     .with_max_retries(2)
