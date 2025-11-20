@@ -4,7 +4,7 @@ use crate::core::messages::text::Text;
 use serde::{Deserialize, Serialize};
 use tools_rs::{CallId, FunctionCall, FunctionResponse};
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 #[repr(transparent)]
 pub struct Parts(pub Vec<PartEnum>);
 
@@ -96,7 +96,7 @@ impl Parts {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", content = "value")]
 pub enum PartEnum {
     Reasoning(Text),

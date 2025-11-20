@@ -49,66 +49,69 @@ impl<CP: ChatProvider> Chat<CP> {
     }
 
     async fn call_loop(&mut self, messages: &Messages) -> Result<Content, ChatError> {
+        let mut inner_messages = messages.clone();
         for _ in 0..self.max_steps.unwrap_or(1) {
             let mut response = self
                 .model
-                .complete(messages, self.tools.as_ref(), self.model_options.as_ref())
+                .complete(
+                    &inner_messages,
+                    self.tools.as_ref(),
+                    self.model_options.as_ref(),
+                )
                 .await?;
+            if let Ok(frs) = self.tool_call(&response).await
+                && frs.length() > 0
+            {
+                response.parts.extend(frs);
+            }
 
-            return match response.complete_reason {
-                CompleteReasonEnum::Stop => Ok(response),
-                CompleteReasonEnum::MaxTokens => Err(ChatError::RateLimited),
-                CompleteReasonEnum::Recitation => Err(ChatError::Provider(
-                    "Content response was recited".to_string(),
-                )),
-                CompleteReasonEnum::ContentFilter => Err(ChatError::Provider(
-                    "Content response was filtered".to_string(),
-                )),
-                CompleteReasonEnum::ToolCall => {
-                    response.parts.extend(self.tool_call(&response).await?);
-                    continue;
-                }
-                CompleteReasonEnum::None => {
-                    // Default implementation for completion when no stopping reason is provided
-                    let fcs = self.tool_call(&response).await?;
-
-                    if fcs.length() > 0 {
-                        response.parts.extend(fcs);
-                        continue;
-                    } else {
-                        match response.parts.last() {
-                            Some(res) => match res {
-                                PartEnum::Text(_text) => return Ok(response),
-                                PartEnum::Reasoning(reasoning) => {
-                                    response
-                                        .parts
-                                        .push(PartEnum::from_reasoning(reasoning.to_owned()));
-                                    continue;
-                                }
-                                PartEnum::FunctionResponse(fr) => {
-                                    response
-                                        .parts
-                                        .push(PartEnum::from_function_response(fr.clone()));
-                                    continue;
-                                }
-                                PartEnum::FunctionCall(fc) => {
-                                    unreachable!("Unreachable, Handled above")
-                                }
-                                PartEnum::Structured(_) => {
-                                    return Err(ChatError::Other(
-                                        "Structured output not yet implemented".to_string(),
-                                    ));
-                                }
-                            },
-                            None => {
-                                return Err(ChatError::InvalidResponse(
-                                    "Response did not generate any parts".to_string(),
-                                ));
-                            }
-                        };
+            match response.parts.last() {
+                Some(res) => match res {
+                    PartEnum::Text(_text) => return Ok(response),
+                    PartEnum::Reasoning(reasoning) => {
+                        response
+                            .parts
+                            .push(PartEnum::from_reasoning(reasoning.to_owned()));
                     }
+                    PartEnum::Structured(_) => {
+                        return Err(ChatError::Other(
+                            "Structured output not yet implemented".to_string(),
+                        ));
+                    }
+                    _ => {}
+                },
+                None => {
+                    return Err(ChatError::InvalidResponse(
+                        "Response did not generate any parts".to_string(),
+                    ));
                 }
             };
+
+            inner_messages.push(response.clone());
+            println!(
+                "Inner Messages: {:#?}\n Response (should match last inner message): {:#?}",
+                inner_messages, response
+            );
+            /*
+                            return match response.complete_reason {
+                                CompleteReasonEnum::Stop => Ok(response),
+                                CompleteReasonEnum::MaxTokens => Err(ChatError::RateLimited),
+                                CompleteReasonEnum::Recitation => Err(ChatError::Provider(
+                                    "Content response was recited".to_string(),
+                                )),
+                                CompleteReasonEnum::ContentFilter => Err(ChatError::Provider(
+                                    "Content response was filtered".to_string(),
+                                )),
+                                CompleteReasonEnum::ToolCall => {
+                                    // Gemini doesn't have this.
+                                    response.parts.extend(self.tool_call(&response).await?);
+                                    continue;
+                                }
+                                CompleteReasonEnum::None => {
+                                    // Default implementation for completion when no stopping reason is provided
+                                }
+                            };
+            */
         }
         Err(ChatError::RateLimited)
     }

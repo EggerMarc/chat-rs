@@ -3,16 +3,16 @@ use tools_rs::{collect_tools, tool};
 
 #[tool]
 /// Greets the user
-async fn greeter(name: String) {
-    println!(
+async fn greeter(name: String) -> String {
+    format!(
         "Hello there, {}! This string contains an easter-egg :)",
         name
-    );
+    )
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = gemini::GeminiClient::new("flash-1.5")?;
+    let client = gemini::GeminiClient::new("gemini-2.5-flash")?;
     let tools = collect_tools();
     let mut chat = ChatBuilder::new()
         .with_tools(tools)
@@ -20,17 +20,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_steps(5)
         .build();
 
-    let mut messages = messages::from_system(vec![
+    let mut messages = messages::Messages::default();
+
+    messages.push(messages::from_system(vec![
         "You are a helpful assistant. Your job is to be as useful as possible.",
-    ]);
+    ]));
 
     loop {
         let mut user_input = String::new();
         println!("User:\t");
         std::io::stdin().read_line(&mut user_input)?;
-
         let user_message = messages::from_user(vec![&user_input]);
-        messages.extend(user_message);
+        messages.push(user_message);
 
         let response = chat.complete(&mut messages).await?;
         messages.push(response.clone());
