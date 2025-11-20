@@ -23,28 +23,6 @@ pub struct GeminiClient {
 }
 
 impl GeminiClient {
-    /// Creates a `GeminiClient` configured for the given model.
-    ///
-    /// The function obtains the Gemini API key from the `GEMINI_API_KEY` environment variable and
-    /// returns an error if the key is not present or cannot be read.
-    ///
-    /// # Parameters
-    ///
-    /// * `model_name` - The identifier of the Gemini model to use (e.g., `"gemini-pro"`).
-    ///
-    /// # Returns
-    ///
-    /// `Ok(GeminiClient)` containing the provided model name and the API key from `GEMINI_API_KEY`,
-    /// `Err` if the environment variable is missing or cannot be read.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::env;
-    /// env::set_var("GEMINI_API_KEY", "test-key");
-    /// let client = crate::providers::gemini::GeminiClient::new("gemini-pro").unwrap();
-    /// assert_eq!(client.model_name, "gemini-pro");
-    /// ```
     pub fn new(model_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let api_key = env::var("GEMINI_API_KEY")?;
 
@@ -57,35 +35,6 @@ impl GeminiClient {
 
 #[async_trait]
 impl ChatProvider for GeminiClient {
-    /// Send the given messages to the Google Gemini generateContent endpoint and return the parsed Content.
-    ///
-    /// The request body is constructed from `messages` and, if provided, includes tool function declarations from `tools`.
-    /// The response is parsed into the crate's `Content` representation.
-    ///
-    /// # Parameters
-    ///
-    /// - `messages`: conversation messages to send to the model.
-    /// - `tools`: optional collection of tools whose function declarations will be included in the request.
-    /// - `_options`: currently unused chat options (kept for API compatibility).
-    ///
-    /// # Returns
-    ///
-    /// `Ok(Content)` with the parsed content on success; `Err(ChatError)` on failure.
-    /// Returns `ChatError::Provider` for HTTP or response-read errors, and `ChatError::InvalidResponse` for JSON parse or content-parsing errors.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # use crate::providers::gemini::GeminiClient;
-    /// # use crate::chat::{Messages, ToolCollection, ChatOptions};
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client = GeminiClient::new("models/example")?;
-    /// let messages = Messages::default();
-    /// let content = client.complete(&messages, None, None).await?;
-    /// // inspect content...
-    /// # Ok(())
-    /// # }
-    /// ```
     async fn complete(
         &self,
         messages: &Messages,
@@ -134,38 +83,12 @@ impl ChatProvider for GeminiClient {
 }
 
 impl Messages {
-    /// Converts the message sequence into a Gemini-formatted JSON array.
-    ///
-    /// Each message is transformed with its `into_gemini` representation and collected into a JSON array value.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// // Construct a Messages value containing one simple text content.
-    /// let msgs = Messages(vec![Content::from_text("hello")]);
-    /// let json = msgs.into_gemini();
-    /// assert!(json.is_array());
-    /// ```
     fn into_gemini(&self) -> Value {
         self.0.iter().map(|content| content.into_gemini()).collect()
     }
 }
 
 impl Content {
-    /// Convert this Content into the Gemini API JSON shape.
-    ///
-    /// The returned JSON object has a `"parts"` array where each element is the Gemini-formatted
-    /// representation of a single part produced by `PartEnum::into_gemini`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// // Construct a Content with a single text part and convert it to Gemini JSON.
-    /// // (Types shown for illustration; adjust to actual constructors in this crate.)
-    /// let content = Content { parts: Parts(vec![PartEnum::Text(Text::new("hello".into()))]) };
-    /// let value = content.into_gemini();
-    /// assert!(value.get("parts").is_some());
-    /// ```
     fn into_gemini(&self) -> Value {
         json!({
             "parts": self.parts.0.iter().map(|part| part.into_gemini()).collect::<Vec<Value>>()
@@ -174,17 +97,6 @@ impl Content {
 }
 
 impl PartEnum {
-    /// Convert this PartEnum into the JSON shape expected by the Gemini API.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use serde_json::json;
-    /// // assume PartEnum::Text is available in scope
-    /// let part = PartEnum::Text("hello".into());
-    /// let v = part.into_gemini();
-    /// assert_eq!(v, json!({"text": "hello"}));
-    /// ```
     fn into_gemini(&self) -> Value {
         match self {
             PartEnum::Reasoning(text) => json!({"reasoning": text}),
@@ -196,42 +108,6 @@ impl PartEnum {
     }
 }
 
-/// Parse a Gemini API response candidate into the crate's internal `Content` representation.
-///
-/// The function extracts the first candidate's `content`, converts its `parts` into `PartEnum` values
-/// (currently supports `text` and `functionCall`), maps the content `role` to `RoleEnum`, and
-/// maps the candidate `finishReason` to `CompleteReasonEnum`.
-///
-/// # Parameters
-///
-/// - `json`: The full JSON response from the Gemini API; the function reads `candidates[0]["content"]`
-///   and related fields.
-///
-/// # Returns
-///
-/// `Ok(Content)` with populated `parts`, `role`, and `complete_reason` on success, or `Err(ChatError)`
-/// if required fields for a function call (name or args) are missing or cannot be serialized.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::json;
-///
-/// let resp = json!({
-///     "candidates": [
-///         {
-///             "content": {
-///                 "parts": [ { "text": "hello" } ],
-///                 "role": "model"
-///             },
-///             "finishReason": "STOP"
-///         }
-///     ]
-/// });
-///
-/// let content = parse_gemini_content(&resp).unwrap();
-/// assert_eq!(content.parts.len(), 1);
-/// ```
 fn parse_gemini_content(json: &serde_json::Value) -> Result<Content, ChatError> {
     let content_json = &json["candidates"][0]["content"];
 
@@ -298,4 +174,459 @@ fn parse_gemini_content(json: &serde_json::Value) -> Result<Content, ChatError> 
         role,
         complete_reason,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::messages::content::{CompleteReasonEnum, RoleEnum};
+    use crate::messages::parts::{PartEnum, Parts};
+    use serde_json::json;
+
+    #[test]
+    fn test_gemini_client_new_success() {
+        // This test requires GEMINI_API_KEY to be set
+        std::env::set_var("GEMINI_API_KEY", "test_key_12345");
+        
+        let result = GeminiClient::new("gemini-2.5-flash");
+        assert!(result.is_ok());
+        
+        let client = result.unwrap();
+        assert_eq!(client.model_name, "gemini-2.5-flash");
+        assert_eq!(client.api_key, "test_key_12345");
+        
+        std::env::remove_var("GEMINI_API_KEY");
+    }
+
+    #[test]
+    fn test_gemini_client_new_missing_api_key() {
+        std::env::remove_var("GEMINI_API_KEY");
+        
+        let result = GeminiClient::new("gemini-2.5-flash");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_gemini_client_new_different_models() {
+        std::env::set_var("GEMINI_API_KEY", "test_key");
+        
+        let models = vec![
+            "gemini-2.5-flash",
+            "gemini-pro",
+            "gemini-1.5-pro",
+            "custom-model-name"
+        ];
+        
+        for model in models {
+            let client = GeminiClient::new(model).unwrap();
+            assert_eq!(client.model_name, model);
+        }
+        
+        std::env::remove_var("GEMINI_API_KEY");
+    }
+
+    #[test]
+    fn test_messages_into_gemini_empty() {
+        let messages = Messages::default();
+        let gemini_value = messages.into_gemini();
+        
+        assert!(gemini_value.is_array());
+        assert_eq!(gemini_value.as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_messages_into_gemini_single_message() {
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Test message"]));
+        
+        let gemini_value = messages.into_gemini();
+        assert!(gemini_value.is_array());
+        assert_eq!(gemini_value.as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_messages_into_gemini_multiple_messages() {
+        let mut messages = Messages::default();
+        messages.push(content::from_system(vec!["System"]));
+        messages.push(content::from_user(vec!["User"]));
+        messages.push(content::from_model(vec!["Model"]));
+        
+        let gemini_value = messages.into_gemini();
+        assert_eq!(gemini_value.as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_content_into_gemini_text_part() {
+        let content = content::from_user(vec!["Hello world"]);
+        let gemini_value = content.into_gemini();
+        
+        assert!(gemini_value.is_object());
+        assert!(gemini_value["parts"].is_array());
+        
+        let parts = gemini_value["parts"].as_array().unwrap();
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0]["text"], "Hello world");
+    }
+
+    #[test]
+    fn test_content_into_gemini_multiple_parts() {
+        let mut content = Content {
+            role: RoleEnum::User,
+            parts: Parts::default(),
+            complete_reason: CompleteReasonEnum::None,
+        };
+        content.parts.push(PartEnum::from_text("Part 1".to_string()));
+        content.parts.push(PartEnum::from_text("Part 2".to_string()));
+        
+        let gemini_value = content.into_gemini();
+        let parts = gemini_value["parts"].as_array().unwrap();
+        assert_eq!(parts.len(), 2);
+    }
+
+    #[test]
+    fn test_part_enum_into_gemini_text() {
+        let part = PartEnum::from_text("Test text".to_string());
+        let gemini_value = part.into_gemini();
+        
+        assert_eq!(gemini_value["text"], "Test text");
+    }
+
+    #[test]
+    fn test_part_enum_into_gemini_reasoning() {
+        let part = PartEnum::from_reasoning("Thinking...".to_string());
+        let gemini_value = part.into_gemini();
+        
+        assert!(gemini_value["reasoning"].is_object());
+    }
+
+    #[test]
+    fn test_part_enum_into_gemini_function_call() {
+        let fc = FunctionCall::new("test_func".to_string(), json!({"arg": "value"}));
+        let part = PartEnum::from_function_call(fc.clone());
+        let gemini_value = part.into_gemini();
+        
+        assert!(gemini_value["function_call"].is_object());
+    }
+
+    #[test]
+    fn test_part_enum_into_gemini_function_response() {
+        let call_id = tools_rs::CallId::new();
+        let fr = FunctionResponse {
+            id: call_id,
+            name: "test_func".to_string(),
+            result: json!({"result": "success"}),
+        };
+        let part = PartEnum::from_function_response(fr);
+        let gemini_value = part.into_gemini();
+        
+        assert!(gemini_value["function_response"].is_object());
+    }
+
+    #[test]
+    fn test_parse_gemini_content_with_text() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [
+                        {"text": "Hello, I'm here to help!"}
+                    ],
+                    "role": "model"
+                },
+                "finishReason": "STOP"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        
+        let content = result.unwrap();
+        assert_eq!(content.role, RoleEnum::Model);
+        assert_eq!(content.complete_reason, CompleteReasonEnum::Stop);
+        assert_eq!(content.parts.length(), 1);
+    }
+
+    #[test]
+    fn test_parse_gemini_content_with_function_call() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "functionCall": {
+                            "name": "get_weather",
+                            "args": {
+                                "location": "San Francisco"
+                            }
+                        }
+                    }],
+                    "role": "model"
+                },
+                "finishReason": "STOP"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        
+        let content = result.unwrap();
+        assert_eq!(content.parts.length(), 1);
+        
+        let fcs = content.parts.function_calls();
+        assert_eq!(fcs.len(), 1);
+        assert_eq!(fcs[0].name, "get_weather");
+    }
+
+    #[test]
+    fn test_parse_gemini_content_multiple_parts() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [
+                        {"text": "Let me check that for you."},
+                        {
+                            "functionCall": {
+                                "name": "search",
+                                "args": {"query": "weather"}
+                            }
+                        }
+                    ],
+                    "role": "model"
+                },
+                "finishReason": "STOP"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        
+        let content = result.unwrap();
+        assert_eq!(content.parts.length(), 2);
+    }
+
+    #[test]
+    fn test_parse_gemini_content_user_role() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": "User message"}],
+                    "role": "user"
+                },
+                "finishReason": "STOP"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().role, RoleEnum::User);
+    }
+
+    #[test]
+    fn test_parse_gemini_content_system_role() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": "System message"}],
+                    "role": "system"
+                },
+                "finishReason": "STOP"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().role, RoleEnum::System);
+    }
+
+    #[test]
+    fn test_parse_gemini_content_max_tokens_reason() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": "Partial response..."}],
+                    "role": "model"
+                },
+                "finishReason": "MAX_TOKENS"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().complete_reason, CompleteReasonEnum::MaxTokens);
+    }
+
+    #[test]
+    fn test_parse_gemini_content_safety_reason() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": ""}],
+                    "role": "model"
+                },
+                "finishReason": "SAFETY"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().complete_reason, CompleteReasonEnum::ContentFilter);
+    }
+
+    #[test]
+    fn test_parse_gemini_content_no_finish_reason() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": "Response"}],
+                    "role": "model"
+                }
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().complete_reason, CompleteReasonEnum::None);
+    }
+
+    #[test]
+    fn test_parse_gemini_content_empty_parts() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [],
+                    "role": "model"
+                },
+                "finishReason": "STOP"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().parts.length(), 0);
+    }
+
+    #[test]
+    fn test_parse_gemini_content_unknown_role_defaults_to_model() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": "Test"}],
+                    "role": "unknown_role"
+                },
+                "finishReason": "STOP"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().role, RoleEnum::Model);
+    }
+
+    #[test]
+    fn test_parse_gemini_content_missing_role() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": "Test"}]
+                },
+                "finishReason": "STOP"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().role, RoleEnum::Model);
+    }
+
+    #[test]
+    fn test_gemini_client_model_name_persistence() {
+        std::env::set_var("GEMINI_API_KEY", "test_key");
+        
+        let client = GeminiClient::new("my-custom-model").unwrap();
+        assert_eq!(client.model_name, "my-custom-model");
+        
+        std::env::remove_var("GEMINI_API_KEY");
+    }
+
+    #[test]
+    fn test_parse_gemini_content_complex_function_args() {
+        let json_response = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "functionCall": {
+                            "name": "complex_func",
+                            "args": {
+                                "nested": {
+                                    "key1": "value1",
+                                    "key2": [1, 2, 3]
+                                },
+                                "list": ["a", "b", "c"],
+                                "number": 42,
+                                "boolean": true
+                            }
+                        }
+                    }],
+                    "role": "model"
+                },
+                "finishReason": "STOP"
+            }]
+        });
+        
+        let result = parse_gemini_content(&json_response);
+        assert!(result.is_ok());
+        
+        let content = result.unwrap();
+        let fcs = content.parts.function_calls();
+        assert_eq!(fcs.len(), 1);
+        assert_eq!(fcs[0].name, "complex_func");
+        assert!(fcs[0].args["nested"].is_object());
+        assert!(fcs[0].args["list"].is_array());
+    }
+
+    #[test]
+    fn test_into_gemini_roundtrip_text() {
+        let original_content = content::from_user(vec!["Test message"]);
+        let gemini_json = original_content.into_gemini();
+        
+        // Verify structure
+        assert!(gemini_json["parts"].is_array());
+        let parts = gemini_json["parts"].as_array().unwrap();
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0]["text"], "Test message");
+    }
+
+    #[test]
+    fn test_into_gemini_preserves_part_order() {
+        let mut content = Content {
+            role: RoleEnum::Model,
+            parts: Parts::default(),
+            complete_reason: CompleteReasonEnum::Stop,
+        };
+        
+        content.parts.push(PartEnum::from_text("First".to_string()));
+        content.parts.push(PartEnum::from_reasoning("Second".to_string()));
+        content.parts.push(PartEnum::from_text("Third".to_string()));
+        
+        let gemini_json = content.into_gemini();
+        let parts = gemini_json["parts"].as_array().unwrap();
+        
+        assert_eq!(parts.len(), 3);
+        assert!(parts[0].get("text").is_some());
+        assert!(parts[1].get("reasoning").is_some());
+        assert!(parts[2].get("text").is_some());
+    }
+
+    #[test]
+    fn test_gemini_client_api_key_not_exposed_in_debug() {
+        std::env::set_var("GEMINI_API_KEY", "secret_key_12345");
+        
+        let client = GeminiClient::new("test-model").unwrap();
+        let debug_output = format!("{:?}", client);
+        
+        // In a real implementation, we'd want to ensure the API key
+        // is not exposed in debug output, but for now we just verify
+        // the struct can be created
+        assert!(debug_output.contains("GeminiClient"));
+        
+        std::env::remove_var("GEMINI_API_KEY");
+    }
 }

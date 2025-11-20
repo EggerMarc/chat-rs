@@ -5,60 +5,15 @@ pub mod text;
 
 use content::Content;
 
-/// Create a `Messages` containing a single user message produced from the provided prompts.
-///
-/// The returned `Messages` contains one `Content` with the user role whose parts are derived from `prompts`.
-///
-/// # Examples
-///
-/// ```
-/// let msgs = from_user(vec!["Hello", "How are you?"]);
-/// assert_eq!(msgs.len(), 1);
-/// ```
 pub fn from_user(prompts: Vec<&str>) -> Messages {
     Messages(vec![content::from_user(prompts)])
 }
 
-/// Creates a `Messages` wrapper containing a single system `Content` constructed from the provided prompts.
-///
-/// # Examples
-///
-/// ```
-/// let msgs = from_system(vec!["You are a helpful assistant."]);
-/// assert_eq!(msgs.len(), 1);
-/// ```
 pub fn from_system(prompts: Vec<&str>) -> Messages {
     Messages(vec![content::from_system(prompts)])
 }
 
 // TODO CompleteReasonEnum
-/// Create a `Messages` containing a single model `Content` constructed from the given prompts.
-
-///
-
-/// `prompts` are the textual parts used to build the model content in order.
-
-///
-
-/// # Returns
-
-///
-
-/// `Messages` containing one model `Content` assembled from `prompts`.
-
-///
-
-/// # Examples
-
-///
-
-/// ```
-
-/// let msgs = from_model(vec!["Thinking...", "More details"]);
-
-/// assert_eq!(msgs.len(), 1);
-
-/// ```
 pub fn from_model(prompts: Vec<&str>) -> Messages {
     Messages(vec![content::from_model(prompts)])
 }
@@ -68,18 +23,6 @@ pub fn from_model(prompts: Vec<&str>) -> Messages {
 pub struct Messages(pub Vec<Content>);
 
 impl Messages {
-    /// Appends a `Content` to this `Messages`, merging parts when the last entry has the same role.
-    ///
-    /// If the provided `content` has the same role as the last stored `Content`, its parts are appended to that last `Content` instead of adding a new entry.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut msgs = Messages(Vec::new());
-    /// msgs.push(content::from_system(vec!["first"]));
-    /// msgs.push(content::from_system(vec!["second"]));
-    /// assert_eq!(msgs.len(), 1);
-    /// ```
     pub fn push(&mut self, content: Content) -> &mut Self {
         // We push only if content diffs from last
         if let Some(last_content) = self.0.last_mut()
@@ -92,56 +35,15 @@ impl Messages {
         self
     }
 
-    /// Appends all `Content` items from `messages` into this `Messages` in order.
-    ///
-    /// This moves the contained `Content` values out of `messages` and into `self`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use crate::messages::content;
-    /// use crate::messages::Messages;
-    ///
-    /// let mut a = Messages(vec![content::from_user(vec!["hello"])]);
-    /// let b = Messages(vec![content::from_system(vec!["system"])]);
-    /// a.extend(b);
-    /// assert_eq!(a.len(), 2);
-    /// ```
     pub fn extend(&mut self, messages: Messages) -> &mut Self {
         self.0.extend(messages.0);
         self
     }
 
-    /// Get the number of content items in the `Messages`.
-    ///
-    /// # Returns
-    ///
-    /// The number of `Content` elements contained in this `Messages`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use crate::messages::Messages;
-    ///
-    /// let msgs = Messages(Vec::new());
-    /// assert_eq!(msgs.len(), 0);
-    /// ```
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    /// Gets the last content item in the messages collection, if any.
-    ///
-    /// # Returns
-    ///
-    /// `Some(&Content)` containing the last content item, or `None` if the collection is empty.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let msgs = from_user(vec!["hello"]);
-    /// assert!(msgs.last().is_some());
-    /// ```
     pub fn last(&self) -> Option<&Content> {
         self.0.last()
     }
@@ -191,3 +93,242 @@ mod tests {
         assert_eq!(messages.len(), 3);
     }
 }
+
+    #[test]
+    fn test_messages_push_different_roles() {
+        let mut messages = Messages::default();
+        let sys_content = content::from_system(vec!["System message"]);
+        let user_content = content::from_user(vec!["User message"]);
+        let model_content = content::from_model(vec!["Model response"]);
+
+        messages.push(sys_content.clone());
+        messages.push(user_content.clone());
+        messages.push(model_content.clone());
+
+        assert_eq!(messages.len(), 3);
+    }
+
+    #[test]
+    fn test_messages_extend() {
+        let mut messages1 = Messages::default();
+        messages1.push(content::from_user(vec!["First"]));
+
+        let mut messages2 = Messages::default();
+        messages2.push(content::from_system(vec!["Second"]));
+        messages2.push(content::from_model(vec!["Third"]));
+
+        messages1.extend(messages2);
+        assert_eq!(messages1.len(), 3);
+    }
+
+    #[test]
+    fn test_messages_extend_empty() {
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Content"]));
+
+        let empty_messages = Messages::default();
+        messages.extend(empty_messages);
+
+        assert_eq!(messages.len(), 1);
+    }
+
+    #[test]
+    fn test_messages_default() {
+        let messages = Messages::default();
+        assert_eq!(messages.len(), 0);
+        assert!(messages.last().is_none());
+    }
+
+    #[test]
+    fn test_messages_last() {
+        let mut messages = Messages::default();
+        assert!(messages.last().is_none());
+
+        let content1 = content::from_user(vec!["First"]);
+        let content2 = content::from_system(vec!["Second"]);
+
+        messages.push(content1);
+        messages.push(content2.clone());
+
+        assert_eq!(messages.last(), Some(&content2));
+    }
+
+    #[test]
+    fn test_messages_clone() {
+        let mut messages1 = Messages::default();
+        messages1.push(content::from_user(vec!["Test"]));
+
+        let messages2 = messages1.clone();
+        assert_eq!(messages1.len(), messages2.len());
+    }
+
+    #[test]
+    fn test_from_user_function() {
+        let messages = from_user(vec!["Hello", "World"]);
+        assert_eq!(messages.len(), 1);
+        
+        let content = messages.last().unwrap();
+        assert_eq!(content.role, RoleEnum::User);
+        assert_eq!(content.parts.length(), 2);
+    }
+
+    #[test]
+    fn test_from_system_function() {
+        let messages = from_system(vec!["You are helpful"]);
+        assert_eq!(messages.len(), 1);
+        
+        let content = messages.last().unwrap();
+        assert_eq!(content.role, RoleEnum::System);
+        assert_eq!(content.parts.length(), 1);
+    }
+
+    #[test]
+    fn test_from_model_function() {
+        let messages = from_model(vec!["Response"]);
+        assert_eq!(messages.len(), 1);
+        
+        let content = messages.last().unwrap();
+        assert_eq!(content.role, RoleEnum::System); // from_model uses System role
+        assert_eq!(content.complete_reason, CompleteReasonEnum::Stop);
+    }
+
+    #[test]
+    fn test_messages_push_merges_same_role() {
+        let mut messages = Messages::default();
+        let user1 = content::from_user(vec!["Part 1"]);
+        let user2 = content::from_user(vec!["Part 2"]);
+
+        messages.push(user1);
+        messages.push(user2);
+
+        // Should merge into single message with 2 parts
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages.last().unwrap().parts.length(), 2);
+    }
+
+    #[test]
+    fn test_messages_push_no_merge_different_roles() {
+        let mut messages = Messages::default();
+        let user = content::from_user(vec!["User message"]);
+        let system = content::from_system(vec!["System message"]);
+
+        messages.push(user);
+        messages.push(system);
+
+        assert_eq!(messages.len(), 2);
+    }
+
+    #[test]
+    fn test_messages_multiple_extends() {
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["First"]));
+
+        let mut batch1 = Messages::default();
+        batch1.push(content::from_system(vec!["Second"]));
+
+        let mut batch2 = Messages::default();
+        batch2.push(content::from_model(vec!["Third"]));
+
+        messages.extend(batch1).extend(batch2);
+        assert_eq!(messages.len(), 3);
+    }
+
+    #[test]
+    fn test_messages_with_function_calls() {
+        let mut messages = Messages::default();
+        let fc = tools_rs::FunctionCall::new(
+            "test_function".to_string(),
+            serde_json::json!({"param": "value"})
+        );
+        
+        let mut content = Content {
+            role: RoleEnum::Model,
+            parts: Parts(vec![PartEnum::from_function_call(fc)]),
+            complete_reason: CompleteReasonEnum::ToolCall,
+        };
+
+        messages.push(content);
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages.last().unwrap().parts.function_calls().len(), 1);
+    }
+
+    #[test]
+    fn test_messages_push_empty_parts() {
+        let mut messages = Messages::default();
+        let content = Content {
+            role: RoleEnum::User,
+            parts: Parts::default(),
+            complete_reason: CompleteReasonEnum::None,
+        };
+
+        messages.push(content);
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages.last().unwrap().parts.length(), 0);
+    }
+
+    #[test]
+    fn test_messages_conversation_flow() {
+        let mut messages = Messages::default();
+        
+        // System prompt
+        messages.push(content::from_system(vec!["Be helpful"]));
+        assert_eq!(messages.len(), 1);
+        
+        // User message
+        messages.push(content::from_user(vec!["Hello"]));
+        assert_eq!(messages.len(), 2);
+        
+        // Model response with reasoning
+        let reasoning_part = PartEnum::from_reasoning("Analyzing request".to_string());
+        let text_part = PartEnum::from_text("Hi there!".to_string());
+        let mut model_content = Content {
+            role: RoleEnum::Model,
+            parts: Parts(vec![reasoning_part, text_part]),
+            complete_reason: CompleteReasonEnum::Stop,
+        };
+        messages.push(model_content);
+        assert_eq!(messages.len(), 3);
+        
+        // Another user message
+        messages.push(content::from_user(vec!["Thanks"]));
+        assert_eq!(messages.len(), 4);
+    }
+
+    #[test]
+    fn test_from_user_empty_vec() {
+        let messages = from_user(vec![]);
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages.last().unwrap().parts.length(), 0);
+    }
+
+    #[test]
+    fn test_from_system_empty_vec() {
+        let messages = from_system(vec![]);
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages.last().unwrap().parts.length(), 0);
+    }
+
+    #[test]
+    fn test_from_model_empty_vec() {
+        let messages = from_model(vec![]);
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages.last().unwrap().parts.length(), 0);
+    }
+
+    #[test]
+    fn test_messages_with_special_characters() {
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Hello\nWorld", "Tab\there", "Quote\"test"]));
+        
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages.last().unwrap().parts.length(), 3);
+    }
+
+    #[test]
+    fn test_messages_with_unicode() {
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Hello 世界", "Emoji 🚀"]));
+        
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages.last().unwrap().parts.length(), 2);
+    }

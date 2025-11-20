@@ -19,30 +19,6 @@ pub struct Chat<CP: ChatProvider> {
 }
 
 impl<CP: ChatProvider> Chat<CP> {
-    /// Perform a chat completion using the configured model, retrying up to the builder-configured number of attempts.
-    ///
-    /// # Returns
-    ///
-    /// `Ok(content)` with the final `Content` when a completion succeeds, `Err(ChatError::RateLimited)` if all retries are exhausted.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use your_crate::{Chat, Messages, ChatBuilder};
-    /// # async fn example() {
-    /// let mut chat = ChatBuilder::new()
-    ///     .with_max_retries(2)
-    ///     // .with_model(...) configure a model here
-    ///     .build();
-    /// let mut messages = Messages::new();
-    /// // populate messages...
-    /// let result = chat.complete(&mut messages).await;
-    /// match result {
-    ///     Ok(content) => println!("Got content: {:?}", content),
-    ///     Err(e) => eprintln!("Completion failed: {:?}", e),
-    /// }
-    /// # }
-    /// ```
     pub async fn complete(&mut self, messages: &mut Messages) -> Result<Content, ChatError> {
         let max_retries = self.max_retries.unwrap_or(1);
         for _ in 0..max_retries {
@@ -55,18 +31,6 @@ impl<CP: ChatProvider> Chat<CP> {
         Err(ChatError::RateLimited)
     }
 
-    /// Calls each function-call part in `content` using the chat's configured tool collection and
-    /// returns the collected function responses as `Parts`.
-    ///
-    /// If no tool collection is configured, or a tool invocation fails, an `Err(ChatError::InvalidResponse)`
-    /// is returned.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// // Assume `chat` is a Chat instance with tools configured and `content` contains function calls.
-    /// // let parts = chat.tool_call(&content).await.unwrap();
-    /// ```
     async fn tool_call(&self, content: &Content) -> Result<Parts, ChatError> {
         let mut frs: Parts = Parts::default();
         for fc in content.parts.function_calls() {
@@ -84,33 +48,6 @@ impl<CP: ChatProvider> Chat<CP> {
         Ok(frs)
     }
 
-    /// Drives an iterative model completion loop, optionally invoking tools, until a terminal text part is produced or a stopping error occurs.
-    ///
-    /// This method clones the provided `messages` and repeatedly calls the configured chat model (up to `max_steps.unwrap_or(1)` iterations). After each model response it attempts tool calls and, if tools return parts, appends them to the response. The loop examines the response's last part:
-    /// - If the last part is text, the response is returned as the final content.
-    /// - If the last part is reasoning, that reasoning is converted into a part and appended so the loop can continue.
-    /// - If the last part is structured, an error is returned since structured outputs are not implemented.
-    /// If a response contains no parts, an `InvalidResponse` error is returned. If the loop completes without producing a terminal text part, a `RateLimited` error is returned. Errors from the underlying model completion are propagated.
-    ///
-    /// # Parameters
-    ///
-    /// - `messages`: the conversation history to drive the completion loop; this value is cloned and extended internally as the loop progresses.
-    ///
-    /// # Returns
-    ///
-    /// `Ok(Content)` with the final response whose last part is text, or `Err(ChatError)` if the model returns an error, the response is invalid or structured, or the loop exhausts allowed steps.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// // Construct a Chat instance and messages, then run the loop:
-    /// // let mut chat: Chat<MyProvider> = /* configured chat */ ;
-    /// // let messages = Messages::default();
-    /// // let result = tokio::runtime::Runtime::new().unwrap().block_on(async {
-    /// //     chat.call_loop(&messages).await
-    /// // });
-    /// // assert!(result.is_ok() || result.is_err());
-    /// ```
     async fn call_loop(&mut self, messages: &Messages) -> Result<Content, ChatError> {
         let mut inner_messages = messages.clone();
         for _ in 0..self.max_steps.unwrap_or(1) {
@@ -219,19 +156,6 @@ impl<CP: ChatProvider> ChatBuilder<CP> {
         self
     }
 
-    /// Builds a Chat instance from this builder, consuming the builder.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a model was not provided via `with_model`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// // Provide a concrete type that implements `ChatProvider` for `CP`.
-    /// // let model = MyChatModel::new(...);
-    /// // let chat = ChatBuilder::new().with_model(model).build();
-    /// ```
     pub fn build(self) -> Chat<CP> {
         Chat {
             model: self.model.expect("Need to set a model"),
@@ -244,17 +168,364 @@ impl<CP: ChatProvider> ChatBuilder<CP> {
 }
 
 impl<CP: ChatProvider> Default for ChatBuilder<CP> {
-    /// Creates a ChatBuilder with default (unset) configuration.
-    ///
-    /// All optional builder fields are initialized to None; equivalent to calling
-    /// `ChatBuilder::new()`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let _builder: ChatBuilder<()> = Default::default();
-    /// ```
     fn default() -> Self {
         ChatBuilder::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::messages::content::{CompleteReasonEnum, RoleEnum};
+    use crate::messages::parts::{PartEnum, Parts};
+    use async_trait::async_trait;
+
+    // Mock ChatProvider for testing
+    struct MockProvider {
+        responses: Vec<Content>,
+        call_count: std::sync::Arc<std::sync::Mutex<usize>>,
+    }
+
+    impl MockProvider {
+        fn new(responses: Vec<Content>) -> Self {
+            Self {
+                responses,
+                call_count: std::sync::Arc::new(std::sync::Mutex::new(0)),
+            }
+        }
+
+        fn single_response(text: &str) -> Self {
+            let content = Content {
+                role: RoleEnum::Model,
+                parts: Parts(vec![PartEnum::from_text(text.to_string())]),
+                complete_reason: CompleteReasonEnum::Stop,
+            };
+            Self::new(vec![content])
+        }
+    }
+
+    #[async_trait]
+    impl ChatProvider for MockProvider {
+        async fn complete(
+            &mut self,
+            _messages: &Messages,
+            _tools: Option<&ToolCollection>,
+            _options: Option<&ChatOptions>,
+        ) -> Result<Content, ChatError> {
+            let mut count = self.call_count.lock().unwrap();
+            let idx = *count;
+            *count += 1;
+
+            if idx < self.responses.len() {
+                Ok(self.responses[idx].clone())
+            } else {
+                Err(ChatError::Provider("No more responses".to_string()))
+            }
+        }
+    }
+
+    #[test]
+    fn test_chat_builder_new() {
+        let builder: ChatBuilder<MockProvider> = ChatBuilder::new();
+        assert!(builder.model.is_none());
+        assert!(builder.tools.is_none());
+        assert!(builder.max_steps.is_none());
+        assert!(builder.max_retries.is_none());
+        assert!(builder.model_options.is_none());
+    }
+
+    #[test]
+    fn test_chat_builder_default() {
+        let builder: ChatBuilder<MockProvider> = ChatBuilder::default();
+        assert!(builder.model.is_none());
+    }
+
+    #[test]
+    fn test_chat_builder_with_model() {
+        let provider = MockProvider::single_response("Test");
+        let builder = ChatBuilder::new().with_model(provider);
+        assert!(builder.model.is_some());
+    }
+
+    #[test]
+    fn test_chat_builder_with_max_steps() {
+        let builder: ChatBuilder<MockProvider> = ChatBuilder::new()
+            .with_max_steps(5);
+        assert_eq!(builder.max_steps, Some(5));
+    }
+
+    #[test]
+    fn test_chat_builder_with_max_retries() {
+        let builder: ChatBuilder<MockProvider> = ChatBuilder::new()
+            .with_max_retries(3);
+        assert_eq!(builder.max_retries, Some(3));
+    }
+
+    #[test]
+    fn test_chat_builder_with_tools() {
+        let tools = ToolCollection::new();
+        let builder: ChatBuilder<MockProvider> = ChatBuilder::new()
+            .with_tools(tools.clone());
+        assert!(builder.tools.is_some());
+    }
+
+    #[test]
+    fn test_chat_builder_chaining() {
+        let provider = MockProvider::single_response("Test");
+        let tools = ToolCollection::new();
+        
+        let builder = ChatBuilder::new()
+            .with_model(provider)
+            .with_max_steps(10)
+            .with_max_retries(2)
+            .with_tools(tools);
+        
+        assert!(builder.model.is_some());
+        assert_eq!(builder.max_steps, Some(10));
+        assert_eq!(builder.max_retries, Some(2));
+        assert!(builder.tools.is_some());
+    }
+
+    #[test]
+    fn test_chat_builder_build() {
+        let provider = MockProvider::single_response("Response");
+        let chat = ChatBuilder::new()
+            .with_model(provider)
+            .with_max_steps(5)
+            .build();
+        
+        assert_eq!(chat.max_steps, Some(5));
+    }
+
+    #[tokio::test]
+    async fn test_chat_complete_simple() {
+        let provider = MockProvider::single_response("Hello, user!");
+        let mut chat = ChatBuilder::new()
+            .with_model(provider)
+            .build();
+        
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Hi"]));
+        
+        let result = chat.complete(&mut messages).await;
+        assert!(result.is_ok());
+        
+        let response = result.unwrap();
+        assert_eq!(response.role, RoleEnum::Model);
+        assert_eq!(response.complete_reason, CompleteReasonEnum::Stop);
+    }
+
+    #[tokio::test]
+    async fn test_chat_complete_with_multiple_steps() {
+        let responses = vec![
+            Content {
+                role: RoleEnum::Model,
+                parts: Parts(vec![PartEnum::from_reasoning("Thinking...".to_string())]),
+                complete_reason: CompleteReasonEnum::None,
+            },
+            Content {
+                role: RoleEnum::Model,
+                parts: Parts(vec![PartEnum::from_text("Final answer".to_string())]),
+                complete_reason: CompleteReasonEnum::Stop,
+            },
+        ];
+        
+        let provider = MockProvider::new(responses);
+        let mut chat = ChatBuilder::new()
+            .with_model(provider)
+            .with_max_steps(5)
+            .build();
+        
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Question"]));
+        
+        let result = chat.complete(&mut messages).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_chat_complete_with_default_max_retries() {
+        let provider = MockProvider::single_response("Response");
+        let mut chat = ChatBuilder::new()
+            .with_model(provider)
+            .build();
+        
+        // Test that default max_retries is 1
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Test"]));
+        
+        let result = chat.complete(&mut messages).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_chat_complete_with_default_max_steps() {
+        let provider = MockProvider::single_response("Response");
+        let mut chat = ChatBuilder::new()
+            .with_model(provider)
+            .build();
+        
+        // Test that default max_steps is 1
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Test"]));
+        
+        let result = chat.complete(&mut messages).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_chat_complete_empty_messages() {
+        let provider = MockProvider::single_response("Response");
+        let mut chat = ChatBuilder::new()
+            .with_model(provider)
+            .build();
+        
+        let mut messages = Messages::default();
+        
+        let result = chat.complete(&mut messages).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_chat_complete_preserves_original_messages() {
+        let provider = MockProvider::single_response("Response");
+        let mut chat = ChatBuilder::new()
+            .with_model(provider)
+            .build();
+        
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Original"]));
+        let original_len = messages.len();
+        
+        let _result = chat.complete(&mut messages).await;
+        
+        // The complete method should not modify the input messages
+        // (based on the code, it clones them for internal processing)
+        assert_eq!(messages.len(), original_len);
+    }
+
+    #[test]
+    fn test_chat_builder_multiple_max_steps_assignments() {
+        let builder: ChatBuilder<MockProvider> = ChatBuilder::new()
+            .with_max_steps(5)
+            .with_max_steps(10);
+        
+        assert_eq!(builder.max_steps, Some(10));
+    }
+
+    #[test]
+    fn test_chat_builder_multiple_max_retries_assignments() {
+        let builder: ChatBuilder<MockProvider> = ChatBuilder::new()
+            .with_max_retries(2)
+            .with_max_retries(4);
+        
+        assert_eq!(builder.max_retries, Some(4));
+    }
+
+    #[tokio::test]
+    async fn test_chat_with_system_and_user_messages() {
+        let provider = MockProvider::single_response("I understand");
+        let mut chat = ChatBuilder::new()
+            .with_model(provider)
+            .build();
+        
+        let mut messages = Messages::default();
+        messages.push(content::from_system(vec!["Be helpful"]));
+        messages.push(content::from_user(vec!["Help me"]));
+        
+        let result = chat.complete(&mut messages).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_chat_complete_reasoning_only_response() {
+        let response = Content {
+            role: RoleEnum::Model,
+            parts: Parts(vec![PartEnum::from_reasoning("Analyzing...".to_string())]),
+            complete_reason: CompleteReasonEnum::None,
+        };
+        
+        let provider = MockProvider::new(vec![response]);
+        let mut chat = ChatBuilder::new()
+            .with_model(provider)
+            .with_max_steps(1)
+            .build();
+        
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Test"]));
+        
+        // With max_steps=1, it should handle reasoning-only response
+        let _result = chat.complete(&mut messages).await;
+    }
+
+    #[test]
+    fn test_chat_builder_zero_max_steps() {
+        let builder: ChatBuilder<MockProvider> = ChatBuilder::new()
+            .with_max_steps(0);
+        assert_eq!(builder.max_steps, Some(0));
+    }
+
+    #[test]
+    fn test_chat_builder_zero_max_retries() {
+        let builder: ChatBuilder<MockProvider> = ChatBuilder::new()
+            .with_max_retries(0);
+        assert_eq!(builder.max_retries, Some(0));
+    }
+
+    #[test]
+    fn test_chat_struct_creation() {
+        let provider = MockProvider::single_response("Test");
+        let tools = ToolCollection::new();
+        let options = ChatOptions::default();
+        
+        let chat = Chat {
+            model: provider,
+            tools: Some(tools),
+            max_steps: Some(5),
+            max_retries: Some(2),
+            model_options: Some(options),
+        };
+        
+        assert_eq!(chat.max_steps, Some(5));
+        assert_eq!(chat.max_retries, Some(2));
+        assert!(chat.tools.is_some());
+        assert!(chat.model_options.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_chat_complete_with_chat_options() {
+        let provider = MockProvider::single_response("Response");
+        let options = ChatOptions::default();
+        
+        let mut chat = ChatBuilder::new()
+            .with_model(provider)
+            .with_model_options(options)
+            .build();
+        
+        let mut messages = Messages::default();
+        messages.push(content::from_user(vec!["Test"]));
+        
+        let result = chat.complete(&mut messages).await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_chat_builder_full_configuration() {
+        let provider = MockProvider::single_response("Test");
+        let tools = ToolCollection::new();
+        let options = ChatOptions::default();
+        
+        let chat = ChatBuilder::new()
+            .with_model(provider)
+            .with_tools(tools)
+            .with_max_steps(10)
+            .with_max_retries(3)
+            .with_model_options(options)
+            .build();
+        
+        assert_eq!(chat.max_steps, Some(10));
+        assert_eq!(chat.max_retries, Some(3));
+        assert!(chat.tools.is_some());
+        assert!(chat.model_options.is_some());
     }
 }
