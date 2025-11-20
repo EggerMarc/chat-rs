@@ -31,33 +31,19 @@ pub fn from_system(prompts: Vec<&str>) -> Messages {
     Messages(vec![content::from_system(prompts)])
 }
 
-// TODO CompleteReasonEnum
 /// Create a `Messages` containing a single model `Content` constructed from the given prompts.
-
 ///
-
 /// `prompts` are the textual parts used to build the model content in order.
-
 ///
-
 /// # Returns
-
 ///
-
 /// `Messages` containing one model `Content` assembled from `prompts`.
-
 ///
-
 /// # Examples
-
 ///
-
 /// ```
-
 /// let msgs = from_model(vec!["Thinking...", "More details"]);
-
 /// assert_eq!(msgs.len(), 1);
-
 /// ```
 pub fn from_model(prompts: Vec<&str>) -> Messages {
     Messages(vec![content::from_model(prompts)])
@@ -195,11 +181,11 @@ mod tests {
     fn test_messages_extend() {
         let mut messages = Messages::default();
         messages.push(content::from_user(vec!["First"]));
-        
+
         let mut more_messages = Messages::default();
         more_messages.push(content::from_system(vec!["System"]));
         more_messages.push(content::from_model(vec!["Model"]));
-        
+
         messages.extend(more_messages);
         assert_eq!(messages.len(), 3);
     }
@@ -208,10 +194,10 @@ mod tests {
     fn test_messages_last() {
         let mut messages = Messages::default();
         assert!(messages.last().is_none());
-        
+
         let user_content = content::from_user(vec!["User message"]);
         messages.push(user_content.clone());
-        
+
         assert_eq!(messages.last(), Some(&user_content));
     }
 
@@ -226,7 +212,7 @@ mod tests {
     fn test_messages_clone() {
         let mut messages1 = Messages::default();
         messages1.push(content::from_user(vec!["Test"]));
-        
+
         let messages2 = messages1.clone();
         assert_eq!(messages1.len(), messages2.len());
     }
@@ -236,11 +222,11 @@ mod tests {
         let mut messages = Messages::default();
         let user_content1 = content::from_user(vec!["First message"]);
         let user_content2 = content::from_user(vec!["Second message"]);
-        
+
         messages.push(user_content1);
         assert_eq!(messages.len(), 1);
         assert_eq!(messages.last().unwrap().parts.len(), 1);
-        
+
         messages.push(user_content2);
         assert_eq!(messages.len(), 1); // Should still be 1 message
         assert_eq!(messages.last().unwrap().parts.len(), 2); // But with 2 parts
@@ -251,7 +237,7 @@ mod tests {
         let mut messages = Messages::default();
         messages.push(content::from_user(vec!["User"]));
         messages.push(content::from_system(vec!["System"]));
-        
+
         assert_eq!(messages.len(), 2);
     }
 
@@ -273,7 +259,10 @@ mod tests {
     fn test_from_model_function() {
         let messages = from_model(vec!["Model response"]);
         assert_eq!(messages.len(), 1);
-        assert_eq!(messages.last().unwrap().complete_reason, CompleteReasonEnum::Stop);
+        assert_eq!(
+            messages.last().unwrap().complete_reason,
+            CompleteReasonEnum::Stop
+        );
     }
 
     #[test]
@@ -296,7 +285,7 @@ mod tests {
         messages
             .push(content::from_user(vec!["First"]))
             .push(content::from_system(vec!["Second"]));
-        
+
         assert_eq!(messages.len(), 2);
     }
 
@@ -304,10 +293,10 @@ mod tests {
     fn test_messages_extend_empty() {
         let mut messages = Messages::default();
         messages.push(content::from_user(vec!["Existing"]));
-        
+
         let empty_messages = Messages::default();
         messages.extend(empty_messages);
-        
+
         assert_eq!(messages.len(), 1);
     }
 
@@ -317,13 +306,13 @@ mod tests {
         let thinking_part = PartEnum::from_reasoning("Thinking...");
         let fc = tools_rs::FunctionCall::new("test".to_string(), serde_json::json!({}));
         let fc_part = PartEnum::from_function_call(fc);
-        
+
         let model_content = Content {
             parts: Parts(vec![thinking_part, fc_part]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::None,
         };
-        
+
         messages.push(model_content);
         assert_eq!(messages.len(), 1);
         assert_eq!(messages.last().unwrap().parts.len(), 2);
@@ -336,7 +325,7 @@ mod tests {
         messages.push(content::from_model(vec!["Model 1"]));
         messages.push(content::from_user(vec!["User 2"]));
         messages.push(content::from_model(vec!["Model 2"]));
-        
+
         assert_eq!(messages.len(), 4);
     }
 
@@ -346,7 +335,7 @@ mod tests {
         messages.push(content::from_user(vec!["Part 1"]));
         messages.push(content::from_user(vec!["Part 2"]));
         messages.push(content::from_user(vec!["Part 3"]));
-        
+
         assert_eq!(messages.len(), 1);
         assert_eq!(messages.last().unwrap().parts.len(), 3);
     }

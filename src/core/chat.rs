@@ -23,7 +23,7 @@ impl<CP: ChatProvider> Chat<CP> {
     ///
     /// # Returns
     ///
-    /// `Ok(content)` with the final `Content` when a completion succeeds, `Err(ChatError::RateLimited)` if all retries are exhausted.
+    /// `Ok(content)` with the final `Content` when a completion succeeds, last error is produced or `Err(ChatError::RateLimited)` if all retries are exhausted.
     ///
     /// # Examples
     ///
@@ -45,14 +45,21 @@ impl<CP: ChatProvider> Chat<CP> {
     /// ```
     pub async fn complete(&mut self, messages: &mut Messages) -> Result<Content, ChatError> {
         let max_retries = self.max_retries.unwrap_or(1);
+        let mut last_err: Option<ChatError> = None;
+
         for _ in 0..max_retries {
             let retry_messages = messages.clone();
-            return match self.call_loop(&retry_messages).await {
-                Ok(content) => Ok(content),
-                Err(_) => continue,
-            };
+
+            match self.call_loop(&retry_messages).await {
+                Ok(content) => return Ok(content),
+                Err(err) => {
+                    last_err = Some(err);
+                    continue;
+                }
+            }
         }
-        Err(ChatError::RateLimited)
+
+        Err(last_err.unwrap_or(ChatError::RateLimited))
     }
 
     /// Calls each function-call part in `content` using the chat's configured tool collection and
@@ -123,7 +130,7 @@ impl<CP: ChatProvider> Chat<CP> {
                 )
                 .await?;
             if let Ok(frs) = self.tool_call(&response).await
-                && frs.len() > 0
+                && !frs.is_empty()
             {
                 response.parts.extend(frs);
             }
@@ -151,10 +158,6 @@ impl<CP: ChatProvider> Chat<CP> {
             };
 
             inner_messages.push(response.clone());
-            println!(
-                "Inner Messages: {:#?}\n Response (should match last inner message): {:#?}",
-                inner_messages, response
-            );
             /*
                             return match response.complete_reason {
                                 CompleteReasonEnum::Stop => Ok(response),
