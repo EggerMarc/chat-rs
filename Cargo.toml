@@ -1,14 +1,51 @@
 [package]
-name = "chat-rs"
-version = "0.1.0"
-edition = "2024"
+authors      = ["Chat-rs Team"]
+autoexamples = false
+description  = "Core functionality for the tools-rs tool collection system"
+edition      = "2024"
+license      = "MIT"
+name         = "chat-rs"
+version      = "0.0.1"
+
+[lib]
+name = "chat_rs"
+path = "src/lib.rs"
+
+[workspace]
+resolver = "2"
+
+[workspace.package]
+authors      = ["Chat-rs Team"]
+edition      = "2024"
+license      = "MIT"
+repository   = "https://github.com/EggerMarc/chat-rs"
+rust-version = "1.91"
+
+[workspace.dependencies]
+chrono              = "0.4.41"
+inventory           = "0.3.20"
+async-trait         = "0.1.89"
+reqwest             = "0.12.24"
+serde               = { version = "1.0.228", features = ["derive"] }
+serde_json          = "1.0.145"
+thiserror           = "2.0.17"
+tools-rs            = "0.1.5"
+tools_core          = "0.1.2"
+tools_macros        = "0.1.1"
+tokio               = { version = "1.48.0", features = ["macros", "rt-multi-thread", "time", "sync"] }
 
 [dependencies]
-async-recursion = "1.1.1"
-async-trait = "0.1.89"
-reqwest = "0.12.24"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
-thiserror = "2.0.17"
-tokio = "1.48.0"
-tools-rs = "0.1.5"
+async-trait.workspace   = true
+inventory.workspace     = true
+reqwest.workspace       = true
+serde.workspace         = true
+serde_json.workspace    = true
+thiserror.workspace     = true
+tokio.workspace         = true
+tools-rs.workspace      = true
+tools_core.workspace    = true
+tools_macros.workspace  = true
+
+[[example]]
+name = "gemini"
+path = "./examples/gemini.rs"
