@@ -192,3 +192,356 @@ impl Display for PartEnum {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_parts_default() {
+        let parts = Parts::default();
+        assert_eq!(parts.length(), 0);
+        assert!(parts.is_empty());
+    }
+
+    #[test]
+    fn test_parts_push() {
+        let mut parts = Parts::default();
+        parts.push(PartEnum::from_text("Hello"));
+        assert_eq!(parts.length(), 1);
+        assert!(!parts.is_empty());
+    }
+
+    #[test]
+    fn test_parts_push_chaining() {
+        let mut parts = Parts::default();
+        parts
+            .push(PartEnum::from_text("First"))
+            .push(PartEnum::from_text("Second"));
+        assert_eq!(parts.length(), 2);
+    }
+
+    #[test]
+    fn test_parts_extend() {
+        let mut parts1 = Parts::default();
+        parts1.push(PartEnum::from_text("First"));
+
+        let mut parts2 = Parts::default();
+        parts2.push(PartEnum::from_text("Second"));
+
+        parts1.extend(parts2);
+        assert_eq!(parts1.length(), 2);
+    }
+
+    #[test]
+    fn test_parts_last() {
+        let mut parts = Parts::default();
+        assert!(parts.last().is_none());
+
+        parts.push(PartEnum::from_text("First"));
+        parts.push(PartEnum::from_text("Second"));
+        
+        let last = parts.last().unwrap();
+        assert_eq!(last.text().unwrap().as_str(), "Second");
+    }
+
+    #[test]
+    fn test_parts_text_response() {
+        let mut parts = Parts::default();
+        parts.push(PartEnum::from_reasoning("Thinking"));
+        parts.push(PartEnum::from_text("Response"));
+        
+        let text = parts.text_response().unwrap();
+        assert_eq!(text.as_str(), "Response");
+    }
+
+    #[test]
+    fn test_parts_text_response_none() {
+        let mut parts = Parts::default();
+        parts.push(PartEnum::from_reasoning("Only reasoning"));
+        
+        assert!(parts.text_response().is_none());
+    }
+
+    #[test]
+    fn test_parts_structured_response() {
+        let mut parts = Parts::default();
+        let value = json!({"key": "value"});
+        parts.push(PartEnum::from_structured(value.clone()));
+        
+        let structured = parts.structured_response().unwrap();
+        assert_eq!(structured, &value);
+    }
+
+    #[test]
+    fn test_parts_structured_response_none() {
+        let mut parts = Parts::default();
+        parts.push(PartEnum::from_text("Text only"));
+        
+        assert!(parts.structured_response().is_none());
+    }
+
+    #[test]
+    fn test_parts_text_parts_iterator() {
+        let mut parts = Parts::default();
+        parts.push(PartEnum::from_text("First"));
+        parts.push(PartEnum::from_reasoning("Thinking"));
+        parts.push(PartEnum::from_text("Second"));
+        
+        let texts: Vec<&Text> = parts.text_parts().collect();
+        assert_eq!(texts.len(), 2);
+        assert_eq!(texts[0].as_str(), "First");
+        assert_eq!(texts[1].as_str(), "Second");
+    }
+
+    #[test]
+    fn test_parts_function_calls_iterator() {
+        let mut parts = Parts::default();
+        let fc1 = FunctionCall::new("func1".to_string(), json!({"arg": 1}));
+        let fc2 = FunctionCall::new("func2".to_string(), json!({"arg": 2}));
+        
+        parts.push(PartEnum::from_function_call(fc1.clone()));
+        parts.push(PartEnum::from_text("Text"));
+        parts.push(PartEnum::from_function_call(fc2.clone()));
+        
+        let fcs: Vec<&FunctionCall> = parts.function_calls().collect();
+        assert_eq!(fcs.len(), 2);
+        assert_eq!(fcs[0].name, "func1");
+        assert_eq!(fcs[1].name, "func2");
+    }
+
+    #[test]
+    fn test_parts_function_responses_iterator() {
+        let mut parts = Parts::default();
+        let fc1 = FunctionCall::new("func1".to_string(), json!({}));
+        let fr1 = FunctionResponse {
+            id: fc1.id.clone(),
+            name: "func1".to_string(),
+            result: json!({"status": "ok"}),
+        };
+        
+        parts.push(PartEnum::from_function_response(fr1.clone()));
+        parts.push(PartEnum::from_text("Text"));
+        
+        let frs: Vec<&FunctionResponse> = parts.function_responses().collect();
+        assert_eq!(frs.len(), 1);
+        assert_eq!(frs[0].name, "func1");
+    }
+
+    #[test]
+    fn test_parts_function_response_by_id() {
+        let mut parts = Parts::default();
+        let fc = FunctionCall::new("test_func".to_string(), json!({}));
+        let fr = FunctionResponse {
+            id: fc.id.clone(),
+            name: "test_func".to_string(),
+            result: json!({"result": 42}),
+        };
+        
+        parts.push(PartEnum::from_function_response(fr.clone()));
+        
+        let found = parts.function_response(fc.id.clone().unwrap());
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().name, "test_func");
+    }
+
+    #[test]
+    fn test_parts_function_response_not_found() {
+        let mut parts = Parts::default();
+        let fc = FunctionCall::new("test".to_string(), json!({}));
+        
+        let found = parts.function_response(CallId::new());
+        assert!(found.is_none());
+    }
+
+    #[test]
+    fn test_part_enum_default() {
+        let part = PartEnum::default();
+        match part {
+            PartEnum::Text(text) => assert_eq!(text.as_str(), ""),
+            _ => panic!("Default should be empty text"),
+        }
+    }
+
+    #[test]
+    fn test_part_enum_from_text() {
+        let part = PartEnum::from_text("Hello");
+        assert_eq!(part.text().unwrap().as_str(), "Hello");
+    }
+
+    #[test]
+    fn test_part_enum_from_reasoning() {
+        let part = PartEnum::from_reasoning("Thinking...");
+        assert_eq!(part.reasoning().unwrap().as_str(), "Thinking...");
+    }
+
+    #[test]
+    fn test_part_enum_from_structured() {
+        let value = json!({"data": [1, 2, 3]});
+        let part = PartEnum::from_structured(value.clone());
+        assert_eq!(part.structured().unwrap(), value);
+    }
+
+    #[test]
+    fn test_part_enum_from_function_call() {
+        let fc = FunctionCall::new("test".to_string(), json!({"arg": "value"}));
+        let part = PartEnum::from_function_call(fc.clone());
+        assert_eq!(part.function_call().unwrap().name, "test");
+    }
+
+    #[test]
+    fn test_part_enum_from_function_response() {
+        let fc = FunctionCall::new("test".to_string(), json!({}));
+        let fr = FunctionResponse {
+            id: fc.id.clone(),
+            name: "test".to_string(),
+            result: json!({"ok": true}),
+        };
+        let part = PartEnum::from_function_response(fr.clone());
+        assert_eq!(part.function_response().unwrap().name, "test");
+    }
+
+    #[test]
+    fn test_part_enum_text_getter() {
+        let part = PartEnum::from_text("Test");
+        assert!(part.text().is_some());
+        assert!(part.reasoning().is_none());
+        assert!(part.structured().is_none());
+    }
+
+    #[test]
+    fn test_part_enum_reasoning_getter() {
+        let part = PartEnum::from_reasoning("Think");
+        assert!(part.reasoning().is_some());
+        assert!(part.text().is_none());
+    }
+
+    #[test]
+    fn test_part_enum_structured_getter() {
+        let part = PartEnum::from_structured(json!({}));
+        assert!(part.structured().is_some());
+        assert!(part.text().is_none());
+    }
+
+    #[test]
+    fn test_part_enum_function_call_getter() {
+        let fc = FunctionCall::new("test".to_string(), json!({}));
+        let part = PartEnum::from_function_call(fc);
+        assert!(part.function_call().is_some());
+        assert!(part.text().is_none());
+    }
+
+    #[test]
+    fn test_part_enum_function_response_getter() {
+        let fc = FunctionCall::new("test".to_string(), json!({}));
+        let fr = FunctionResponse {
+            id: fc.id,
+            name: "test".to_string(),
+            result: json!({}),
+        };
+        let part = PartEnum::from_function_response(fr);
+        assert!(part.function_response().is_some());
+        assert!(part.text().is_none());
+    }
+
+    #[test]
+    fn test_part_enum_display_text() {
+        let part = PartEnum::from_text("Display me");
+        assert_eq!(format!("{}", part), "Display me");
+    }
+
+    #[test]
+    fn test_part_enum_display_reasoning() {
+        let part = PartEnum::from_reasoning("Reasoning text");
+        assert_eq!(format!("{}", part), "Reasoning text");
+    }
+
+    #[test]
+    fn test_part_enum_display_structured() {
+        let part = PartEnum::from_structured(json!({"key": "value"}));
+        let display = format!("{}", part);
+        assert!(display.contains("key"));
+        assert!(display.contains("value"));
+    }
+
+    #[test]
+    fn test_part_enum_display_function_call() {
+        let fc = FunctionCall::new("my_function".to_string(), json!({}));
+        let part = PartEnum::from_function_call(fc);
+        assert_eq!(format!("{}", part), "my_function");
+    }
+
+    #[test]
+    fn test_part_enum_display_function_response() {
+        let fc = FunctionCall::new("response_func".to_string(), json!({}));
+        let fr = FunctionResponse {
+            id: fc.id,
+            name: "response_func".to_string(),
+            result: json!({}),
+        };
+        let part = PartEnum::from_function_response(fr);
+        assert_eq!(format!("{}", part), "response_func");
+    }
+
+    #[test]
+    fn test_parts_serialization() {
+        let mut parts = Parts::default();
+        parts.push(PartEnum::from_text("Test"));
+        
+        let serialized = serde_json::to_string(&parts).unwrap();
+        let deserialized: Parts = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parts, deserialized);
+    }
+
+    #[test]
+    fn test_part_enum_clone() {
+        let part1 = PartEnum::from_text("Clone me");
+        let part2 = part1.clone();
+        assert_eq!(part1, part2);
+    }
+
+    #[test]
+    fn test_parts_with_mixed_types() {
+        let mut parts = Parts::default();
+        parts.push(PartEnum::from_text("Text"));
+        parts.push(PartEnum::from_reasoning("Reasoning"));
+        parts.push(PartEnum::from_structured(json!({"key": "value"})));
+        
+        assert_eq!(parts.length(), 3);
+        assert_eq!(parts.text_parts().count(), 1);
+    }
+
+    #[test]
+    fn test_parts_empty_checks() {
+        let parts = Parts::default();
+        assert!(parts.is_empty());
+        assert_eq!(parts.len(), 0);
+        
+        let mut parts2 = Parts::default();
+        parts2.push(PartEnum::from_text("Not empty"));
+        assert!(!parts2.is_empty());
+        assert_eq!(parts2.len(), 1);
+    }
+
+    #[test]
+    fn test_parts_equality() {
+        let mut parts1 = Parts::default();
+        parts1.push(PartEnum::from_text("Same"));
+        
+        let mut parts2 = Parts::default();
+        parts2.push(PartEnum::from_text("Same"));
+        
+        assert_eq!(parts1, parts2);
+    }
+
+    #[test]
+    fn test_part_enum_equality() {
+        let part1 = PartEnum::from_text("Same");
+        let part2 = PartEnum::from_text("Same");
+        assert_eq!(part1, part2);
+        
+        let part3 = PartEnum::from_text("Different");
+        assert_ne!(part1, part3);
+    }
+}
