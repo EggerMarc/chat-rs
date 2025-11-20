@@ -19,7 +19,17 @@ impl Parts {
             .next()
     }
 
-    pub fn length(&self) -> usize {
+    /// Get the number of parts contained in this `Parts` wrapper.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::core::messages::parts::{Parts, PartEnum};
+    ///
+    /// let parts = Parts(vec![PartEnum::from_text("hello")]);
+    /// assert_eq!(parts.len(), 1);
+    /// ```
+    pub fn len(&self) -> usize {
         self.0.len()
     }
 
@@ -89,20 +99,6 @@ impl Parts {
 
     fn is_empty(&self) -> bool {
         self.0.is_empty()
-    }
-
-    /// Get the number of parts contained in this `Parts` wrapper.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use crate::core::messages::parts::{Parts, PartEnum};
-    ///
-    /// let parts = Parts(vec![PartEnum::from_text("hello")]);
-    /// assert_eq!(parts.len(), 1);
-    /// ```
-    fn len(&self) -> usize {
-        self.0.len()
     }
 }
 
@@ -201,7 +197,7 @@ mod tests {
     #[test]
     fn test_parts_default() {
         let parts = Parts::default();
-        assert_eq!(parts.length(), 0);
+        assert_eq!(parts.len(), 0);
         assert!(parts.is_empty());
     }
 
@@ -209,7 +205,7 @@ mod tests {
     fn test_parts_push() {
         let mut parts = Parts::default();
         parts.push(PartEnum::from_text("Hello"));
-        assert_eq!(parts.length(), 1);
+        assert_eq!(parts.len(), 1);
         assert!(!parts.is_empty());
     }
 
@@ -219,7 +215,7 @@ mod tests {
         parts
             .push(PartEnum::from_text("First"))
             .push(PartEnum::from_text("Second"));
-        assert_eq!(parts.length(), 2);
+        assert_eq!(parts.len(), 2);
     }
 
     #[test]
@@ -231,7 +227,7 @@ mod tests {
         parts2.push(PartEnum::from_text("Second"));
 
         parts1.extend(parts2);
-        assert_eq!(parts1.length(), 2);
+        assert_eq!(parts1.len(), 2);
     }
 
     #[test]
@@ -241,7 +237,7 @@ mod tests {
 
         parts.push(PartEnum::from_text("First"));
         parts.push(PartEnum::from_text("Second"));
-        
+
         let last = parts.last().unwrap();
         assert_eq!(last.text().unwrap().as_str(), "Second");
     }
@@ -251,7 +247,7 @@ mod tests {
         let mut parts = Parts::default();
         parts.push(PartEnum::from_reasoning("Thinking"));
         parts.push(PartEnum::from_text("Response"));
-        
+
         let text = parts.text_response().unwrap();
         assert_eq!(text.as_str(), "Response");
     }
@@ -260,7 +256,7 @@ mod tests {
     fn test_parts_text_response_none() {
         let mut parts = Parts::default();
         parts.push(PartEnum::from_reasoning("Only reasoning"));
-        
+
         assert!(parts.text_response().is_none());
     }
 
@@ -269,7 +265,7 @@ mod tests {
         let mut parts = Parts::default();
         let value = json!({"key": "value"});
         parts.push(PartEnum::from_structured(value.clone()));
-        
+
         let structured = parts.structured_response().unwrap();
         assert_eq!(structured, &value);
     }
@@ -278,7 +274,7 @@ mod tests {
     fn test_parts_structured_response_none() {
         let mut parts = Parts::default();
         parts.push(PartEnum::from_text("Text only"));
-        
+
         assert!(parts.structured_response().is_none());
     }
 
@@ -288,7 +284,7 @@ mod tests {
         parts.push(PartEnum::from_text("First"));
         parts.push(PartEnum::from_reasoning("Thinking"));
         parts.push(PartEnum::from_text("Second"));
-        
+
         let texts: Vec<&Text> = parts.text_parts().collect();
         assert_eq!(texts.len(), 2);
         assert_eq!(texts[0].as_str(), "First");
@@ -300,11 +296,11 @@ mod tests {
         let mut parts = Parts::default();
         let fc1 = FunctionCall::new("func1".to_string(), json!({"arg": 1}));
         let fc2 = FunctionCall::new("func2".to_string(), json!({"arg": 2}));
-        
+
         parts.push(PartEnum::from_function_call(fc1.clone()));
         parts.push(PartEnum::from_text("Text"));
         parts.push(PartEnum::from_function_call(fc2.clone()));
-        
+
         let fcs: Vec<&FunctionCall> = parts.function_calls().collect();
         assert_eq!(fcs.len(), 2);
         assert_eq!(fcs[0].name, "func1");
@@ -320,10 +316,10 @@ mod tests {
             name: "func1".to_string(),
             result: json!({"status": "ok"}),
         };
-        
+
         parts.push(PartEnum::from_function_response(fr1.clone()));
         parts.push(PartEnum::from_text("Text"));
-        
+
         let frs: Vec<&FunctionResponse> = parts.function_responses().collect();
         assert_eq!(frs.len(), 1);
         assert_eq!(frs[0].name, "func1");
@@ -338,9 +334,9 @@ mod tests {
             name: "test_func".to_string(),
             result: json!({"result": 42}),
         };
-        
+
         parts.push(PartEnum::from_function_response(fr.clone()));
-        
+
         let found = parts.function_response(fc.id.clone().unwrap());
         assert!(found.is_some());
         assert_eq!(found.unwrap().name, "test_func");
@@ -350,7 +346,7 @@ mod tests {
     fn test_parts_function_response_not_found() {
         let mut parts = Parts::default();
         let fc = FunctionCall::new("test".to_string(), json!({}));
-        
+
         let found = parts.function_response(CallId::new());
         assert!(found.is_none());
     }
@@ -488,7 +484,7 @@ mod tests {
     fn test_parts_serialization() {
         let mut parts = Parts::default();
         parts.push(PartEnum::from_text("Test"));
-        
+
         let serialized = serde_json::to_string(&parts).unwrap();
         let deserialized: Parts = serde_json::from_str(&serialized).unwrap();
         assert_eq!(parts, deserialized);
@@ -507,8 +503,8 @@ mod tests {
         parts.push(PartEnum::from_text("Text"));
         parts.push(PartEnum::from_reasoning("Reasoning"));
         parts.push(PartEnum::from_structured(json!({"key": "value"})));
-        
-        assert_eq!(parts.length(), 3);
+
+        assert_eq!(parts.len(), 3);
         assert_eq!(parts.text_parts().count(), 1);
     }
 
@@ -517,7 +513,7 @@ mod tests {
         let parts = Parts::default();
         assert!(parts.is_empty());
         assert_eq!(parts.len(), 0);
-        
+
         let mut parts2 = Parts::default();
         parts2.push(PartEnum::from_text("Not empty"));
         assert!(!parts2.is_empty());
@@ -528,10 +524,10 @@ mod tests {
     fn test_parts_equality() {
         let mut parts1 = Parts::default();
         parts1.push(PartEnum::from_text("Same"));
-        
+
         let mut parts2 = Parts::default();
         parts2.push(PartEnum::from_text("Same"));
-        
+
         assert_eq!(parts1, parts2);
     }
 
@@ -540,7 +536,7 @@ mod tests {
         let part1 = PartEnum::from_text("Same");
         let part2 = PartEnum::from_text("Same");
         assert_eq!(part1, part2);
-        
+
         let part3 = PartEnum::from_text("Different");
         assert_ne!(part1, part3);
     }

@@ -95,7 +95,7 @@ pub fn from_system(prompts: Vec<&str>) -> Content {
 /// assert_eq!(content.parts.0.len(), 1);
 /// ```
 pub fn from_model(prompts: Vec<&str>) -> Content {
-    let role = RoleEnum::System;
+    let role = RoleEnum::Model;
     let parts = Parts(
         prompts
             .iter()
@@ -128,14 +128,14 @@ mod tests {
     #[test]
     fn test_from_user_with_single_prompt() {
         let content = from_user(vec!["Test message"]);
-        assert_eq!(content.parts.length(), 1);
+        assert_eq!(content.parts.len(), 1);
         assert_eq!(content.parts.text_response().unwrap().as_str(), "Test message");
     }
 
     #[test]
     fn test_from_user_with_multiple_prompts() {
         let content = from_user(vec!["First", "Second", "Third"]);
-        assert_eq!(content.parts.length(), 3);
+        assert_eq!(content.parts.len(), 3);
         let texts: Vec<&str> = content.parts.text_parts().map(|t| t.as_str()).collect();
         assert_eq!(texts, vec!["First", "Second", "Third"]);
     }
@@ -143,21 +143,21 @@ mod tests {
     #[test]
     fn test_from_user_with_empty_prompts() {
         let content = from_user(vec![]);
-        assert_eq!(content.parts.length(), 0);
+        assert_eq!(content.parts.len(), 0);
         assert_eq!(content.role, RoleEnum::User);
     }
 
     #[test]
     fn test_from_user_with_empty_string() {
         let content = from_user(vec![""]);
-        assert_eq!(content.parts.length(), 1);
+        assert_eq!(content.parts.len(), 1);
         assert_eq!(content.parts.text_response().unwrap().as_str(), "");
     }
 
     #[test]
     fn test_from_user_with_unicode_and_special_chars() {
         let content = from_user(vec!["Hello 🌍!", "Special chars: @#$%", "Unicode: 你好"]);
-        assert_eq!(content.parts.length(), 3);
+        assert_eq!(content.parts.len(), 3);
     }
 
     #[test]
@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn test_from_system_with_single_prompt() {
         let content = from_system(vec!["You are a helpful assistant"]);
-        assert_eq!(content.parts.length(), 1);
+        assert_eq!(content.parts.len(), 1);
         assert_eq!(
             content.parts.text_response().unwrap().as_str(),
             "You are a helpful assistant"
@@ -185,13 +185,13 @@ mod tests {
     #[test]
     fn test_from_system_with_multiple_prompts() {
         let content = from_system(vec!["Rule 1", "Rule 2", "Rule 3"]);
-        assert_eq!(content.parts.length(), 3);
+        assert_eq!(content.parts.len(), 3);
     }
 
     #[test]
     fn test_from_system_with_empty_prompts() {
         let content = from_system(vec![]);
-        assert_eq!(content.parts.length(), 0);
+        assert_eq!(content.parts.len(), 0);
         assert_eq!(content.role, RoleEnum::System);
     }
 
@@ -199,7 +199,7 @@ mod tests {
     fn test_from_system_with_long_text() {
         let long_text = "a".repeat(10000);
         let content = from_system(vec![&long_text]);
-        assert_eq!(content.parts.length(), 1);
+        assert_eq!(content.parts.len(), 1);
         assert_eq!(content.parts.text_response().unwrap().as_str().len(), 10000);
     }
 
@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn test_from_model_with_single_prompt() {
         let content = from_model(vec!["Here is my response"]);
-        assert_eq!(content.parts.length(), 1);
+        assert_eq!(content.parts.len(), 1);
         assert_eq!(
             content.parts.text_response().unwrap().as_str(),
             "Here is my response"
@@ -229,13 +229,13 @@ mod tests {
     #[test]
     fn test_from_model_with_multiple_prompts() {
         let content = from_model(vec!["Part 1", "Part 2"]);
-        assert_eq!(content.parts.length(), 2);
+        assert_eq!(content.parts.len(), 2);
     }
 
     #[test]
     fn test_from_model_with_empty_prompts() {
         let content = from_model(vec![]);
-        assert_eq!(content.parts.length(), 0);
+        assert_eq!(content.parts.len(), 0);
     }
 
     #[test]
@@ -243,7 +243,7 @@ mod tests {
         let content = Content::default();
         assert_eq!(content.role, RoleEnum::User);
         assert_eq!(content.complete_reason, CompleteReasonEnum::None);
-        assert_eq!(content.parts.length(), 0);
+        assert_eq!(content.parts.len(), 0);
     }
 
     #[test]

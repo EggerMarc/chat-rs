@@ -239,11 +239,11 @@ mod tests {
         
         messages.push(user_content1);
         assert_eq!(messages.len(), 1);
-        assert_eq!(messages.last().unwrap().parts.length(), 1);
+        assert_eq!(messages.last().unwrap().parts.len(), 1);
         
         messages.push(user_content2);
         assert_eq!(messages.len(), 1); // Should still be 1 message
-        assert_eq!(messages.last().unwrap().parts.length(), 2); // But with 2 parts
+        assert_eq!(messages.last().unwrap().parts.len(), 2); // But with 2 parts
     }
 
     #[test]
@@ -280,14 +280,14 @@ mod tests {
     fn test_from_user_with_multiple_prompts() {
         let messages = from_user(vec!["First", "Second", "Third"]);
         assert_eq!(messages.len(), 1);
-        assert_eq!(messages.last().unwrap().parts.length(), 3);
+        assert_eq!(messages.last().unwrap().parts.len(), 3);
     }
 
     #[test]
     fn test_from_system_with_empty_prompts() {
         let messages = from_system(vec![]);
         assert_eq!(messages.len(), 1);
-        assert_eq!(messages.last().unwrap().parts.length(), 0);
+        assert_eq!(messages.last().unwrap().parts.len(), 0);
     }
 
     #[test]
@@ -326,7 +326,7 @@ mod tests {
         
         messages.push(model_content);
         assert_eq!(messages.len(), 1);
-        assert_eq!(messages.last().unwrap().parts.length(), 2);
+        assert_eq!(messages.last().unwrap().parts.len(), 2);
     }
 
     #[test]
@@ -348,6 +348,6 @@ mod tests {
         messages.push(content::from_user(vec!["Part 3"]));
         
         assert_eq!(messages.len(), 1);
-        assert_eq!(messages.last().unwrap().parts.length(), 3);
+        assert_eq!(messages.last().unwrap().parts.len(), 3);
     }
 }

@@ -101,7 +101,7 @@ impl ChatProvider for GeminiClient {
             Some(t) => json!({
                 "contents": messages.into_gemini(),
                 "tools": {
-                   "functionDeclarations": t.json().unwrap()
+                   "functionDeclarations": t.json().map_err(|err| ChatError::Other(format!("Tools-rs Serialization error: {}", err)))?
                 }
             }),
             None => json!({
@@ -123,13 +123,12 @@ impl ChatProvider for GeminiClient {
         let json: Value =
             serde_json::from_str(&text).map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
 
-        let content = parse_gemini_content(&json);
-        if content.is_err() {
-            println!("Caught error in parser");
-        }
-        //.map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
+        let content = parse_gemini_content(&json).map_err(|e| {
+            ChatError::InvalidResponse(format!("Failed to parse gemini content: {}", e))
+        })?;
 
-        Ok(content.unwrap())
+        //.map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
+        Ok(content)
     }
 }
 
@@ -168,7 +167,12 @@ impl Content {
     /// ```
     fn into_gemini(&self) -> Value {
         json!({
-            "parts": self.parts.0.iter().map(|part| part.into_gemini()).collect::<Vec<Value>>()
+            "parts": self.parts.0.iter().map(|part| part.into_gemini()).collect::<Vec<Value>>(),
+            "role": match self.role{
+                RoleEnum::User => "user",
+                RoleEnum::System => "system",
+                RoleEnum::Model => "model",
+            }
         })
     }
 }
@@ -189,8 +193,8 @@ impl PartEnum {
         match self {
             PartEnum::Reasoning(text) => json!({"reasoning": text}),
             PartEnum::Text(text) => json!({"text": text}),
-            PartEnum::FunctionCall(fc) => json!({"function_call": fc}),
-            PartEnum::FunctionResponse(fr) => json!({"function_response": fr}),
+            PartEnum::FunctionCall(fc) => json!({"functionCall": fc}),
+            PartEnum::FunctionResponse(fr) => json!({"functionResponse": fr}),
             _ => unimplemented!(),
         }
     }
@@ -452,7 +456,7 @@ mod tests {
         let content = parse_gemini_content(&json).unwrap();
         assert_eq!(content.role, RoleEnum::Model);
         assert_eq!(content.complete_reason, CompleteReasonEnum::Stop);
-        assert_eq!(content.parts.length(), 1);
+        assert_eq!(content.parts.len(), 1);
         assert_eq!(
             content.parts.text_response().unwrap().as_str(),
             "Hello, this is a response"
@@ -481,7 +485,7 @@ mod tests {
         });
 
         let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.length(), 1);
+        assert_eq!(content.parts.len(), 1);
 
         let fc = content.parts.function_calls().next().unwrap();
         assert_eq!(fc.name, "get_weather");
@@ -503,7 +507,7 @@ mod tests {
         });
 
         let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.length(), 2);
+        assert_eq!(content.parts.len(), 2);
     }
 
     #[test]
@@ -646,7 +650,7 @@ mod tests {
         });
 
         let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.length(), 0);
+        assert_eq!(content.parts.len(), 0);
     }
 
     #[test]
@@ -727,7 +731,7 @@ mod tests {
         });
 
         let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.length(), 3);
+        assert_eq!(content.parts.len(), 3);
         assert_eq!(content.parts.text_parts().count(), 2);
         assert_eq!(content.parts.function_calls().count(), 1);
     }
@@ -789,7 +793,7 @@ mod tests {
         });
 
         let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.length(), 1);
+        assert_eq!(content.parts.len(), 1);
         assert_eq!(content.parts.text_response().unwrap().as_str(), "");
     }
 
