@@ -13,6 +13,7 @@ pub trait ChatProvider: Send + Sync {
         messages: &Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
+        structured_output: Option<&schemars::Schema>,
     ) -> Result<Content, ChatError>;
 }
 

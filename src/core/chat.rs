@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use tools_rs::ToolCollection;
 
 use crate::core::{
@@ -12,6 +13,7 @@ use crate::core::{
 #[derive(Default)]
 pub struct Chat<CP: ChatProvider> {
     model: CP,
+    output_shape: Option<schemars::Schema>,
     model_options: Option<ChatOptions>,
     max_steps: Option<i16>,
     max_retries: Option<i16>,
@@ -91,32 +93,25 @@ impl<CP: ChatProvider> Chat<CP> {
         Ok(frs)
     }
 
-    /// Drives an iterative model completion loop, optionally invoking tools, until a terminal text part is produced or a stopping error occurs.
+    /// Runs the model completion loop until a terminal response is produced or the allowed steps are exhausted.
     ///
-    /// This method clones the provided `messages` and repeatedly calls the configured chat model (up to `max_steps.unwrap_or(1)` iterations). After each model response it attempts tool calls and, if tools return parts, appends them to the response. The loop examines the response's last part:
-    /// - If the last part is text, the response is returned as the final content.
-    /// - If the last part is reasoning, that reasoning is converted into a part and appended so the loop can continue.
-    /// - If the last part is structured, an error is returned since structured outputs are not implemented.
-    /// If a response contains no parts, an `InvalidResponse` error is returned. If the loop completes without producing a terminal text part, a `RateLimited` error is returned. Errors from the underlying model completion are propagated.
-    ///
-    /// # Parameters
-    ///
-    /// - `messages`: the conversation history to drive the completion loop; this value is cloned and extended internally as the loop progresses.
-    ///
-    /// # Returns
-    ///
-    /// `Ok(Content)` with the final response whose last part is text, or `Err(ChatError)` if the model returns an error, the response is invalid or structured, or the loop exhausts allowed steps.
+    /// The provided `messages` are cloned and used as the conversation history for repeated model completions. After each model response, configured tools (if any) are invoked and their parts appended. Termination behavior:
+    /// - If the final part is text, that `Content` is returned.
+    /// - If the final part is structured, that `Content` is returned.
+    /// - If the final part is reasoning, the reasoning is appended and the loop continues.
+    /// - If a response contains no parts, an `InvalidResponse` error is returned.
+    /// If the loop finishes without producing a terminal text or structured part, a `RateLimited` error is returned. Errors from the underlying model or tools are propagated.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// // Construct a Chat instance and messages, then run the loop:
+    /// # use tokio;
+    /// # async fn _example() {
     /// // let mut chat: Chat<MyProvider> = /* configured chat */ ;
     /// // let messages = Messages::default();
-    /// // let result = tokio::runtime::Runtime::new().unwrap().block_on(async {
-    /// //     chat.call_loop(&messages).await
-    /// // });
+    /// // let result = chat.call_loop(&messages).await;
     /// // assert!(result.is_ok() || result.is_err());
+    /// # }
     /// ```
     async fn call_loop(&mut self, messages: &Messages) -> Result<Content, ChatError> {
         let mut inner_messages = messages.clone();
@@ -127,6 +122,7 @@ impl<CP: ChatProvider> Chat<CP> {
                     &inner_messages,
                     self.tools.as_ref(),
                     self.model_options.as_ref(),
+                    self.output_shape.as_ref(),
                 )
                 .await?;
             if let Ok(frs) = self.tool_call(&response).await
@@ -143,10 +139,8 @@ impl<CP: ChatProvider> Chat<CP> {
                             .parts
                             .push(PartEnum::from_reasoning(reasoning.to_owned()));
                     }
-                    PartEnum::Structured(_) => {
-                        return Err(ChatError::Other(
-                            "Structured output not yet implemented".to_string(),
-                        ));
+                    PartEnum::Structured(_structured) => {
+                        return Ok(response);
                     }
                     _ => {}
                 },
@@ -158,26 +152,6 @@ impl<CP: ChatProvider> Chat<CP> {
             };
 
             inner_messages.push(response.clone());
-            /*
-                            return match response.complete_reason {
-                                CompleteReasonEnum::Stop => Ok(response),
-                                CompleteReasonEnum::MaxTokens => Err(ChatError::RateLimited),
-                                CompleteReasonEnum::Recitation => Err(ChatError::Provider(
-                                    "Content response was recited".to_string(),
-                                )),
-                                CompleteReasonEnum::ContentFilter => Err(ChatError::Provider(
-                                    "Content response was filtered".to_string(),
-                                )),
-                                CompleteReasonEnum::ToolCall => {
-                                    // Gemini doesn't have this.
-                                    response.parts.extend(self.tool_call(&response).await?);
-                                    continue;
-                                }
-                                CompleteReasonEnum::None => {
-                                    // Default implementation for completion when no stopping reason is provided
-                                }
-                            };
-            */
         }
         Err(ChatError::RateLimited)
     }
@@ -185,6 +159,7 @@ impl<CP: ChatProvider> Chat<CP> {
 
 pub struct ChatBuilder<CP: ChatProvider> {
     model: Option<CP>,
+    output_shape: Option<schemars::Schema>,
     model_options: Option<ChatOptions>,
     max_steps: Option<i16>,
     max_retries: Option<i16>,
@@ -192,16 +167,67 @@ pub struct ChatBuilder<CP: ChatProvider> {
 }
 
 impl<CP: ChatProvider> ChatBuilder<CP> {
+    /// Create a new ChatBuilder with all configuration fields unset.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// // Type parameter must be provided so the builder knows the provider type.
+    /// let _builder = ChatBuilder::<crate::MockChatProvider>::new();
+    /// ```
     pub fn new() -> Self {
         ChatBuilder {
             model: None,
             max_steps: None,
             max_retries: None,
+            output_shape: None,
             tools: None,
             model_options: None,
         }
     }
 
+    /// Configure the builder to expect structured JSON output shaped like `S`.
+    ///
+    /// This consumes the builder and returns a new `ChatBuilder` with `output_shape` set to the schemars
+    /// schema generated for `S`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use schemars::JsonSchema;
+    ///
+    /// #[derive(JsonSchema)]
+    /// struct Out { pub a: String }
+    ///
+    /// let b = ChatBuilder::<()>::new().with_structured_output::<Out>();
+    /// assert!(b.output_shape.is_some());
+    /// ```
+    pub fn with_structured_output<S>(self) -> ChatBuilder<CP>
+    where
+        S: JsonSchema + Send + Sync,
+    {
+        let shape = schemars::schema_for!(S);
+
+        ChatBuilder {
+            model: self.model,
+            max_steps: self.max_steps,
+            max_retries: self.max_retries,
+            output_shape: Some(shape),
+            tools: self.tools,
+            model_options: self.model_options,
+        }
+    }
+
+    /// Sets the maximum number of iterations the chat loop will perform when running `call_loop`.
+    ///
+    /// Returns the builder with `max_steps` set to the provided value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let builder = ChatBuilder::new().with_max_steps(3);
+    /// assert_eq!(builder.max_steps, Some(3));
+    /// ```
     pub fn with_max_steps(mut self, max_steps: i16) -> Self {
         self.max_steps = Some(max_steps);
         self
@@ -222,7 +248,7 @@ impl<CP: ChatProvider> ChatBuilder<CP> {
         self
     }
 
-    /// Builds a Chat instance from this builder, consuming the builder.
+    /// Creates a Chat from this builder, consuming the builder.
     ///
     /// # Panics
     ///
@@ -238,6 +264,7 @@ impl<CP: ChatProvider> ChatBuilder<CP> {
     pub fn build(self) -> Chat<CP> {
         Chat {
             model: self.model.expect("Need to set a model"),
+            output_shape: self.output_shape,
             max_steps: self.max_steps,
             max_retries: self.max_retries,
             tools: self.tools,
@@ -259,6 +286,35 @@ impl<CP: ChatProvider> Default for ChatBuilder<CP> {
     /// ```
     fn default() -> Self {
         ChatBuilder::new()
+    }
+}
+
+/// Extracts a JSON candidate from the last part of `content`.
+///
+/// If the last part is `PartEnum::Structured`, returns its contained `serde_json::Value`.
+/// If the last part is `PartEnum::Text` and the text parses as JSON, returns the parsed `Value`.
+/// Returns `None` if there is no last part, the last part is neither `Structured` nor parsable `Text`.
+///
+/// # Examples
+///
+/// ```
+/// use serde_json::json;
+/// let c = Content { parts: vec![PartEnum::Text("{\"a\":1}".into())] };
+/// assert_eq!(extract_structured_candidate(&c), Some(json!({"a":1})));
+///
+/// let c2 = Content { parts: vec![PartEnum::Structured(json!({"b":2}))] };
+/// assert_eq!(extract_structured_candidate(&c2), Some(json!({"b":2})));
+///
+/// let empty = Content { parts: vec![] };
+/// assert_eq!(extract_structured_candidate(&empty), None);
+/// ```
+fn extract_structured_candidate(content: &Content) -> Option<serde_json::Value> {
+    let last = content.parts.last()?;
+
+    match last {
+        PartEnum::Structured(v) => Some(v.clone()),
+        PartEnum::Text(t) => serde_json::from_str::<serde_json::Value>(t.as_str()).ok(),
+        _ => None,
     }
 }
 
@@ -296,11 +352,40 @@ mod tests {
 
     #[async_trait]
     impl ChatProvider for MockChatProvider {
+        /// Returns the next preconfigured `Content` response and advances the provider's internal call counter.
+        ///
+        /// If called more times than there are configured responses, this function returns the last response repeatedly.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// // Construct a mock provider with two prepared responses.
+        /// let provider = MockChatProvider::new(vec![content_a.clone(), content_b.clone()]);
+        ///
+        /// // First call returns the first response.
+        /// let first = tokio::runtime::Runtime::new().unwrap()
+        ///     .block_on(provider.complete(&Messages::default(), None, None, None))
+        ///     .unwrap();
+        /// assert_eq!(first, content_a);
+        ///
+        /// // Second call returns the second response.
+        /// let second = tokio::runtime::Runtime::new().unwrap()
+        ///     .block_on(provider.complete(&Messages::default(), None, None, None))
+        ///     .unwrap();
+        /// assert_eq!(second, content_b);
+        ///
+        /// // Further calls return the last response repeatedly.
+        /// let third = tokio::runtime::Runtime::new().unwrap()
+        ///     .block_on(provider.complete(&Messages::default(), None, None, None))
+        ///     .unwrap();
+        /// assert_eq!(third, content_b);
+        /// ```
         async fn complete(
             &self,
             _messages: &Messages,
             _tools: Option<&ToolCollection>,
             _options: Option<&ChatOptions>,
+            _schema: Option<&schemars::Schema>,
         ) -> Result<Content, ChatError> {
             let mut count = self.call_count.lock().unwrap();
             let idx = *count;
