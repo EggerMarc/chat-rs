@@ -64,10 +64,7 @@ impl ChatProvider for GeminiClient {
                 let json: Value = serde_json::from_str(&text)
                     .map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
 
-                println!("Content response JSON: {:?}", json);
-
                 let content = parse_gemini_response(&json)?;
-                println!("Content response: {:?}", content);
 
                 Ok(content)
             }

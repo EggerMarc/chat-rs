@@ -6,14 +6,14 @@ use chat_rs::{
 use tools_rs::{collect_tools, tool};
 
 #[tool]
-/// Gets user metadata
+/// Gets user metadata. Must be called whenever name is found.
 async fn get_user_metadata(name: String) -> String {
     format!("The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate", name).to_string()
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = gemini::GeminiClient::new("gemini-2.0-flash")?;
+    let client = gemini::GeminiClient::new("gemini-2.5-flash")?;
     let tools = collect_tools();
     let mut chat = ChatBuilder::new()
         .with_tools(tools)
@@ -36,6 +36,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let response = chat.complete(&mut messages).await?;
         messages.push(response.clone());
-        println!("Model:\t{:?}", response);
+        println!("Model:\t{:?}", response.parts.last());
     }
 }
