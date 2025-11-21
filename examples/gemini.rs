@@ -5,22 +5,9 @@ use chat_rs::{
 };
 use schemars::JsonSchema;
 use tools_rs::{collect_tools, tool};
-/// Produces a brief human-readable description for a given user name.
-///
-/// The returned string is a single sentence that includes the provided name, mentions the user's favorite foods (tacos and burgers), and notes that they enjoy pirate-style speech.
-///
-/// # Examples
-///
-/// ```
-/// #[tokio::test]
-/// async fn example_get_user_metadata() {
-///     let s = get_user_metadata("Alice".into()).await;
-///     assert!(s.contains("Alice"));
-///     assert!(s.contains("tacos"));
-///     assert!(s.contains("pirate"));
-/// }
-/// ```
+
 #[tool]
+/// Gets user metadata. Must be called whenever a name is identified.
 async fn get_user_metadata(name: String) -> String {
     format!("The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate", name).to_string()
 }
@@ -31,16 +18,6 @@ struct User {
     likes: Vec<String>,
 }
 
-/// Starts an interactive REPL that sends user input to a Gemini model and prints the model's responses.
-///
-/// The function initializes a Gemini client, collects available tools, builds a chat configured to emit structured output for the `User` type, and then enters a loop that reads lines from standard input, sends them as user messages to the model, appends model responses to the conversation, and prints the last response part to stdout.
-///
-/// # Examples
-///
-/// ```no_run
-/// // Run the compiled binary and type messages when prompted:
-/// // $ cargo run --example gemini
-/// ```
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = gemini::GeminiClient::new("gemini-2.5-flash")?;
