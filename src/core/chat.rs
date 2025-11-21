@@ -99,7 +99,7 @@ impl<CP: ChatProvider> Chat<CP> {
     /// - If the last part is text, the response is returned as the final content.
     /// - If the last part is reasoning, that reasoning is converted into a part and appended so the loop can continue.
     /// - If the last part is structured, an error is returned since structured outputs are not implemented.
-    /// If a response contains no parts, an `InvalidResponse` error is returned. If the loop completes without producing a terminal text part, a `RateLimited` error is returned. Errors from the underlying model completion are propagated.
+    /// - If a response contains no parts, an `InvalidResponse` error is returned. If the loop completes without producing a terminal text part, a `RateLimited` error is returned. Errors from the underlying model completion are propagated.
     ///
     /// # Parameters
     ///
@@ -146,10 +146,8 @@ impl<CP: ChatProvider> Chat<CP> {
                             .parts
                             .push(PartEnum::from_reasoning(reasoning.to_owned()));
                     }
-                    PartEnum::Structured(_) => {
-                        return Err(ChatError::Other(
-                            "Structured output not yet implemented".to_string(),
-                        ));
+                    PartEnum::Structured(_structured) => {
+                        return Ok(response);
                     }
                     _ => {}
                 },
@@ -161,26 +159,6 @@ impl<CP: ChatProvider> Chat<CP> {
             };
 
             inner_messages.push(response.clone());
-            /*
-                            return match response.complete_reason {
-                                CompleteReasonEnum::Stop => Ok(response),
-                                CompleteReasonEnum::MaxTokens => Err(ChatError::RateLimited),
-                                CompleteReasonEnum::Recitation => Err(ChatError::Provider(
-                                    "Content response was recited".to_string(),
-                                )),
-                                CompleteReasonEnum::ContentFilter => Err(ChatError::Provider(
-                                    "Content response was filtered".to_string(),
-                                )),
-                                CompleteReasonEnum::ToolCall => {
-                                    // Gemini doesn't have this.
-                                    response.parts.extend(self.tool_call(&response).await?);
-                                    continue;
-                                }
-                                CompleteReasonEnum::None => {
-                                    // Default implementation for completion when no stopping reason is provided
-                                }
-                            };
-            */
         }
         Err(ChatError::RateLimited)
     }
@@ -281,6 +259,16 @@ impl<CP: ChatProvider> Default for ChatBuilder<CP> {
     /// ```
     fn default() -> Self {
         ChatBuilder::new()
+    }
+}
+
+fn extract_structured_candidate(content: &Content) -> Option<serde_json::Value> {
+    let last = content.parts.last()?;
+
+    match last {
+        PartEnum::Structured(v) => Some(v.clone()),
+        PartEnum::Text(t) => serde_json::from_str::<serde_json::Value>(t.as_str()).ok(),
+        _ => None,
     }
 }
 
