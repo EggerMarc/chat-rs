@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use tools_rs::FunctionResponse;
 
 use crate::core::messages::parts::{PartEnum, Parts};
 
@@ -129,7 +130,10 @@ mod tests {
     fn test_from_user_with_single_prompt() {
         let content = from_user(vec!["Test message"]);
         assert_eq!(content.parts.len(), 1);
-        assert_eq!(content.parts.text_response().unwrap().as_str(), "Test message");
+        assert_eq!(
+            content.parts.text_response().unwrap().as_str(),
+            "Test message"
+        );
     }
 
     #[test]
@@ -277,8 +281,14 @@ mod tests {
     fn test_complete_reason_enum_variants() {
         assert_eq!(CompleteReasonEnum::Stop, CompleteReasonEnum::Stop);
         assert_eq!(CompleteReasonEnum::MaxTokens, CompleteReasonEnum::MaxTokens);
-        assert_eq!(CompleteReasonEnum::ContentFilter, CompleteReasonEnum::ContentFilter);
-        assert_eq!(CompleteReasonEnum::Recitation, CompleteReasonEnum::Recitation);
+        assert_eq!(
+            CompleteReasonEnum::ContentFilter,
+            CompleteReasonEnum::ContentFilter
+        );
+        assert_eq!(
+            CompleteReasonEnum::Recitation,
+            CompleteReasonEnum::Recitation
+        );
         assert_eq!(CompleteReasonEnum::ToolCall, CompleteReasonEnum::ToolCall);
         assert_ne!(CompleteReasonEnum::Stop, CompleteReasonEnum::MaxTokens);
     }

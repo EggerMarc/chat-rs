@@ -1,12 +1,42 @@
-use std::fmt::Display;
-
 use crate::core::messages::text::Text;
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
+use std::slice::{Iter, IterMut};
 use tools_rs::{CallId, FunctionCall, FunctionResponse};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 #[repr(transparent)]
 pub struct Parts(pub Vec<PartEnum>);
+
+// Immutable iterator
+impl IntoIterator for Parts {
+    type Item = PartEnum;
+    type IntoIter = std::vec::IntoIter<PartEnum>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+// Borrowed iterator: &Parts
+impl<'a> IntoIterator for &'a Parts {
+    type Item = &'a PartEnum;
+    type IntoIter = Iter<'a, PartEnum>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+// Mutable borrowed iterator: &mut Parts
+impl<'a> IntoIterator for &'a mut Parts {
+    type Item = &'a mut PartEnum;
+    type IntoIter = IterMut<'a, PartEnum>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
 
 impl Parts {
     pub fn text_response(&self) -> Option<&Text> {

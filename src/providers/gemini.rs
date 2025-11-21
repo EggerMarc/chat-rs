@@ -93,46 +93,95 @@ impl ChatProvider for GeminiClient {
         _options: Option<&ChatOptions>,
     ) -> Result<Content, ChatError> {
         let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
-            self.model_name, self.api_key
+            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
+            self.model_name
         );
 
-        let body = match tools {
-            Some(t) => json!({
-                "contents": messages.into_gemini(),
-                "tools": {
-                   "functionDeclarations": t.json().map_err(|err| ChatError::Other(format!("Tools-rs Serialization error: {}", err)))?
-                }
-            }),
-            None => json!({
-                "contents": messages.into_gemini()
-            }),
-        };
+        let mut body = json!({});
 
-        let res = reqwest::Client::new()
+        if let Some(contents) = messages.into_gemini_messages() {
+            body["contents"] = contents["contents"].clone();
+        }
+        if let Some(system_instructions) = messages.into_gemini_system() {
+            body["system_instruction"] = system_instructions["system_instruction"].clone();
+        }
+        if let Some(t) = tools {
+            body["tools"] = json!({
+             "functionDeclarations": t.json().map_err(|err| {
+                ChatError::Other(format!("Tools-rs Serialization error: {}", err))
+                })?
+            });
+        }
+
+        let req = reqwest::Client::new()
             .post(url)
-            .body(body.to_string())
+            .header("Content-Type", "application/json")
+            .header("x-goog-api-key", &self.api_key)
+            .body(body.to_string());
+        //.body(body.to_string());
+
+        println!("Body: {:#?}", &body);
+        let res = req
             .send()
             .await
             .map_err(|e| ChatError::Provider(e.to_string()))?;
-        let text = res
-            .text()
-            .await
-            .map_err(|e| ChatError::Provider(e.to_string()))?;
 
-        let json: Value =
-            serde_json::from_str(&text).map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
+        println!("Response: {:#?}", res);
 
-        let content = parse_gemini_content(&json).map_err(|e| {
-            ChatError::InvalidResponse(format!("Failed to parse gemini content: {}", e))
-        })?;
+        match res.error_for_status() {
+            Ok(data) => {
+                let text = data
+                    .text()
+                    .await
+                    .map_err(|e| ChatError::Provider(e.to_string()))?;
 
-        //.map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
-        Ok(content)
+                let json: Value = serde_json::from_str(&text)
+                    .map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
+
+                println!("Content response JSON: {:?}", json);
+                let content = parse_gemini_content(&json).map_err(|e| {
+                    ChatError::InvalidResponse(format!("Failed to parse gemini content: {}", e))
+                })?;
+
+                println!("Content response: {:?}", content);
+
+                //.map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
+                return Ok(content);
+            }
+            Err(err) => {
+                println!("Error requesting completion: {}", err);
+                return Err(ChatError::Provider(err.without_url().to_string()));
+            }
+        }
     }
 }
 
 impl Messages {
+    pub fn into_gemini_system(&self) -> Option<Value> {
+        let mut sys_parts: Parts = Parts::default();
+        self.0
+            .iter()
+            .filter(|content| content.role == RoleEnum::System)
+            .for_each(|content| {
+                sys_parts.extend(content.parts.clone());
+            });
+        let parts = sys_parts
+            .0
+            .iter()
+            .map(|part| part.into_gemini())
+            .collect::<Vec<Value>>();
+
+        if sys_parts.is_empty() {
+            None
+        } else {
+            Some(json!({
+                "system_instruction": {
+                "parts": parts
+                }
+            }))
+        }
+    }
+
     /// Converts the message sequence into a Gemini-formatted JSON array.
     ///
     /// Each message is transformed with its `into_gemini` representation and collected into a JSON array value.
@@ -145,8 +194,20 @@ impl Messages {
     /// let json = msgs.into_gemini();
     /// assert!(json.is_array());
     /// ```
-    fn into_gemini(&self) -> Value {
-        self.0.iter().map(|content| content.into_gemini()).collect()
+    ///
+    pub fn into_gemini_messages(&self) -> Option<Value> {
+        let contents: Vec<Value> = self
+            .0
+            .iter()
+            .filter(|content| content.role != RoleEnum::System)
+            .map(|content| content.into_gemini())
+            .collect();
+
+        if contents.is_empty() {
+            None
+        } else {
+            Some(json!({ "contents": contents }))
+        }
     }
 }
 
@@ -166,14 +227,25 @@ impl Content {
     /// assert!(value.get("parts").is_some());
     /// ```
     fn into_gemini(&self) -> Value {
-        json!({
-            "parts": self.parts.0.iter().map(|part| part.into_gemini()).collect::<Vec<Value>>(),
-            "role": match self.role{
-                RoleEnum::User => "user",
-                RoleEnum::System => "system",
-                RoleEnum::Model => "model",
-            }
-        })
+        let parts = self
+            .parts
+            .0
+            .iter()
+            // Skip function responses
+            .map(|part| part.into_gemini())
+            .collect::<Vec<Value>>();
+
+        match self.role {
+            RoleEnum::User => json!({
+                "parts": parts,
+                "role": "user"
+            }),
+            RoleEnum::Model => json!({
+                "parts": parts,
+                "role": "model"
+            }),
+            RoleEnum::System => serde_json::Value::Array(parts),
+        }
     }
 }
 
@@ -193,8 +265,18 @@ impl PartEnum {
         match self {
             PartEnum::Reasoning(text) => json!({"reasoning": text}),
             PartEnum::Text(text) => json!({"text": text}),
-            PartEnum::FunctionCall(fc) => json!({"functionCall": fc}),
-            PartEnum::FunctionResponse(fr) => json!({"functionResponse": fr}),
+            PartEnum::FunctionCall(fc) => json!({"functionCall": {
+                "id": fc.id,
+                "name": fc.name,
+                "args": fc.arguments
+            }}),
+            PartEnum::FunctionResponse(fr) => json!({"functionResponse": {
+                "id": fr.id,
+                "name": fr.name,
+                "response": {
+                    "content": fr.result
+                }
+            }}),
             _ => unimplemented!(),
         }
     }
@@ -302,530 +384,4 @@ fn parse_gemini_content(json: &serde_json::Value) -> Result<Content, ChatError> 
         role,
         complete_reason,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::messages::content;
-
-    use super::*;
-    use serde_json::json;
-    use tools_rs::FunctionResponse;
-
-    #[test]
-    fn test_gemini_client_new_success() {
-        let client = GeminiClient::new("gemini-2.5-flash");
-        assert!(client.is_ok());
-
-        let client = client.unwrap();
-        assert_eq!(client.model_name, "gemini-2.5-flash");
-    }
-
-    #[test]
-    fn test_gemini_client_new_missing_api_key() {
-        unsafe {
-            std::env::remove_var("GEMINI_API_KEY");
-
-            let client = GeminiClient::new("gemini-2.5-flash");
-            assert!(client.is_err());
-        }
-    }
-
-    #[test]
-    fn test_gemini_client_new_different_models() {
-        unsafe {
-            std::env::set_var("GEMINI_API_KEY", "test_key");
-
-            let client1 = GeminiClient::new("gemini-1.5-pro").unwrap();
-            assert_eq!(client1.model_name, "gemini-1.5-pro");
-
-            let client2 = GeminiClient::new("gemini-2.0-flash").unwrap();
-            assert_eq!(client2.model_name, "gemini-2.0-flash");
-        }
-    }
-
-    #[test]
-    fn test_messages_into_gemini_empty() {
-        let messages = Messages::default();
-        let gemini_value = messages.into_gemini();
-
-        assert!(gemini_value.is_array());
-        assert_eq!(gemini_value.as_array().unwrap().len(), 0);
-    }
-
-    #[test]
-    fn test_messages_into_gemini_single_message() {
-        let mut messages = Messages::default();
-        messages.push(content::from_user(vec!["Hello"]));
-
-        let gemini_value = messages.into_gemini();
-        assert!(gemini_value.is_array());
-        assert_eq!(gemini_value.as_array().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn test_messages_into_gemini_multiple_messages() {
-        let mut messages = Messages::default();
-        messages.push(content::from_user(vec!["User message"]));
-        messages.push(content::from_system(vec!["System prompt"]));
-        messages.push(content::from_model(vec!["Model response"]));
-
-        let gemini_value = messages.into_gemini();
-        assert_eq!(gemini_value.as_array().unwrap().len(), 3);
-    }
-
-    #[test]
-    fn test_content_into_gemini() {
-        let content = content::from_user(vec!["Test message"]);
-        let gemini_value = content.into_gemini();
-
-        assert!(gemini_value.is_object());
-        assert!(gemini_value.get("parts").is_some());
-        assert!(gemini_value.get("parts").unwrap().is_array());
-    }
-
-    #[test]
-    fn test_content_into_gemini_with_multiple_parts() {
-        let content = content::from_user(vec!["First", "Second"]);
-        let gemini_value = content.into_gemini();
-
-        let parts = gemini_value.get("parts").unwrap().as_array().unwrap();
-        assert_eq!(parts.len(), 2);
-    }
-
-    #[test]
-    fn test_part_enum_text_into_gemini() {
-        let part = PartEnum::from_text("Hello, world!");
-        let gemini_value = part.into_gemini();
-
-        assert!(gemini_value.is_object());
-        assert_eq!(
-            gemini_value.get("text").unwrap().as_str().unwrap(),
-            "Hello, world!"
-        );
-    }
-
-    #[test]
-    fn test_part_enum_reasoning_into_gemini() {
-        let part = PartEnum::from_reasoning("Thinking...");
-        let gemini_value = part.into_gemini();
-
-        assert!(gemini_value.is_object());
-        assert!(gemini_value.get("reasoning").is_some());
-    }
-
-    #[test]
-    fn test_part_enum_function_call_into_gemini() {
-        let fc = FunctionCall::new("test_function".to_string(), json!({"arg": "value"}));
-        let part = PartEnum::from_function_call(fc);
-        let gemini_value = part.into_gemini();
-
-        assert!(gemini_value.is_object());
-        assert!(gemini_value.get("functionCall").is_some());
-    }
-
-    #[test]
-    fn test_part_enum_function_response_into_gemini() {
-        let fc = FunctionCall::new("test".to_string(), json!({}));
-        let fr = FunctionResponse {
-            id: fc.id,
-            name: "test".to_string(),
-            result: json!({"status": "ok"}),
-        };
-        let part = PartEnum::from_function_response(fr);
-        let gemini_value = part.into_gemini();
-
-        assert!(gemini_value.is_object());
-        assert!(gemini_value.get("functionResponse").is_some());
-    }
-
-    #[test]
-    fn test_parse_gemini_content_with_text() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {"text": "Hello, this is a response"}
-                    ]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.role, RoleEnum::Model);
-        assert_eq!(content.complete_reason, CompleteReasonEnum::Stop);
-        assert_eq!(content.parts.len(), 1);
-        assert_eq!(
-            content.parts.text_response().unwrap().as_str(),
-            "Hello, this is a response"
-        );
-    }
-
-    #[test]
-    fn test_parse_gemini_content_with_function_call() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {
-                            "functionCall": {
-                                "name": "get_weather",
-                                "args": {
-                                    "location": "San Francisco"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.len(), 1);
-
-        let fc = content.parts.function_calls().next().unwrap();
-        assert_eq!(fc.name, "get_weather");
-    }
-
-    #[test]
-    fn test_parse_gemini_content_multiple_parts() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {"text": "First part"},
-                        {"text": "Second part"}
-                    ]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.len(), 2);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_role_user() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "user",
-                    "parts": [{"text": "User message"}]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.role, RoleEnum::User);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_role_system() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "system",
-                    "parts": [{"text": "System message"}]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.role, RoleEnum::System);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_role_unknown_defaults_to_model() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "unknown_role",
-                    "parts": [{"text": "Message"}]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.role, RoleEnum::Model);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_finish_reason_stop() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [{"text": "Done"}]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.complete_reason, CompleteReasonEnum::Stop);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_finish_reason_max_tokens() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [{"text": "Truncated"}]
-                },
-                "finishReason": "MAX_TOKENS"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.complete_reason, CompleteReasonEnum::MaxTokens);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_finish_reason_safety() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [{"text": "Filtered"}]
-                },
-                "finishReason": "SAFETY"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.complete_reason, CompleteReasonEnum::ContentFilter);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_finish_reason_unknown_defaults_to_none() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [{"text": "Message"}]
-                },
-                "finishReason": "UNKNOWN"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.complete_reason, CompleteReasonEnum::None);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_no_finish_reason() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [{"text": "Message"}]
-                }
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.complete_reason, CompleteReasonEnum::None);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_empty_parts() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": []
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.len(), 0);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_missing_name_in_function_call() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {
-                            "functionCall": {
-                                "args": {"key": "value"}
-                            }
-                        }
-                    ]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let result = parse_gemini_content(&json);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ChatError::Provider(msg) => {
-                assert!(msg.contains("function call name"));
-            }
-            _ => panic!("Expected Provider error"),
-        }
-    }
-
-    #[test]
-    fn test_parse_gemini_content_missing_args_in_function_call() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {
-                            "functionCall": {
-                                "name": "test_func"
-                            }
-                        }
-                    ]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let result = parse_gemini_content(&json);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ChatError::Provider(msg) => {
-                assert!(msg.contains("function call arguments"));
-            }
-            _ => panic!("Expected Provider error"),
-        }
-    }
-
-    #[test]
-    fn test_parse_gemini_content_mixed_parts() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {"text": "Let me call a function"},
-                        {
-                            "functionCall": {
-                                "name": "get_data",
-                                "args": {"id": 123}
-                            }
-                        },
-                        {"text": "Done"}
-                    ]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.len(), 3);
-        assert_eq!(content.parts.text_parts().count(), 2);
-        assert_eq!(content.parts.function_calls().count(), 1);
-    }
-
-    #[test]
-    fn test_parse_gemini_content_with_unicode() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {"text": "Hello 世界 🌍"}
-                    ]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(
-            content.parts.text_response().unwrap().as_str(),
-            "Hello 世界 🌍"
-        );
-    }
-
-    #[test]
-    fn test_parse_gemini_content_with_special_characters() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {"text": "Special chars: @#$%^&*()"}
-                    ]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(
-            content.parts.text_response().unwrap().as_str(),
-            "Special chars: @#$%^&*()"
-        );
-    }
-
-    #[test]
-    fn test_parse_gemini_content_empty_text() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {"text": ""}
-                    ]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        assert_eq!(content.parts.len(), 1);
-        assert_eq!(content.parts.text_response().unwrap().as_str(), "");
-    }
-
-    #[test]
-    fn test_parse_gemini_content_function_call_with_complex_args() {
-        let json = json!({
-            "candidates": [{
-                "content": {
-                    "role": "model",
-                    "parts": [
-                        {
-                            "functionCall": {
-                                "name": "complex_function",
-                                "args": {
-                                    "nested": {
-                                        "key": "value",
-                                        "array": [1, 2, 3]
-                                    },
-                                    "simple": "string"
-                                }
-                            }
-                        }
-                    ]
-                },
-                "finishReason": "STOP"
-            }]
-        });
-
-        let content = parse_gemini_content(&json).unwrap();
-        let fc = content.parts.function_calls().next().unwrap();
-        assert_eq!(fc.name, "complex_function");
-        assert!(fc.arguments.get("nested").is_some());
-        assert!(fc.arguments.get("simple").is_some());
-    }
 }

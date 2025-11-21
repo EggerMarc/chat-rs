@@ -4,7 +4,7 @@ use crate::core::{
     lib::{ChatError, ChatOptions, ChatProvider},
     messages::{
         Messages,
-        content::{CompleteReasonEnum, Content},
+        content::Content,
         parts::{PartEnum, Parts},
     },
 };
@@ -267,6 +267,7 @@ mod tests {
     use super::*;
     use crate::core::messages::content::RoleEnum;
     use crate::core::messages::parts::PartEnum;
+    use crate::messages::content::CompleteReasonEnum;
     use async_trait::async_trait;
 
     // Mock ChatProvider for testing
@@ -584,7 +585,7 @@ mod tests {
 
         let content = result.unwrap();
         // Should have both reasoning and final text
-        assert!(content.parts.len() >= 1);
+        assert!(!content.parts.is_empty());
     }
 
     #[tokio::test]

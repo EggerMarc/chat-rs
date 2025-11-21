@@ -6,17 +6,14 @@ use chat_rs::{
 use tools_rs::{collect_tools, tool};
 
 #[tool]
-/// Greets the user
-async fn greeter(name: String) -> String {
-    format!(
-        "Hello there, {}! This string contains an easter-egg :)",
-        name
-    )
+/// Gets user metadata
+async fn get_user_metadata(name: String) -> String {
+    format!("The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate", name).to_string()
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = gemini::GeminiClient::new("gemini-2.5-flash")?;
+    let client = gemini::GeminiClient::new("gemini-2.0-flash")?;
     let tools = collect_tools();
     let mut chat = ChatBuilder::new()
         .with_tools(tools)
