@@ -3,12 +3,18 @@ use chat_rs::{
     gemini,
     messages::{self, content},
 };
+use schemars::JsonSchema;
 use tools_rs::{collect_tools, tool};
-
 #[tool]
 /// Gets user metadata. Must be called whenever name is found.
 async fn get_user_metadata(name: String) -> String {
     format!("The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate", name).to_string()
+}
+
+#[derive(JsonSchema)]
+struct User {
+    name: String,
+    likes: Vec<String>,
 }
 
 #[tokio::main]
@@ -19,6 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_tools(tools)
         .with_model(client)
         .with_max_steps(5)
+        .with_structured_output::<User>()
         .build();
 
     let mut messages = messages::Messages::default();

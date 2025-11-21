@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use tools_rs::ToolCollection;
 
 use crate::core::{
@@ -12,6 +13,7 @@ use crate::core::{
 #[derive(Default)]
 pub struct Chat<CP: ChatProvider> {
     model: CP,
+    output_shape: Option<schemars::Schema>,
     model_options: Option<ChatOptions>,
     max_steps: Option<i16>,
     max_retries: Option<i16>,
@@ -127,6 +129,7 @@ impl<CP: ChatProvider> Chat<CP> {
                     &inner_messages,
                     self.tools.as_ref(),
                     self.model_options.as_ref(),
+                    self.output_shape.as_ref(),
                 )
                 .await?;
             if let Ok(frs) = self.tool_call(&response).await
@@ -185,6 +188,7 @@ impl<CP: ChatProvider> Chat<CP> {
 
 pub struct ChatBuilder<CP: ChatProvider> {
     model: Option<CP>,
+    output_shape: Option<schemars::Schema>,
     model_options: Option<ChatOptions>,
     max_steps: Option<i16>,
     max_retries: Option<i16>,
@@ -197,8 +201,25 @@ impl<CP: ChatProvider> ChatBuilder<CP> {
             model: None,
             max_steps: None,
             max_retries: None,
+            output_shape: None,
             tools: None,
             model_options: None,
+        }
+    }
+
+    pub fn with_structured_output<S>(self) -> ChatBuilder<CP>
+    where
+        S: JsonSchema + Send + Sync,
+    {
+        let shape = schemars::schema_for!(S);
+
+        ChatBuilder {
+            model: self.model,
+            max_steps: self.max_steps,
+            max_retries: self.max_retries,
+            output_shape: Some(shape),
+            tools: self.tools,
+            model_options: self.model_options,
         }
     }
 
@@ -238,6 +259,7 @@ impl<CP: ChatProvider> ChatBuilder<CP> {
     pub fn build(self) -> Chat<CP> {
         Chat {
             model: self.model.expect("Need to set a model"),
+            output_shape: self.output_shape,
             max_steps: self.max_steps,
             max_retries: self.max_retries,
             tools: self.tools,
@@ -301,6 +323,7 @@ mod tests {
             _messages: &Messages,
             _tools: Option<&ToolCollection>,
             _options: Option<&ChatOptions>,
+            _schema: Option<&schemars::Schema>,
         ) -> Result<Content, ChatError> {
             let mut count = self.call_count.lock().unwrap();
             let idx = *count;

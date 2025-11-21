@@ -1,6 +1,7 @@
 use std::env;
 
 use async_trait::async_trait;
+use schemars::JsonSchema;
 use serde_json::{Value, json};
 use tools_rs::{FunctionCall, ToolCollection};
 
@@ -35,6 +36,7 @@ impl ChatProvider for GeminiClient {
         messages: &Messages,
         tools: Option<&ToolCollection>,
         _options: Option<&ChatOptions>,
+        _structured_output: Option<&schemars::Schema>,
     ) -> Result<Content, ChatError> {
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
