@@ -5,8 +5,9 @@ use chat_rs::{
 };
 use schemars::JsonSchema;
 use tools_rs::{collect_tools, tool};
+
 #[tool]
-/// Gets user metadata. Must be called whenever name is found.
+/// Gets user metadata. Must be called whenever a name is identified.
 async fn get_user_metadata(name: String) -> String {
     format!("The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate", name).to_string()
 }
