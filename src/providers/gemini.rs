@@ -30,6 +30,28 @@ impl GeminiClient {
 
 #[async_trait]
 impl ChatProvider for GeminiClient {
+    /// Send the provided message history (and optional tools/schema) to the configured Gemini model and parse the response into a `Content`.
+    ///
+    /// The request body is constructed from `messages`, optional `tools`, and optional `structured_output` (a JSON Schema) and sent to Gemini's `generateContent` endpoint for the client's `model_name`. The returned `Content` contains the parsed parts, role, and completion reason extracted from Gemini's first candidate.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Content)` with the model's response parsed into parts, role, and completion reason on success; `Err(ChatError)` if the HTTP request, response reading, or JSON parsing fails or the provider returns an error.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use my_crate::providers::gemini::GeminiClient;
+    /// # use my_crate::{Messages, ToolCollection, ChatOptions};
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = GeminiClient::new("models/my-gemini-model")?;
+    /// let messages = Messages::default();
+    /// let tools: Option<&ToolCollection> = None;
+    /// let options: Option<&ChatOptions> = None;
+    /// let result = client.complete(&messages, tools, options, None).await?;
+    /// println!("Received parts: {:?}", result.parts);
+    /// # Ok(()) }
+    /// ```
     async fn complete(
         &self,
         messages: &Messages,
@@ -80,6 +102,22 @@ impl ChatProvider for GeminiClient {
     }
 }
 
+/// Builds the JSON request body to send to the Gemini `generateContent` endpoint.
+///
+/// If `structured_output` is provided, the schema is serialized, sanitized for Gemini (removing
+/// fields Gemini rejects) and embedded under `generationConfig` with `responseMimeType: "application/json"`.
+/// Includes optional `system_instruction`, `contents`, and `tools` fields when those are present
+/// in `messages` and `tools`.
+///
+/// # Examples
+///
+/// ```
+/// // Assumes `Messages::default()` and other types are available in the current crate.
+/// let messages = Messages::default();
+/// let body = build_request_body(&messages, None, None).unwrap();
+/// // The produced body is a JSON object suitable for Gemini; at minimum it will be an object.
+/// assert!(body.is_object());
+/// ```
 fn build_request_body(
     messages: &Messages,
     tools: Option<&ToolCollection>,
@@ -121,7 +159,34 @@ fn build_request_body(
     Ok(body)
 }
 
-/// Recursively removes fields that Gemini's API rejects (like $schema, title, etc)
+/// Remove fields that Gemini's API rejects from a JSON Schema, in-place.
+///
+/// This function walks `schema` recursively and removes the keys: `$schema`, `title`,
+/// `$id`, `additionalProperties`, and `definitions` from any JSON object it encounters.
+/// It mutates the provided `Value` directly and descends into nested objects and arrays.
+///
+/// # Examples
+///
+/// ```
+/// use serde_json::json;
+/// let mut schema = json!({
+///     "$schema": "http://example",
+///     "title": "T",
+///     "properties": {
+///         "x": { "$id": "id", "type": "string", "additionalProperties": true }
+///     },
+///     "definitions": { "A": { "type": "number" } }
+/// });
+///
+/// sanitize_schema_for_gemini(&mut schema);
+///
+/// assert!(!schema.as_object().unwrap().contains_key("$schema"));
+/// assert!(!schema.as_object().unwrap().contains_key("title"));
+/// assert!(!schema.as_object().unwrap().contains_key("definitions"));
+/// let props = &schema["properties"]["x"];
+/// assert!(!props.as_object().unwrap().contains_key("$id"));
+/// assert!(!props.as_object().unwrap().contains_key("additionalProperties"));
+/// ```
 fn sanitize_schema_for_gemini(schema: &mut Value) {
     if let Value::Object(map) = schema {
         map.remove("$schema");
@@ -143,6 +208,13 @@ fn sanitize_schema_for_gemini(schema: &mut Value) {
     }
 }
 
+/// Constructs a Gemini-formatted system instruction object from the provided messages.
+///
+/// Produces a JSON object with a "parts" array containing the converted parts from all messages whose role is `System`. If no system-role parts are present, nothing is produced.
+///
+/// # Returns
+///
+/// `Some(Value)` containing an object of the form `{"parts": [...]}` when at least one system part exists, `None` otherwise.
 fn build_system_instruction(messages: &Messages) -> Option<Value> {
     let sys_parts: Vec<Value> = messages
         .0
@@ -158,6 +230,25 @@ fn build_system_instruction(messages: &Messages) -> Option<Value> {
     }
 }
 
+/// Convert a Messages history into the Gemini `contents` JSON array used in a generateContent request.
+///
+/// Omits system-role messages. Non-function parts from user/model messages are serialized into message
+/// objects that retain their role; function response parts are grouped into one or more message objects
+/// with role `"function"`.
+///
+/// # Returns
+///
+/// `Some(Value::Array(...))` containing serialized message objects when there is at least one non-system
+/// message, `None` when the input contains only system messages or is empty.
+///
+/// # Examples
+///
+/// ```no_run
+/// let maybe_contents = build_contents(&messages);
+/// if let Some(contents) = maybe_contents {
+///     // `contents` is a `serde_json::Value::Array` ready to be inserted into the Gemini request body
+/// }
+/// ```
 fn build_contents(messages: &Messages) -> Option<Value> {
     let mut contents: Vec<Value> = Vec::new();
 
@@ -201,6 +292,22 @@ fn build_contents(messages: &Messages) -> Option<Value> {
     }
 }
 
+/// Builds the optional Gemini `tools` JSON fragment from a ToolCollection.
+///
+/// If `tools` is `Some`, serializes the tool declarations and returns a JSON value formatted
+/// for Gemini (an array containing an object with a `functionDeclarations` field).
+/// If `tools` is `None`, returns `Ok(None)`.
+///
+/// Serialization failures are returned as `ChatError::Other`.
+///
+/// # Examples
+///
+/// ```
+/// # use serde_json::Value;
+/// # // assume ToolCollection and ChatError are in scope for the doctest environment
+/// let none = build_tools(None).unwrap();
+/// assert!(none.is_none());
+/// ```
 fn build_tools(tools: Option<&ToolCollection>) -> Result<Option<Value>, ChatError> {
     match tools {
         Some(t) => {
@@ -214,6 +321,24 @@ fn build_tools(tools: Option<&ToolCollection>) -> Result<Option<Value>, ChatErro
     }
 }
 
+/// Converts a `Content` and its Gemini `parts` into a Gemini-formatted message object.
+///
+/// The returned JSON object has `role` set to either `"user"` or `"model"` based on
+/// `content.role`, and includes the provided `parts`. System and function roles are
+/// represented as `"user"`.
+///
+/// # Examples
+///
+/// ```
+/// use serde_json::json;
+///
+/// // assuming RoleEnum and Content are in scope
+/// let content = Content { role: RoleEnum::User, parts: vec![] };
+/// let parts = vec![json!({"text": "hello"})];
+/// let msg = content_to_gemini_with_parts(&content, parts);
+/// assert_eq!(msg["role"], "user");
+/// assert_eq!(msg["parts"][0]["text"], "hello");
+/// ```
 fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
     match content.role {
         RoleEnum::User => json!({ "role": "user", "parts": parts }),
@@ -223,6 +348,30 @@ fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
     }
 }
 
+/// Convert a PartEnum into the JSON structure expected by the Gemini API.
+///
+/// This produces a serde_json::Value representing a single Gemini "part" for inclusion
+/// in request/response content. Text and reasoning parts become `{ "text": ... }`;
+/// function calls become `{ "functionCall": { "name": ..., "args": ... } }`;
+/// function responses become `{ "functionResponse": { "name": ..., "response": { ... } } }`
+/// and non-handled variants produce an empty text part.
+///
+/// Returns a JSON `Value` formatted according to Gemini's messaging conventions.
+///
+/// # Examples
+///
+/// ```no_run
+/// # use serde_json::json;
+/// # use your_crate::providers::gemini::{part_to_gemini, PartEnum, Text, FunctionCall, FunctionResponse};
+/// let text_part = PartEnum::Text(Text::new("hello"));
+/// let json_val = part_to_gemini(&text_part);
+/// assert_eq!(json_val, json!({ "text": "hello" }));
+///
+/// let fc = FunctionCall { name: "sum".to_string(), arguments: json!({ "a": 1, "b": 2 }) };
+/// let call_part = PartEnum::FunctionCall(fc);
+/// let json_call = part_to_gemini(&call_part);
+/// assert_eq!(json_call["functionCall"]["name"], "sum");
+/// ```
 fn part_to_gemini(part: &PartEnum) -> Value {
     match part {
         PartEnum::Text(text) => json!({ "text": text }),
@@ -260,6 +409,38 @@ fn part_to_gemini(part: &PartEnum) -> Value {
 
 // ... Parsing logic remains mostly the same ...
 
+/// Extracts a Content value from a Gemini JSON response by reading the first candidate's content.
+///
+/// Parses the first entry of the `candidates` array, extracts its `content`, converts that into
+/// message parts, determines the sender role, and maps the candidate finish reason into a
+/// completion reason to produce a `Content`.
+///
+/// # Returns
+///
+/// `Content` constructed from the first candidate's `content` (parts, role, and completion reason).
+/// Returns `Err(ChatError::InvalidResponse(...))` if `candidates` or `content` are missing, and
+/// propagates any parsing errors produced by the helper parsers.
+///
+/// # Examples
+///
+/// ```
+/// use serde_json::json;
+/// // minimal synthetic Gemini-like response
+/// let resp = json!({
+///     "candidates": [
+///         {
+///             "content": {
+///                 "role": "user",
+///                 "parts": [{ "text": "Hello" }]
+///             },
+///             "finishReason": "STOP"
+///         }
+///     ]
+/// });
+///
+/// let content = crate::providers::gemini::parse_gemini_response(&resp).unwrap();
+/// assert_eq!(content.parts.len(), 1);
+/// ```
 fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
     let candidate = json
         .get("candidates")
@@ -281,6 +462,31 @@ fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
     })
 }
 
+/// Parse a Gemini `content` JSON object into a collection of message parts.
+///
+/// This reads the optional `"parts"` array from `content_json` and converts each item
+/// into the corresponding `PartEnum` (supports `"text"` and `"functionCall"` entries).
+///
+/// # Errors
+///
+/// Returns `ChatError::InvalidResponse` when a `"functionCall"` item is present but
+/// is missing a required `"name"` or `"args"` field.
+///
+/// # Examples
+///
+/// ```
+/// use serde_json::json;
+///
+/// let content = json!({
+///     "parts": [
+///         { "text": "hello" },
+///         { "functionCall": { "name": "doThing", "args": { "x": 1 } } }
+///     ]
+/// });
+///
+/// let parts = parse_parts(&content).expect("parsed parts");
+/// assert!(!parts.is_empty());
+/// ```
 fn parse_parts(content_json: &Value) -> Result<Parts, ChatError> {
     let mut parts = Parts::default();
 
@@ -310,6 +516,21 @@ fn parse_parts(content_json: &Value) -> Result<Parts, ChatError> {
     Ok(parts)
 }
 
+/// Determine the message role encoded in a Gemini content object.
+///
+/// The function reads the `role` string field from `content_json` (defaults to `"model"` if missing)
+/// and maps it to the corresponding `RoleEnum`: `"user"` → `RoleEnum::User`, `"system"` → `RoleEnum::System`,
+/// `"function"` → `RoleEnum::Model`, any other value → `RoleEnum::Model`.
+///
+/// # Examples
+///
+/// ```
+/// use serde_json::json;
+/// let v = json!({ "role": "user" });
+/// assert_eq!(parse_role(&v), RoleEnum::User);
+/// let v2 = json!({});
+/// assert_eq!(parse_role(&v2), RoleEnum::Model);
+/// ```
 fn parse_role(content_json: &Value) -> RoleEnum {
     match content_json
         .get("role")
@@ -323,6 +544,25 @@ fn parse_role(content_json: &Value) -> RoleEnum {
     }
 }
 
+/// Maps a Gemini candidate's `"finishReason"` field to a completion reason.
+///
+/// Returns the corresponding `CompleteReasonEnum` for the candidate's `"finishReason"`:
+/// - `"STOP"` -> `CompleteReasonEnum::Stop`
+/// - `"MAX_TOKENS"` -> `CompleteReasonEnum::MaxTokens`
+/// - `"SAFETY"`, `"RECITATION"`, `"OTHER"` -> `CompleteReasonEnum::ContentFilter`
+/// - missing or any other value -> `CompleteReasonEnum::None`
+///
+/// # Examples
+///
+/// ```
+/// use serde_json::json;
+///
+/// let candidate = json!({ "finishReason": "STOP" });
+/// assert_eq!(crate::parse_finish_reason(&candidate), crate::CompleteReasonEnum::Stop);
+///
+/// let unknown = json!({});
+/// assert_eq!(crate::parse_finish_reason(&unknown), crate::CompleteReasonEnum::None);
+/// ```
 fn parse_finish_reason(candidate: &Value) -> CompleteReasonEnum {
     match candidate
         .get("finishReason")
