@@ -1295,9 +1295,9 @@ dependencies = [
 
 [[package]]
 name = "tools_core"
-version = "0.1.2"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06c8d6188bda29acae13b4565cb401ff351be13cb1160b5208b726e8cd2dba20"
+checksum = "d2ca51f00845cacbbd432cdd5e094e3039d962978ac87e40228bb5530c42ba26"
 dependencies = [
  "futures",
  "inventory",
