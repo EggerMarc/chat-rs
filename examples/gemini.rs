@@ -1,6 +1,6 @@
 use chat_rs::{
     chat::ChatBuilder,
-    gemini::{self, GoogleMapsConfig},
+    gemini::{self},
     messages::{self, content},
 };
 use schemars::JsonSchema;
@@ -25,8 +25,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-2.5-flash".to_string())
         //.with_google_maps(None, false)
-        //.with_google_maps(Some((34.050_481, -118.248_526)), false)
-        .with_google_search()
+        .with_google_maps(Some((34.050_481, -118.248_526)), false)
+        //.with_google_search()
         .build();
 
     let tools = collect_tools();

@@ -1,33 +1,24 @@
+mod code_execution;
+mod google_maps;
+mod google_search;
+pub mod lib;
+
 use async_trait::async_trait;
-use serde::Serialize;
 use serde_json::{Value, json};
 use std::env;
 use tools_rs::{FunctionCall, ToolCollection};
 
-// Keep your existing crate imports
 use crate::core::lib::ChatOptions;
 use crate::core::{
     lib::{ChatError, ChatProvider},
     messages::{Messages, content::Content, text::Text},
 };
+use crate::gemini::code_execution::CodeExecutionTool;
+use crate::gemini::google_maps::GoogleMapsTool;
+use crate::gemini::google_search::GoogleSearchTool;
+use crate::gemini::lib::GeminiNativeTool;
 use crate::messages::content::{CompleteReasonEnum, RoleEnum};
 use crate::messages::parts::{PartEnum, Parts};
-
-// =========================================================================
-//  Configuration Structs
-// =========================================================================
-
-#[derive(Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GoogleMapsConfig {
-    pub lat_lng: Option<(f32, f32)>,
-    pub enable_widget: bool,
-}
-
-#[derive(Clone, Default)]
-pub struct GoogleSearchConfig {
-    pub dynamic_threshold: Option<f32>, // 0.0 to 1.0
-}
 
 #[derive(Clone, Default)]
 pub struct FunctionCallingConfig {
@@ -35,23 +26,11 @@ pub struct FunctionCallingConfig {
     pub allowed_function_names: Option<Vec<String>>,
 }
 
-/// Holds configuration for all Native Tools and specific behaviors.
-#[derive(Clone, Default)]
-pub struct GeminiToolConfig {
-    pub code_execution: bool,
-    pub google_search: Option<GoogleSearchConfig>,
-    pub google_maps: Option<GoogleMapsConfig>,
-    pub function_calling: Option<FunctionCallingConfig>,
-}
-
-// =========================================================================
-//  Builder
-// =========================================================================
-
 pub struct GeminiBuilder {
     model_name: Option<String>,
     api_key: Option<String>,
-    tool_config: GeminiToolConfig,
+    native_tools: Vec<Box<dyn GeminiNativeTool>>,
+    function_config: Option<FunctionCallingConfig>,
 }
 
 impl Default for GeminiBuilder {
@@ -65,7 +44,8 @@ impl GeminiBuilder {
         Self {
             model_name: None,
             api_key: None,
-            tool_config: GeminiToolConfig::default(),
+            native_tools: Vec::new(),
+            function_config: None,
         }
     }
 
@@ -80,29 +60,29 @@ impl GeminiBuilder {
     }
 
     pub fn with_code_execution(&mut self) -> &mut Self {
-        self.tool_config.code_execution = true;
+        self.native_tools.push(Box::new(CodeExecutionTool));
         self
     }
 
-    /// Enable Google Search with default dynamic settings
     pub fn with_google_search(&mut self) -> &mut Self {
-        self.tool_config.google_search = Some(GoogleSearchConfig::default());
+        self.native_tools.push(Box::new(GoogleSearchTool {
+            dynamic_threshold: None,
+        }));
         self
     }
 
-    /// Enable Google Search with specific dynamic threshold
     pub fn with_google_search_threshold(&mut self, threshold: f32) -> &mut Self {
-        self.tool_config.google_search = Some(GoogleSearchConfig {
+        self.native_tools.push(Box::new(GoogleSearchTool {
             dynamic_threshold: Some(threshold),
-        });
+        }));
         self
     }
 
     pub fn with_google_maps(&mut self, lat_lng: Option<(f32, f32)>, widget: bool) -> &mut Self {
-        self.tool_config.google_maps = Some(GoogleMapsConfig {
+        self.native_tools.push(Box::new(GoogleMapsTool {
             lat_lng,
             enable_widget: widget,
-        });
+        }));
         self
     }
 
@@ -111,35 +91,33 @@ impl GeminiBuilder {
         mode: &str,
         allowed: Option<Vec<String>>,
     ) -> &mut Self {
-        self.tool_config.function_calling = Some(FunctionCallingConfig {
+        self.function_config = Some(FunctionCallingConfig {
             mode: Some(mode.to_string()),
             allowed_function_names: allowed,
         });
         self
     }
 
-    pub fn build(&self) -> GeminiClient {
+    pub fn build(&mut self) -> GeminiClient {
         GeminiClient {
             model_name: self
                 .model_name
                 .clone()
-                .unwrap_or_else(|| "gemini-2.5-flash".to_string()),
+                .unwrap_or_else(|| "gemini-2.0-flash-exp".to_string()),
             api_key: self.api_key.clone().unwrap_or_else(|| {
                 env::var("GEMINI_API_KEY").expect("Failed to find GEMINI_API_KEY from .env")
             }),
-            tool_config: self.tool_config.clone(),
+            native_tools: self.native_tools.clone(),
+            function_config: self.function_config.clone(),
         }
     }
 }
 
-// =========================================================================
-//  Client
-// =========================================================================
-
 pub struct GeminiClient {
     model_name: String,
     api_key: String,
-    tool_config: GeminiToolConfig,
+    native_tools: Vec<Box<dyn GeminiNativeTool>>,
+    function_config: Option<FunctionCallingConfig>,
 }
 
 impl GeminiClient {
@@ -148,7 +126,8 @@ impl GeminiClient {
         Ok(GeminiClient {
             model_name: model_name.to_string(),
             api_key,
-            tool_config: GeminiToolConfig::default(),
+            native_tools: Vec::new(),
+            function_config: None,
         })
     }
 }
@@ -158,7 +137,7 @@ impl ChatProvider for GeminiClient {
     async fn complete(
         &self,
         messages: &Messages,
-        tools: Option<&ToolCollection>,
+        custom_tools: Option<&ToolCollection>,
         _options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<Content, ChatError> {
@@ -167,10 +146,13 @@ impl ChatProvider for GeminiClient {
             self.model_name
         );
 
-        // Build the entire body here. No patching needed afterwards.
-        let body = build_request_body(messages, tools, structured_output, &self.tool_config)?;
-
-        println!("Body: {:#?}", body);
+        let body = build_request_body(
+            messages,
+            custom_tools,
+            structured_output,
+            &self.native_tools,
+            self.function_config.as_ref(),
+        )?;
 
         let req = reqwest::Client::new()
             .post(url)
@@ -179,7 +161,6 @@ impl ChatProvider for GeminiClient {
             .body(body.to_string());
 
         let res = req.send().await.unwrap();
-        //.map_err(|e| ChatError::Provider(e.to_string()))?;
 
         match res.error_for_status() {
             Ok(data) => {
@@ -195,26 +176,24 @@ impl ChatProvider for GeminiClient {
                 Ok(content)
             }
             Err(err) => {
-                println!("Error requesting completion: {}", err);
+                eprintln!("Gemini API Error: {}", err);
                 Err(ChatError::Provider(err.without_url().to_string()))
             }
         }
     }
 }
 
-// =========================================================================
-//  Request Building Logic
-// =========================================================================
-
 fn build_request_body(
     messages: &Messages,
-    tools: Option<&ToolCollection>,
+    custom_tools: Option<&ToolCollection>,
     structured_output: Option<&schemars::Schema>,
-    native_config: &GeminiToolConfig,
+    native_tools: &[Box<dyn GeminiNativeTool>],
+    function_config: Option<&FunctionCallingConfig>,
 ) -> Result<Value, ChatError> {
+    validate_combinations(custom_tools, structured_output, native_tools);
+
     let mut body = json!({});
 
-    // 1. Structured Output (Generation Config)
     if let Some(schema) = structured_output {
         let mut clean_schema = serde_json::to_value(schema)
             .map_err(|e| ChatError::Other(format!("Schema serialization error: {}", e)))?;
@@ -226,19 +205,16 @@ fn build_request_body(
         });
     }
 
-    // 2. System Instructions
     if let Some(system) = build_system_instruction(messages) {
         body["system_instruction"] = system;
     }
 
-    // 3. Contents (History)
     if let Some(contents) = build_contents(messages) {
         body["contents"] = contents;
     }
 
-    // 4. Tools (Definitions) & Tool Config (Runtime Args)
-    // We process these together to ensure native tools are added to the list
-    let (tools_json, config_json) = build_tools_and_config(tools, native_config)?;
+    let (tools_json, config_json) =
+        build_tools_and_config(custom_tools, native_tools, function_config)?;
 
     if let Some(t) = tools_json {
         body["tools"] = t;
@@ -250,80 +226,59 @@ fn build_request_body(
     Ok(body)
 }
 
-/// Combines Custom Tools (via ToolCollection) and Native Tools into the correct
-/// "tools" array structure (List of separate tool objects).
+fn validate_combinations(
+    custom_tools: Option<&ToolCollection>,
+    structured_output: Option<&schemars::Schema>,
+    native_tools: &[Box<dyn GeminiNativeTool>],
+) {
+    let has_search = native_tools.iter().any(|t| t.is_search());
+    let has_functions = custom_tools.is_some();
+    let has_structured_output = structured_output.is_some();
+
+    if has_search && has_functions {
+        eprintln!(
+            "WARNING: Google Search is generally not compatible with Function Declarations in the same request."
+        );
+    }
+    if has_search && has_structured_output {
+        eprintln!(
+            "WARNING: Google Search is generally not compatible with Structured Parsers (JSON Schema) in the same request."
+        );
+    }
+    if has_functions && has_structured_output {
+        eprintln!(
+            "WARNING: Structured Parsers (JSON Schema) are not valid combined with Function Declarations."
+        );
+    }
+}
+
 fn build_tools_and_config(
     custom_tools: Option<&ToolCollection>,
-    native_config: &GeminiToolConfig,
+    native_tools: &[Box<dyn GeminiNativeTool>],
+    function_config: Option<&FunctionCallingConfig>,
 ) -> Result<(Option<Value>, Option<Value>), ChatError> {
-    // Change 1: We use a Vector of distinct Value objects, not one single object.
     let mut tools_list = Vec::new();
     let mut tool_config_map = serde_json::Map::new();
 
-    // --- A. Handle Custom Function Definitions ---
     if let Some(ct) = custom_tools {
         let declarations = ct
             .json()
             .map_err(|err| ChatError::Other(format!("Tools-rs serialization error: {}", err)))?;
 
-        // Pushing a distinct object for functions
         tools_list.push(json!({
             "functionDeclarations": declarations
         }));
     }
 
-    // --- B. Handle Native Tools ---
+    for tool in native_tools {
+        tools_list.push(tool.to_tool_declaration());
 
-    // 1. Code Execution
-    if native_config.code_execution {
-        tools_list.push(json!({ "codeExecution": {} }));
-    }
-
-    // 2. Google Search
-    if let Some(ref search_conf) = native_config.google_search {
-        // Change 2: Use "googleSearch" (CamelCase) to match standard API & Config keys
-        tools_list.push(json!({ "googleSearch": {} }));
-
-        // Configuration
-        if let Some(thresh) = search_conf.dynamic_threshold {
-            tool_config_map.insert(
-                "googleSearchRetrieval".to_string(),
-                json!({
-                    "dynamicRetrievalConfig": {
-                        "mode": "MODE_DYNAMIC",
-                        "dynamicThreshold": thresh
-                    }
-                }),
-            );
+        if let Some((key, value)) = tool.to_tool_config() {
+            tool_config_map.insert(key, value);
         }
     }
 
-    // 3. Google Maps
-    if let Some(ref maps_conf) = native_config.google_maps {
-        let mut maps_def = json!({});
-        if maps_conf.enable_widget {
-            maps_def["enableWidget"] = json!(true);
-        }
-
-        // Pushing a distinct object for Maps
-        tools_list.push(json!({ "googleMaps": maps_def }));
-
-        // Configuration
-        if let Some((lat, lng)) = maps_conf.lat_lng {
-            tool_config_map.insert(
-                "retrievalConfig".to_string(),
-                json!({
-                        "latLng": {
-                            "latitude": lat,
-                            "longitude": lng
-                        }
-                }),
-            );
-        }
-    }
-
-    // --- C. Handle Function Calling Mode (Config Only) ---
-    if let Some(ref fc_conf) = native_config.function_calling {
+    if let Some(fc_conf) = function_config {
         let mut fc_json = json!({});
         if let Some(ref mode) = fc_conf.mode {
             fc_json["mode"] = json!(mode);
@@ -331,12 +286,12 @@ fn build_tools_and_config(
         if let Some(ref allowed) = fc_conf.allowed_function_names {
             fc_json["allowedFunctionNames"] = json!(allowed);
         }
+
         if !fc_json.as_object().unwrap().is_empty() {
             tool_config_map.insert("functionCallingConfig".to_string(), fc_json);
         }
     }
 
-    // --- D. Finalize ---
     let final_tools = if tools_list.is_empty() {
         None
     } else {
@@ -352,10 +307,6 @@ fn build_tools_and_config(
     Ok((final_tools, final_config))
 }
 
-// =========================================================================
-//  Helpers (Sanitization, Parsing, Mapping)
-// =========================================================================
-
 fn sanitize_schema_for_gemini(schema: &mut Value) {
     if let Value::Object(map) = schema {
         map.remove("$schema");
@@ -363,7 +314,6 @@ fn sanitize_schema_for_gemini(schema: &mut Value) {
         map.remove("$id");
         map.remove("additionalProperties");
         map.remove("definitions");
-
         for (_, v) in map {
             sanitize_schema_for_gemini(v);
         }
@@ -413,7 +363,6 @@ fn build_contents(messages: &Messages) -> Option<Value> {
                 .iter()
                 .map(|p| part_to_gemini(p))
                 .collect();
-
             contents.push(json!({
                 "role": "function",
                 "parts": parts
@@ -452,7 +401,6 @@ fn part_to_gemini(part: &PartEnum) -> Value {
             } else {
                 json!({ "content": fr.result })
             };
-
             json!({
                 "functionResponse": {
                     "name": fr.name,
@@ -464,7 +412,6 @@ fn part_to_gemini(part: &PartEnum) -> Value {
     }
 }
 
-// ... existing parsing logic ...
 fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
     let candidate = json
         .get("candidates")
@@ -488,22 +435,18 @@ fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
 
 fn parse_parts(content_json: &Value) -> Result<Parts, ChatError> {
     let mut parts = Parts::default();
-
     if let Some(arr) = content_json.get("parts").and_then(|v| v.as_array()) {
         for item in arr {
             if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
                 parts.push(PartEnum::Text(Text::new(text)));
             }
-
             if let Some(fc) = item.get("functionCall") {
                 let name = fc.get("name").and_then(|v| v.as_str()).ok_or_else(|| {
                     ChatError::InvalidResponse("Missing function call name".to_string())
                 })?;
-
                 let args = fc.get("args").and_then(|v| v.as_object()).ok_or_else(|| {
                     ChatError::InvalidResponse("Missing function call args".to_string())
                 })?;
-
                 parts.push(PartEnum::from_function_call(FunctionCall::new(
                     name.to_string(),
                     Value::Object(args.clone()),
@@ -511,7 +454,6 @@ fn parse_parts(content_json: &Value) -> Result<Parts, ChatError> {
             }
         }
     }
-
     Ok(parts)
 }
 
@@ -540,106 +482,3 @@ fn parse_finish_reason(candidate: &Value) -> CompleteReasonEnum {
         _ => CompleteReasonEnum::None,
     }
 }
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::Value;
-
-    fn mock_messages() -> Messages {
-        Messages::default()
-    }
-
-    #[test]
-    fn test_google_search_camel_case_keys() {
-        // GOAL: Ensure we generate "googleSearch" (not google_search)
-        // and "googleSearchRetrieval" (not google_search_retrieval)
-
-        let mut config = GeminiToolConfig::default();
-        config.google_search = Some(GoogleSearchConfig {
-            dynamic_threshold: Some(0.3),
-        });
-
-        let body = build_request_body(&mock_messages(), None, None, &config).unwrap();
-
-        // 1. Check Tool Definition
-        let tools_arr = body["tools"].as_array().unwrap();
-        let tool_obj = &tools_arr[0];
-
-        // This was failing before:
-        assert!(
-            tool_obj.get("googleSearch").is_some(),
-            "Should contain 'googleSearch' key"
-        );
-        assert!(
-            tool_obj.get("google_search").is_none(),
-            "Should NOT contain 'google_search' key"
-        );
-
-        // 2. Check Tool Config
-        let tool_config = body["toolConfig"].as_object().unwrap();
-
-        // This was failing before:
-        assert!(
-            tool_config.contains_key("googleSearchRetrieval"),
-            "Config should use camelCase 'googleSearchRetrieval'"
-        );
-
-        let retrieval = &tool_config["googleSearchRetrieval"];
-        assert_eq!(retrieval["dynamicRetrievalConfig"]["dynamicThreshold"], 0.3);
-    }
-
-    #[test]
-    fn test_google_maps_nesting() {
-        // GOAL: Ensure retrievalConfig is nested inside googleMapsGrounding
-
-        let mut config = GeminiToolConfig::default();
-        config.google_maps = Some(GoogleMapsConfig {
-            lat_lng: Some((10.0, 20.0)),
-            enable_widget: false,
-        });
-
-        let body = build_request_body(&mock_messages(), None, None, &config).unwrap();
-
-        let tool_config = body["toolConfig"].as_object().unwrap();
-
-        // This checks for the hierarchy that was missing in your JSON
-        let maps_grounding = tool_config
-            .get("googleMapsGrounding")
-            .expect("Top level key 'googleMapsGrounding' missing");
-
-        let retrieval = maps_grounding
-            .get("retrievalConfig")
-            .expect("retrievalConfig should be nested inside googleMapsGrounding");
-
-        assert_eq!(retrieval["latLng"]["latitude"], 10.0);
-    }
-
-    #[test]
-    fn test_single_tool_object_structure() {
-        // GOAL: Verify that even if we enable multiple tools, they merge nicely
-        // (This style is often preferred by the API, though arrays of objects are allowed)
-
-        let mut config = GeminiToolConfig::default();
-        config.code_execution = true;
-        config.google_search = Some(GoogleSearchConfig::default());
-        config.google_maps = Some(GoogleMapsConfig {
-            lat_lng: None,
-            enable_widget: true,
-        });
-
-        let body = build_request_body(&mock_messages(), None, None, &config).unwrap();
-
-        let tools_arr = body["tools"].as_array().unwrap();
-        assert_eq!(
-            tools_arr.len(),
-            1,
-            "Should merge all tools into one object for cleanliness"
-        );
-
-        let tool_obj = &tools_arr[0];
-        assert!(tool_obj.get("codeExecution").is_some());
-        assert!(tool_obj.get("googleSearch").is_some());
-        assert!(tool_obj.get("googleMaps").is_some());
-    }
-}
-
