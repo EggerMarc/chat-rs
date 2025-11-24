@@ -25,11 +25,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-2.5-flash".to_string())
         //.with_google_maps(None, false)
-        .with_google_maps(Some((34.050_481, -118.248_526)), false)
+        //.with_google_maps(Some((34.050_481, -118.248_526)), false)
         .with_google_search()
         .build();
 
     let tools = collect_tools();
+
     let mut chat = ChatBuilder::new()
         .with_tools(tools)
         .with_model(client)
@@ -38,10 +39,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = messages::Messages::default();
-
+    /*
     messages.push(content::from_system(vec![
         "You are a helpful assistant. Your job is to be as useful as possible.",
     ]));
+    */
 
     loop {
         let mut user_input = String::new();
