@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use serde::Serialize;
 use serde_json::{Value, json};
 use std::env;
 use tools_rs::{FunctionCall, ToolCollection};
@@ -13,17 +14,91 @@ use crate::messages::content::{CompleteReasonEnum, RoleEnum};
 use crate::messages::parts::{PartEnum, Parts};
 use crate::messages::text::Text;
 
+pub struct GeminiBuilder {
+    model_name: Option<String>,
+    api_key: Option<String>,
+
+    code_execution_tool: Option<bool>,
+    google_search_tool: Option<bool>,
+    google_maps_tool: Option<GoogleMapsConfig>,
+}
+
+#[derive(Clone, Default)]
+pub struct GoogleMapsConfig {
+    lat_lng: Option<(f32, f32)>,
+    enable_widgets: Option<bool>,
+}
+
+impl GoogleMapsConfig {
+    pub fn into_json(self) -> Value {
+        let mut json = json!({});
+
+        if let Some(lat_lng) = self.lat_lng {
+            json["google_maps_grounding"] = json!({
+                "google_maps_grounding": {
+                    "retrieval_config": {
+                    "lat_lng": {
+                        "latitude": lat_lng.0,
+                        "longitude": lat_lng.1
+                        }
+                    }
+                }
+            });
+        }
+        json
+    }
+}
+
+impl GeminiBuilder {
+    pub fn build(&self) -> GeminiClient {
+        GeminiClient {
+            model_name: self
+                .model_name
+                .clone()
+                .unwrap_or("gemini-2.0-flash".to_string()),
+            api_key: self.api_key.clone().unwrap_or(
+                env::var("GEMINI_API_KEY").expect("Failed to find GEMINI_API_KEY from .env"),
+            ),
+            code_execution_tool: self.code_execution_tool,
+            google_search_tool: self.google_search_tool,
+            google_maps_tool: self.google_maps_tool.to_owned(),
+        }
+    }
+
+    pub fn with_code_execution(&mut self) -> &mut Self {
+        self.code_execution_tool = Some(true);
+        self
+    }
+
+    pub fn with_google_search(&mut self) -> &mut Self {
+        self.google_search_tool = Some(true);
+        self
+    }
+
+    pub fn with_google_maps(&mut self, config: Option<GoogleMapsConfig>) -> &mut Self {
+        self.google_maps_tool = Some(config.unwrap_or_default());
+        self
+    }
+}
+
 pub struct GeminiClient {
     model_name: String,
     api_key: String,
+
+    code_execution_tool: Option<bool>,
+    google_search_tool: Option<bool>,
+    google_maps_tool: Option<GoogleMapsConfig>,
 }
 
 impl GeminiClient {
     pub fn new(model_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let api_key = env::var("GEMINI_API_KEY")?;
+        let api_key = env::var("GEMINI_API_KEY")?
         Ok(GeminiClient {
             model_name: model_name.to_string(),
             api_key,
+            code_execution_tool: None,
+            google_search_tool: None,
+            google_maps_tool: None,
         })
     }
 }
@@ -575,3 +650,4 @@ fn parse_finish_reason(candidate: &Value) -> CompleteReasonEnum {
         _ => CompleteReasonEnum::None,
     }
 }
+
