@@ -100,7 +100,7 @@ impl<CP: ChatProvider> Chat<CP> {
     /// - If the final part is structured, that `Content` is returned.
     /// - If the final part is reasoning, the reasoning is appended and the loop continues.
     /// - If a response contains no parts, an `InvalidResponse` error is returned.
-    /// If the loop finishes without producing a terminal text or structured part, a `RateLimited` error is returned. Errors from the underlying model or tools are propagated.
+    ///   If the loop finishes without producing a terminal text or structured part, a `RateLimited` error is returned. Errors from the underlying model or tools are propagated.
     ///
     /// # Examples
     ///
