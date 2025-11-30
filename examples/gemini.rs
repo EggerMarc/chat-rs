@@ -4,6 +4,7 @@ use chat_rs::{
     messages::{self, content},
 };
 use schemars::JsonSchema;
+use serde::Deserialize;
 use tools_rs::{collect_tools, tool};
 
 #[tool]
@@ -12,7 +13,7 @@ async fn get_user_metadata(name: String) -> String {
     format!("The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate", name).to_string()
 }
 
-#[derive(JsonSchema)]
+#[derive(JsonSchema, Deserialize, Clone)]
 struct User {
     name: String,
     likes: Vec<String>,
@@ -40,6 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tools = collect_tools();
 
     let mut chat = ChatBuilder::new()
+        .with_structured_output::<User>()
         .with_tools(tools)
         .with_model(client)
         .with_max_steps(5)
