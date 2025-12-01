@@ -19,16 +19,6 @@ struct User {
     likes: Vec<String>,
 }
 
-/// Starts an interactive chat loop that sends user input to a configured Gemini model with tools and prints model responses.
-///
-/// The program builds a Gemini client (configured with a model and optional Google Maps), collects available tools, constructs a chat pipeline with a step limit, then repeatedly reads a line from standard input, sends it to the model, and prints the model's latest response part. Propagates I/O and chat errors via the returned `Result`.
-///
-/// # Examples
-///
-/// ```no_run
-/// // Run the compiled binary and interact with it via stdin:
-/// // $ cargo run --release --bin your_binary
-/// ```
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = gemini::GeminiBuilder::new()
@@ -68,3 +58,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         //println!("Model:\t{:?}", response.parts.last());
     }
 }
+
