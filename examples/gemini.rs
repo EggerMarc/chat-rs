@@ -13,7 +13,7 @@ async fn get_user_metadata(name: String) -> String {
     format!("The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate", name).to_string()
 }
 
-#[derive(JsonSchema, Deserialize, Clone)]
+#[derive(JsonSchema, Deserialize, Clone, Debug)]
 struct User {
     name: String,
     likes: Vec<String>,
@@ -33,7 +33,7 @@ struct User {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-2.5-flash".to_string())
-        .with_google_maps(None, false)
+        //.with_google_maps(None, false)
         //.with_google_maps(Some((34.050_481, -118.248_526)), false)
         //.with_google_search()
         .build();
@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut chat = ChatBuilder::new()
         .with_structured_output::<User>()
-        .with_tools(tools)
+        //.with_tools(tools)
         .with_model(client)
         .with_max_steps(5)
         .build();
@@ -60,7 +60,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         messages.push(user_message);
 
         let response = chat.complete(&mut messages).await?;
-        messages.push(response.clone());
-        println!("Model:\t{:?}", response.parts.last());
+
+        println!("Found user: {:#?}", response);
+
+        //messages.push(response.clone());
+
+        //println!("Model:\t{:?}", response.parts.last());
     }
 }

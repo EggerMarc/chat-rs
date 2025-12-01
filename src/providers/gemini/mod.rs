@@ -909,6 +909,7 @@ fn parse_role(content_json: &Value) -> RoleEnum {
 /// - `"STOP"` -> `CompleteReasonEnum::Stop`
 /// - `"MAX_TOKENS"` -> `CompleteReasonEnum::MaxTokens`
 /// - `"SAFETY"`, `"RECITATION"`, or `"OTHER"` -> `CompleteReasonEnum::ContentFilter`
+///
 /// Any missing or unrecognized value yields `CompleteReasonEnum::None`.
 ///
 /// # Parameters
@@ -942,3 +943,4 @@ fn parse_finish_reason(candidate: &Value) -> CompleteReasonEnum {
         _ => CompleteReasonEnum::None,
     }
 }
+

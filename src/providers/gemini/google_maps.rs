@@ -95,3 +95,4 @@ impl GeminiNativeTool for GoogleMapsTool {
         Box::new(self.clone())
     }
 }
+
