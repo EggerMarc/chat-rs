@@ -7,8 +7,27 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use tools_rs::{collect_tools, tool};
 
+/// Produces a short, natural-language sentence describing basic metadata for a user identified by name.
+///
+/// The returned string is a human-readable sentence that conveys simple preferences and a stylistic note for the named user.
+///
+/// # Parameters
+///
+/// - `name`: The user's name to include in the metadata sentence.
+///
+/// # Returns
+///
+/// A `String` containing a short natural-language metadata sentence about `name`.
+///
+/// # Examples
+///
+/// ```
+/// use futures::executor::block_on;
+///
+/// let meta = block_on(get_user_metadata("Alice".into()));
+/// assert!(meta.contains("Alice"));
+/// ```
 #[tool]
-/// Gets user metadata. Must be called whenever a name is identified.
 async fn get_user_metadata(name: String) -> String {
     format!("The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate", name).to_string()
 }
@@ -19,9 +38,9 @@ struct User {
     likes: Vec<String>,
 }
 
-/// Starts an interactive chat loop that sends user input to a configured Gemini model with tools and prints model responses.
+/// Starts an interactive chat loop that reads lines from stdin, sends them to a configured Gemini chat pipeline, and prints the model's responses.
 ///
-/// The program builds a Gemini client (configured with a model and optional Google Maps), collects available tools, constructs a chat pipeline with a step limit, then repeatedly reads a line from standard input, sends it to the model, and prints the model's latest response part. Propagates I/O and chat errors via the returned `Result`.
+/// The function initializes a Gemini client and chat pipeline, then repeatedly reads a user line, appends it to the conversation, awaits a model completion, and prints the returned response. I/O and chat errors are propagated to the caller.
 ///
 /// # Examples
 ///
