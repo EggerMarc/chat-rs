@@ -903,32 +903,22 @@ fn parse_role(content_json: &Value) -> RoleEnum {
     }
 }
 
-/// Maps a Gemini candidate's "finishReason" string to the corresponding CompleteReasonEnum.
+/// Map a Gemini candidate's `finishReason` field to a `CompleteReasonEnum`.
 ///
-/// This inspects the candidate object's `finishReason` field and converts known values:
-/// - `"STOP"` -> `CompleteReasonEnum::Stop`
-/// - `"MAX_TOKENS"` -> `CompleteReasonEnum::MaxTokens`
-/// - `"SAFETY"`, `"RECITATION"`, or `"OTHER"` -> `CompleteReasonEnum::ContentFilter`
+/// Returns `CompleteReasonEnum::Stop` for `"STOP"`,
+/// `CompleteReasonEnum::MaxTokens` for `"MAX_TOKENS"`,
+/// and `CompleteReasonEnum::ContentFilter` for `"SAFETY"`, `"RECITATION"`, or `"OTHER"`.
 /// Any missing or unrecognized value yields `CompleteReasonEnum::None`.
-///
-/// # Parameters
-///
-/// - `candidate`: JSON object representing a Gemini candidate; the function reads its `finishReason` string.
-///
-/// # Returns
-///
-/// `CompleteReasonEnum` matching the candidate's `finishReason`, or `CompleteReasonEnum::None` if absent or unrecognized.
 ///
 /// # Examples
 ///
 /// ```
 /// use serde_json::json;
-///
 /// let c = json!({ "finishReason": "STOP" });
-/// assert_eq!(parse_finish_reason(&c), CompleteReasonEnum::Stop);
+/// assert_eq!(crate::parse_finish_reason(&c), CompleteReasonEnum::Stop);
 ///
 /// let c2 = json!({ "finishReason": "UNKNOWN" });
-/// assert_eq!(parse_finish_reason(&c2), CompleteReasonEnum::None);
+/// assert_eq!(crate::parse_finish_reason(&c2), CompleteReasonEnum::None);
 /// ```
 fn parse_finish_reason(candidate: &Value) -> CompleteReasonEnum {
     match candidate
