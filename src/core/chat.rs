@@ -299,7 +299,7 @@ impl<CP: ChatProvider> Default for ChatBuilder<CP> {
 ///
 /// ```
 /// use serde_json::json;
-/// let c = Content { parts: vec![PartEnum::Text("{\"a\":1}".into())] };
+/// let c = Content { parts: vec![PartEnum::Text("{\"a\":1}".into())], Content::default()};
 /// assert_eq!(extract_structured_candidate(&c), Some(json!({"a":1})));
 ///
 /// let c2 = Content { parts: vec![PartEnum::Structured(json!({"b":2}))] };
@@ -345,6 +345,7 @@ mod tests {
                 parts: Parts(vec![PartEnum::from_text(text)]),
                 role: RoleEnum::Model,
                 complete_reason: CompleteReasonEnum::Stop,
+                ..Default::default()
             };
             MockChatProvider::new(vec![content])
         }
@@ -504,6 +505,7 @@ mod tests {
             ]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::Stop,
+            ..Default::default()
         };
 
         let model = MockChatProvider::new(vec![content]);
@@ -522,6 +524,7 @@ mod tests {
             parts: Parts(vec![]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::Stop,
+            ..Default::default()
         };
 
         let model = MockChatProvider::new(vec![content]);
@@ -548,6 +551,7 @@ mod tests {
             )]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::Stop,
+            ..Default::default()
         };
 
         let model = MockChatProvider::new(vec![content]);
@@ -626,6 +630,7 @@ mod tests {
             parts: Parts(vec![]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::Stop,
+            ..Default::default()
         };
 
         let model = MockChatProvider::new(vec![content]);
@@ -648,12 +653,14 @@ mod tests {
             parts: Parts(vec![PartEnum::from_reasoning("Thinking...")]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::None,
+            ..Default::default()
         };
 
         let text_content = Content {
             parts: Parts(vec![PartEnum::from_text("Final answer")]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::Stop,
+            ..Default::default()
         };
 
         let model = MockChatProvider::new(vec![reasoning_content, text_content]);
@@ -680,6 +687,7 @@ mod tests {
             parts: Parts(vec![PartEnum::from_reasoning("Still thinking...")]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::None,
+            ..Default::default()
         };
 
         let model = MockChatProvider::new(vec![reasoning_content]);
@@ -702,3 +710,4 @@ mod tests {
         }
     }
 }
+

@@ -19,6 +19,8 @@ use crate::gemini::google_search::GoogleSearchTool;
 use crate::gemini::lib::GeminiNativeTool;
 use crate::messages::content::{CompleteReasonEnum, RoleEnum};
 use crate::messages::parts::{PartEnum, Parts};
+use crate::metadata::Metadata;
+use crate::metadata::usage::Usage;
 
 #[derive(Clone, Default)]
 pub struct FunctionCallingConfig {
@@ -682,11 +684,12 @@ fn build_contents(messages: &Messages) -> Option<Value> {
 /// assert!(gemini["parts"].is_array());
 /// ```
 fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
-    match content.role {
-        RoleEnum::User => json!({ "role": "user", "parts": parts }),
-        RoleEnum::Model => json!({ "role": "model", "parts": parts }),
-        _ => json!({ "role": "user", "parts": parts }),
-    }
+    let role_str = match content.role {
+        RoleEnum::User => "user",
+        RoleEnum::Model => "model",
+        RoleEnum::System => "user",
+    };
+    json!({ "role": role_str, "parts": parts })
 }
 
 /// Convert an internal PartEnum into the JSON representation expected by the Gemini API.
@@ -708,8 +711,8 @@ fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
 /// ```
 fn part_to_gemini(part: &PartEnum) -> Value {
     match part {
-        PartEnum::Text(text) => json!({ "text": text.text }),
-        PartEnum::Reasoning(reasoning) => json!({ "text": reasoning.text }),
+        PartEnum::Text(t) => json!({ "text": t.0}),
+        PartEnum::Reasoning(r) => json!({ "text": r.0}),
         PartEnum::FunctionCall(fc) => json!({
             "functionCall": {
                 "name": fc.name,
@@ -729,7 +732,7 @@ fn part_to_gemini(part: &PartEnum) -> Value {
                 }
             })
         }
-        _ => json!({ "text": "" }),
+        _ => json!({ "text": ""}),
     }
 }
 
@@ -779,11 +782,56 @@ fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
     let role = parse_role(content_json);
     let complete_reason = parse_finish_reason(candidate);
 
-    Ok(Content {
+    let mut content = Content {
         parts,
         role,
         complete_reason,
-    })
+        metadata: None,
+    };
+
+    content = content.with_usage(parse_usage(json));
+
+    if let Some(safety) = candidate.get("safetyRatings") {
+        content = content.with_specific("safety_ratings", safety.clone());
+    }
+
+    if let Some(grounding) = candidate.get("groundingMetadata") {
+        content = content.with_specific("grounding_metadata", grounding.clone());
+    }
+
+    if let Some(parts_arr) = content_json.get("parts").and_then(|p| p.as_array()) {
+        let citations: Vec<&Value> = parts_arr
+            .iter()
+            .filter_map(|p| p.get("citationMetadata"))
+            .collect();
+
+        if !citations.is_empty() {
+            content = content.with_specific("citations", json!(citations));
+        }
+    }
+
+    Ok(content)
+}
+
+fn parse_usage(json: &Value) -> Usage {
+    let mut usage = Usage::default();
+
+    if let Some(meta) = json.get("usageMetadata") {
+        usage.input_tokens = meta
+            .get("promptTokenCount")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+        usage.output_tokens = meta
+            .get("candidatesTokenCount")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+        usage.total_tokens = meta
+            .get("totalTokenCount")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize;
+    }
+
+    usage
 }
 
 /// Parses the `"parts"` array of a Gemini content JSON object into the internal `Parts` representation.
@@ -811,6 +859,7 @@ fn parse_parts(content_json: &Value) -> Result<Parts, ChatError> {
             if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
                 parts.push(PartEnum::Text(Text::new(text)));
             }
+
             if let Some(fc) = item.get("functionCall") {
                 let name = fc.get("name").and_then(|v| v.as_str()).ok_or_else(|| {
                     ChatError::InvalidResponse("Missing function call name".to_string())
@@ -897,14 +946,14 @@ fn parse_role(content_json: &Value) -> RoleEnum {
 /// assert_eq!(parse_finish_reason(&c2), CompleteReasonEnum::None);
 /// ```
 fn parse_finish_reason(candidate: &Value) -> CompleteReasonEnum {
-    match candidate
+    let finish_reason = candidate
         .get("finishReason")
         .and_then(|v| v.as_str())
-        .unwrap_or("")
-    {
+        .unwrap_or("");
+    match finish_reason {
         "STOP" => CompleteReasonEnum::Stop,
         "MAX_TOKENS" => CompleteReasonEnum::MaxTokens,
-        "SAFETY" | "RECITATION" | "OTHER" => CompleteReasonEnum::ContentFilter,
+        "SAFETY" | "RECITATION" | "OTHER" => CompleteReasonEnum::Other(finish_reason.to_string()),
         _ => CompleteReasonEnum::None,
     }
 }

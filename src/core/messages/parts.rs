@@ -1,9 +1,10 @@
 use crate::core::messages::text::Text;
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::slice::{Iter, IterMut};
 use tools_rs::{CallId, FunctionCall, FunctionResponse};
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 #[repr(transparent)]
 pub struct Parts(pub Vec<PartEnum>);
 
@@ -131,7 +132,8 @@ impl Parts {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(tag = "type", content = "value")]
 pub enum PartEnum {
     Reasoning(Text),
     Text(Text),
@@ -145,7 +147,7 @@ pub enum PartEnum {
 
 impl Default for PartEnum {
     fn default() -> Self {
-        PartEnum::Text(Text::new("".to_string()))
+        PartEnum::Text(Text("".to_string()))
     }
 }
 
@@ -506,6 +508,16 @@ mod tests {
         };
         let part = PartEnum::from_function_response(fr);
         assert_eq!(format!("{}", part), "response_func");
+    }
+
+    #[test]
+    fn test_parts_serialization() {
+        let mut parts = Parts::default();
+        parts.push(PartEnum::from_text("Test"));
+
+        let serialized = serde_json::to_string(&parts).unwrap();
+        let deserialized: Parts = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(parts, deserialized);
     }
 
     #[test]

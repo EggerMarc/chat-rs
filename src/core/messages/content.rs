@@ -1,13 +1,21 @@
-use crate::core::messages::parts::{PartEnum, Parts};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
-#[derive(Clone, Debug, Default, PartialEq)]
+use crate::{
+    core::messages::parts::{PartEnum, Parts},
+    metadata::{Metadata, usage::Usage},
+};
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Content {
     pub parts: Parts,
     pub role: RoleEnum,
     pub complete_reason: CompleteReasonEnum,
+    pub metadata: Option<Metadata>,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum RoleEnum {
     #[default]
     User,
@@ -15,15 +23,50 @@ pub enum RoleEnum {
     Model,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CompleteReasonEnum {
     ToolCall,
     Stop,
     MaxTokens,
-    ContentFilter,
-    Recitation,
     #[default]
     None,
+    Other(String),
+}
+
+impl Content {
+    pub fn total_tokens(&self) -> usize {
+        self.metadata
+            .as_ref()
+            .map(|m| m.usage.total_tokens)
+            .unwrap_or(0)
+    }
+
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.ensure_metadata().id = Some(id.into());
+        self
+    }
+
+    pub fn with_usage(mut self, usage: impl Into<Usage>) -> Self {
+        self.ensure_metadata().usage = usage.into();
+        self
+    }
+
+    pub fn with_duration(mut self, duration_ms: impl Into<u64>) -> Self {
+        self.ensure_metadata().duration_ms = Some(duration_ms.into());
+        self
+    }
+
+    pub fn with_specific(mut self, key: impl Into<String>, value: impl Into<Value>) -> Self {
+        self.ensure_metadata()
+            .specific
+            .insert(key.into(), value.into());
+        self
+    }
+
+    fn ensure_metadata(&mut self) -> &mut Metadata {
+        self.metadata.get_or_insert_with(Metadata::default)
+    }
 }
 
 /// Creates a Content with the user role from the provided prompt strings.
@@ -50,7 +93,7 @@ pub fn from_user(prompts: Vec<&str>) -> Content {
     Content {
         role,
         parts,
-        complete_reason: CompleteReasonEnum::None,
+        ..Content::default()
     }
 }
 
@@ -76,11 +119,11 @@ pub fn from_system(prompts: Vec<&str>) -> Content {
     Content {
         role,
         parts,
-        complete_reason: CompleteReasonEnum::None,
+        ..Content::default()
     }
 }
 
-/// Constructs a Content with the System role from model-generated prompt strings.
+/// Constructs a Content with the Model role from model-generated prompt strings.
 ///
 /// Each prompt is converted into a Part and collected into `parts`. The `complete_reason` is set to `CompleteReasonEnum::Stop`.
 ///
@@ -88,7 +131,7 @@ pub fn from_system(prompts: Vec<&str>) -> Content {
 ///
 /// ```
 /// let content = from_model(vec!["generated text"]);
-/// assert_eq!(content.role, RoleEnum::System);
+/// assert_eq!(content.role, RoleEnum::Model);
 /// assert!(matches!(content.complete_reason, CompleteReasonEnum::Stop));
 /// assert_eq!(content.parts.0.len(), 1);
 /// ```
@@ -103,7 +146,7 @@ pub fn from_model(prompts: Vec<&str>) -> Content {
     Content {
         role,
         parts,
-        complete_reason: CompleteReasonEnum::Stop,
+        ..Content::default()
     }
 }
 
@@ -255,38 +298,32 @@ mod tests {
     }
 
     #[test]
-    fn test_role_enum_default() {
-        let role = RoleEnum::default();
-        assert_eq!(role, RoleEnum::User);
-    }
-
-    #[test]
-    fn test_role_enum_equality() {
-        assert_eq!(RoleEnum::User, RoleEnum::User);
-        assert_eq!(RoleEnum::System, RoleEnum::System);
-        assert_eq!(RoleEnum::Model, RoleEnum::Model);
-        assert_ne!(RoleEnum::User, RoleEnum::System);
-    }
-
-    #[test]
     fn test_complete_reason_enum_default() {
         let reason = CompleteReasonEnum::default();
         assert_eq!(reason, CompleteReasonEnum::None);
     }
 
     #[test]
-    fn test_complete_reason_enum_variants() {
-        assert_eq!(CompleteReasonEnum::Stop, CompleteReasonEnum::Stop);
-        assert_eq!(CompleteReasonEnum::MaxTokens, CompleteReasonEnum::MaxTokens);
-        assert_eq!(
-            CompleteReasonEnum::ContentFilter,
-            CompleteReasonEnum::ContentFilter
-        );
-        assert_eq!(
-            CompleteReasonEnum::Recitation,
-            CompleteReasonEnum::Recitation
-        );
-        assert_eq!(CompleteReasonEnum::ToolCall, CompleteReasonEnum::ToolCall);
-        assert_ne!(CompleteReasonEnum::Stop, CompleteReasonEnum::MaxTokens);
+    fn test_content_serialization() {
+        let content = from_user(vec!["Test"]);
+        let serialized = serde_json::to_string(&content).unwrap();
+        let deserialized: Content = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(content, deserialized);
+    }
+
+    #[test]
+    fn test_role_enum_serialization() {
+        let role = RoleEnum::User;
+        let serialized = serde_json::to_string(&role).unwrap();
+        let deserialized: RoleEnum = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(role, deserialized);
+    }
+
+    #[test]
+    fn test_complete_reason_serialization() {
+        let reason = CompleteReasonEnum::Stop;
+        let serialized = serde_json::to_string(&reason).unwrap();
+        let deserialized: CompleteReasonEnum = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(reason, deserialized);
     }
 }
