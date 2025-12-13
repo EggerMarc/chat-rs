@@ -10,6 +10,13 @@ use usage::Usage;
 pub struct Metadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_slug: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system_fingerprint: Option<String>,
+
     #[serde(default)]
     pub usage: Usage,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -20,4 +27,7 @@ pub struct Metadata {
     /// key = "safety_ratings", value = json!([...])
     #[serde(default)]
     pub specific: HashMap<String, Value>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<u64>,
 }
