@@ -527,73 +527,39 @@ fn build_tools_and_config(
 }
 
 /// Recursively remove keys that Gemini does not accept from a JSON schema value.
-
 ///
-
 /// This function walks the given `serde_json::Value` in-place and removes the following keys
-
 /// from any object it encounters: `$schema`, `title`, `$id`, `additionalProperties`, and `definitions`.
-
 /// Arrays and nested objects are traversed recursively so the sanitization is applied throughout the schema.
-
 ///
-
 /// # Examples
-
 ///
-
 /// ```
-
 /// use serde_json::json;
-
 /// let mut schema = json!({
-
 ///     "$schema": "http://example",
-
 ///     "title": "Example",
-
 ///     "properties": {
-
 ///         "inner": {
-
 ///             "$id": "id",
-
 ///             "definitions": { "x": {} },
-
 ///             "type": "object"
-
 ///         }
-
 ///     },
-
 ///     "additionalProperties": false
-
 /// });
-
 ///
-
 /// sanitize_schema_for_gemini(&mut schema);
-
 ///
-
 /// // Top-level removals
-
 /// assert!(!schema.as_object().unwrap().contains_key("$schema"));
-
 /// assert!(!schema.as_object().unwrap().contains_key("title"));
-
 /// assert!(!schema.as_object().unwrap().contains_key("additionalProperties"));
-
 ///
-
 /// // Nested removals
-
 /// let inner = &schema["properties"]["inner"];
-
 /// assert!(!inner.as_object().unwrap().contains_key("$id"));
-
 /// assert!(!inner.as_object().unwrap().contains_key("definitions"));
-
 /// ```
 fn sanitize_schema_for_gemini(schema: &mut Value) {
     if let Value::Object(map) = schema {
@@ -742,8 +708,8 @@ fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
 /// ```
 fn part_to_gemini(part: &PartEnum) -> Value {
     match part {
-        PartEnum::Text(text) => json!({ "text": text }),
-        PartEnum::Reasoning(text) => json!({ "text": text }),
+        PartEnum::Text(text) => json!({ "text": text.text }),
+        PartEnum::Reasoning(reasoning) => json!({ "text": reasoning.text }),
         PartEnum::FunctionCall(fc) => json!({
             "functionCall": {
                 "name": fc.name,
@@ -942,3 +908,4 @@ fn parse_finish_reason(candidate: &Value) -> CompleteReasonEnum {
         _ => CompleteReasonEnum::None,
     }
 }
+

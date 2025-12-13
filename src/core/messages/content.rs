@@ -1,16 +1,13 @@
-use serde::{Deserialize, Serialize};
-use tools_rs::FunctionResponse;
-
 use crate::core::messages::parts::{PartEnum, Parts};
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Content {
     pub parts: Parts,
     pub role: RoleEnum,
     pub complete_reason: CompleteReasonEnum,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum RoleEnum {
     #[default]
     User,
@@ -18,7 +15,7 @@ pub enum RoleEnum {
     Model,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum CompleteReasonEnum {
     ToolCall,
     Stop,
@@ -291,29 +288,5 @@ mod tests {
         );
         assert_eq!(CompleteReasonEnum::ToolCall, CompleteReasonEnum::ToolCall);
         assert_ne!(CompleteReasonEnum::Stop, CompleteReasonEnum::MaxTokens);
-    }
-
-    #[test]
-    fn test_content_serialization() {
-        let content = from_user(vec!["Test"]);
-        let serialized = serde_json::to_string(&content).unwrap();
-        let deserialized: Content = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(content, deserialized);
-    }
-
-    #[test]
-    fn test_role_enum_serialization() {
-        let role = RoleEnum::User;
-        let serialized = serde_json::to_string(&role).unwrap();
-        let deserialized: RoleEnum = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(role, deserialized);
-    }
-
-    #[test]
-    fn test_complete_reason_serialization() {
-        let reason = CompleteReasonEnum::Stop;
-        let serialized = serde_json::to_string(&reason).unwrap();
-        let deserialized: CompleteReasonEnum = serde_json::from_str(&serialized).unwrap();
-        assert_eq!(reason, deserialized);
     }
 }

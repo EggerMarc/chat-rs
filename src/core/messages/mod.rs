@@ -1,4 +1,5 @@
 pub mod content;
+pub mod metadata;
 pub mod parts;
 pub mod structured;
 pub mod text;

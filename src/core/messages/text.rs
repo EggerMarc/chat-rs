@@ -1,50 +1,62 @@
 use std::fmt::Display;
 
-use serde::{Deserialize, Serialize};
+use crate::messages::metadata::Metadata;
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Text(pub String);
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Text {
+    pub text: String,
+    pub meta: Option<Metadata>,
+}
 
 impl Text {
     pub fn new(s: impl Into<String>) -> Self {
-        Self(s.into())
+        Self {
+            text: s.into(),
+            meta: None,
+        }
     }
 
     pub fn as_str(&self) -> &str {
-        &self.0
+        &self.text
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.text.is_empty()
     }
 }
 
 impl Into<String> for Text {
     fn into(self) -> String {
-        self.0
+        self.text
     }
 }
 
 impl From<String> for Text {
     fn from(s: String) -> Self {
-        Self(s)
+        Self {
+            text: s,
+            meta: None,
+        }
     }
 }
 
 impl From<&str> for Text {
     fn from(s: &str) -> Self {
-        Self(s.to_string())
+        Self {
+            text: s.to_string(),
+            meta: None,
+        }
     }
 }
 
 impl AsRef<str> for Text {
     fn as_ref(&self) -> &str {
-        &self.0
+        &self.text
     }
 }
 
 impl Display for Text {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.text)
     }
 }
