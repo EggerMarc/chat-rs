@@ -60,5 +60,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let response = chat.complete(&mut messages).await?;
         messages.push(response.clone());
         println!("Model:\t{:?}", response.parts.last());
+        println!("Metadata:\t{:?}", response.metadata);
     }
 }
