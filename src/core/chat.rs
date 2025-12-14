@@ -709,5 +709,103 @@ mod tests {
             _ => panic!("Expected RateLimited error"),
         }
     }
+
+    #[test]
+    fn test_extract_structured_candidate_with_structured_part() {
+        use serde_json::json;
+        let content = Content {
+            parts: Parts(vec![PartEnum::from_structured(json!({"key": "value", "number": 42}))]),
+            ..Default::default()
+        };
+        
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), json!({"key": "value", "number": 42}));
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_with_text_json() {
+        use serde_json::json;
+        let json_text = r#"{"name": "test", "count": 5}"#;
+        let content = Content {
+            parts: Parts(vec![PartEnum::from_text(json_text)]),
+            ..Default::default()
+        };
+        
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), json!({"name": "test", "count": 5}));
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_with_invalid_json_text() {
+        let content = Content {
+            parts: Parts(vec![PartEnum::from_text("This is not JSON")]),
+            ..Default::default()
+        };
+        
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_empty_content() {
+        let content = Content {
+            parts: Parts(vec![]),
+            ..Default::default()
+        };
+        
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_with_other_part_types() {
+        let content = Content {
+            parts: Parts(vec![PartEnum::from_reasoning("reasoning text")]),
+            ..Default::default()
+        };
+        
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_complex_nested_json() {
+        use serde_json::json;
+        let complex = json!({
+            "nested": {
+                "array": [1, 2, {"inner": "value"}],
+                "boolean": true
+            },
+            "null_field": null
+        });
+        
+        let content = Content {
+            parts: Parts(vec![PartEnum::from_structured(complex.clone())]),
+            ..Default::default()
+        };
+        
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), complex);
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_multiple_parts_uses_last() {
+        use serde_json::json;
+        let content = Content {
+            parts: Parts(vec![
+                PartEnum::from_text("first part"),
+                PartEnum::from_reasoning("middle part"),
+                PartEnum::from_structured(json!({"last": "part"})),
+            ]),
+            ..Default::default()
+        };
+        
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), json!({"last": "part"}));
+    }
 }
 
