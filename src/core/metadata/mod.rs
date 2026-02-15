@@ -10,15 +10,13 @@ use usage::Usage;
 pub struct Metadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_slug: Option<String>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_fingerprint: Option<String>,
-
     #[serde(default)]
     pub usage: Usage,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u64>,
 
@@ -26,8 +24,7 @@ pub struct Metadata {
     /// Gemini "safetyRatings", "citationMetadata", OpenAI "system_fingerprint", etc.
     /// key = "safety_ratings", value = json!([...])
     #[serde(default)]
-    pub specific: HashMap<String, Value>,
-
+    pub specific: HashMap<String, Value>, // TODO: rename to smth else
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<u64>,
 }
@@ -100,13 +97,16 @@ mod tests {
     fn test_metadata_with_specific_data() {
         let mut specific = HashMap::new();
         specific.insert("safety_ratings".to_string(), json!(["safe", "filtered"]));
-        specific.insert("citation_metadata".to_string(), json!({"source": "wikipedia"}));
-        
+        specific.insert(
+            "citation_metadata".to_string(),
+            json!({"source": "wikipedia"}),
+        );
+
         let metadata = Metadata {
             specific,
             ..Default::default()
         };
-        
+
         assert_eq!(metadata.specific.len(), 2);
         assert!(metadata.specific.contains_key("safety_ratings"));
         assert!(metadata.specific.contains_key("citation_metadata"));
@@ -135,7 +135,7 @@ mod tests {
     fn test_metadata_serialization() {
         let mut specific = HashMap::new();
         specific.insert("key".to_string(), json!("value"));
-        
+
         let metadata = Metadata {
             id: Some("test-123".to_string()),
             model_slug: Some("model-v1".to_string()),
@@ -155,7 +155,7 @@ mod tests {
 
         let serialized = serde_json::to_string(&metadata).unwrap();
         let deserialized: Metadata = serde_json::from_str(&serialized).unwrap();
-        
+
         assert_eq!(metadata.id, deserialized.id);
         assert_eq!(metadata.model_slug, deserialized.model_slug);
         assert_eq!(metadata.usage.total_tokens, deserialized.usage.total_tokens);
@@ -171,7 +171,7 @@ mod tests {
             },
             ..Default::default()
         };
-        
+
         let cloned = metadata.clone();
         assert_eq!(metadata.id, cloned.id);
         assert_eq!(metadata.usage.total_tokens, cloned.usage.total_tokens);
@@ -183,17 +183,17 @@ mod tests {
             id: Some("same".to_string()),
             ..Default::default()
         };
-        
+
         let metadata2 = Metadata {
             id: Some("same".to_string()),
             ..Default::default()
         };
-        
+
         let metadata3 = Metadata {
             id: Some("different".to_string()),
             ..Default::default()
         };
-        
+
         assert_eq!(metadata1, metadata2);
         assert_ne!(metadata1, metadata3);
     }
@@ -203,7 +203,7 @@ mod tests {
         let mut specific = HashMap::new();
         specific.insert("field1".to_string(), json!(42));
         specific.insert("field2".to_string(), json!("text"));
-        
+
         let metadata = Metadata {
             id: Some("full-test".to_string()),
             model_slug: Some("gemini-pro".to_string()),
@@ -220,7 +220,7 @@ mod tests {
             specific,
             created_at: Some(9999999999),
         };
-        
+
         assert!(metadata.id.is_some());
         assert!(metadata.model_slug.is_some());
         assert!(metadata.system_fingerprint.is_some());

@@ -17,6 +17,7 @@ use crate::gemini::code_execution::CodeExecutionTool;
 use crate::gemini::google_maps::GoogleMapsTool;
 use crate::gemini::google_search::GoogleSearchTool;
 use crate::gemini::lib::GeminiNativeTool;
+use crate::lib::ChatResponse;
 use crate::messages::content::{CompleteReasonEnum, RoleEnum};
 use crate::messages::parts::{PartEnum, Parts};
 use crate::metadata::Metadata;
@@ -286,7 +287,7 @@ impl ChatProvider for GeminiClient {
         custom_tools: Option<&ToolCollection>,
         _options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
-    ) -> Result<Content, ChatError> {
+    ) -> Result<ChatResponse, ChatError> {
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
             self.model_name
@@ -322,7 +323,11 @@ impl ChatProvider for GeminiClient {
                     .map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
 
                 let content = parse_gemini_response(&json)?;
-                Ok(content)
+                let metadata = parse_metadata(&json);
+                Ok(ChatResponse {
+                    content,
+                    metadata: Some(metadata),
+                })
             }
             Err(err) => {
                 eprintln!("Gemini API Error: {}", err);
@@ -786,10 +791,7 @@ fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
         parts,
         role,
         complete_reason,
-        metadata: None,
     };
-
-    content = content.with_usage(parse_usage(json));
 
     if let Some(safety) = candidate.get("safetyRatings") {
         content = content.with_specific("safety_ratings", safety.clone());
@@ -811,27 +813,6 @@ fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
     }
 
     Ok(content)
-}
-
-fn parse_usage(json: &Value) -> Usage {
-    let mut usage = Usage::default();
-
-    if let Some(meta) = json.get("usageMetadata") {
-        usage.input_tokens = meta
-            .get("promptTokenCount")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as usize;
-        usage.output_tokens = meta
-            .get("candidatesTokenCount")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as usize;
-        usage.total_tokens = meta
-            .get("totalTokenCount")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0) as usize;
-    }
-
-    usage
 }
 
 /// Parses the `"parts"` array of a Gemini content JSON object into the internal `Parts` representation.
@@ -958,3 +939,40 @@ fn parse_finish_reason(candidate: &Value) -> CompleteReasonEnum {
     }
 }
 
+pub fn parse_metadata(body: &Value) -> Metadata {
+    Metadata {
+        id: body
+            .get("responseId")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        model_slug: body
+            .get("modelVersion")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        usage: parse_usage(body),
+        ..Metadata::default()
+    }
+}
+
+pub fn parse_usage(body: &Value) -> Usage {
+    let u = body.get("usageMetadata");
+
+    let input = u
+        .and_then(|v| v.get("promptTokenCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let output = u
+        .and_then(|v| v.get("candidatesTokenCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let total = u
+        .and_then(|v| v.get("totalTokenCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(input + output);
+
+    Usage {
+        input_tokens: input as usize,
+        output_tokens: output as usize,
+        total_tokens: total as usize,
+    }
+}
