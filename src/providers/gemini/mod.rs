@@ -787,31 +787,11 @@ fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
     let role = parse_role(content_json);
     let complete_reason = parse_finish_reason(candidate);
 
-    let mut content = Content {
+    let content = Content {
         parts,
         role,
         complete_reason,
     };
-
-    if let Some(safety) = candidate.get("safetyRatings") {
-        content = content.with_specific("safety_ratings", safety.clone());
-    }
-
-    if let Some(grounding) = candidate.get("groundingMetadata") {
-        content = content.with_specific("grounding_metadata", grounding.clone());
-    }
-
-    if let Some(parts_arr) = content_json.get("parts").and_then(|p| p.as_array()) {
-        let citations: Vec<&Value> = parts_arr
-            .iter()
-            .filter_map(|p| p.get("citationMetadata"))
-            .collect();
-
-        if !citations.is_empty() {
-            content = content.with_specific("citations", json!(citations));
-        }
-    }
-
     Ok(content)
 }
 

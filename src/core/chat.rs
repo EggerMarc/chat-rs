@@ -125,7 +125,8 @@ impl<CP: ChatProvider> Chat<CP> {
                     self.output_shape.as_ref(),
                 )
                 .await?;
-            if let Ok(frs) = self.tool_call(&response).await
+
+            if let Ok(frs) = self.tool_call(&response).await?
                 && !frs.is_empty()
             {
                 response.parts.extend(frs);
@@ -714,10 +715,12 @@ mod tests {
     fn test_extract_structured_candidate_with_structured_part() {
         use serde_json::json;
         let content = Content {
-            parts: Parts(vec![PartEnum::from_structured(json!({"key": "value", "number": 42}))]),
+            parts: Parts(vec![PartEnum::from_structured(
+                json!({"key": "value", "number": 42}),
+            )]),
             ..Default::default()
         };
-        
+
         let result = extract_structured_candidate(&content);
         assert!(result.is_some());
         assert_eq!(result.unwrap(), json!({"key": "value", "number": 42}));
@@ -731,7 +734,7 @@ mod tests {
             parts: Parts(vec![PartEnum::from_text(json_text)]),
             ..Default::default()
         };
-        
+
         let result = extract_structured_candidate(&content);
         assert!(result.is_some());
         assert_eq!(result.unwrap(), json!({"name": "test", "count": 5}));
@@ -743,7 +746,7 @@ mod tests {
             parts: Parts(vec![PartEnum::from_text("This is not JSON")]),
             ..Default::default()
         };
-        
+
         let result = extract_structured_candidate(&content);
         assert!(result.is_none());
     }
@@ -754,7 +757,7 @@ mod tests {
             parts: Parts(vec![]),
             ..Default::default()
         };
-        
+
         let result = extract_structured_candidate(&content);
         assert!(result.is_none());
     }
@@ -765,7 +768,7 @@ mod tests {
             parts: Parts(vec![PartEnum::from_reasoning("reasoning text")]),
             ..Default::default()
         };
-        
+
         let result = extract_structured_candidate(&content);
         assert!(result.is_none());
     }
@@ -780,12 +783,12 @@ mod tests {
             },
             "null_field": null
         });
-        
+
         let content = Content {
             parts: Parts(vec![PartEnum::from_structured(complex.clone())]),
             ..Default::default()
         };
-        
+
         let result = extract_structured_candidate(&content);
         assert!(result.is_some());
         assert_eq!(result.unwrap(), complex);
@@ -802,10 +805,9 @@ mod tests {
             ]),
             ..Default::default()
         };
-        
+
         let result = extract_structured_candidate(&content);
         assert!(result.is_some());
         assert_eq!(result.unwrap(), json!({"last": "part"}));
     }
 }
-

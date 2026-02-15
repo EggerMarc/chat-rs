@@ -33,33 +33,6 @@ pub enum CompleteReasonEnum {
     Other(String),
 }
 
-impl Content {
-    pub fn with_id(mut self, id: impl Into<String>) -> Self {
-        self.ensure_metadata().id = Some(id.into());
-        self
-    }
-
-    pub fn with_usage(mut self, usage: impl Into<Usage>) -> Self {
-        self.ensure_metadata().usage = usage.into();
-        self
-    }
-
-    pub fn with_duration(mut self, duration_ms: impl Into<u64>) -> Self {
-        self.ensure_metadata().duration_ms = Some(duration_ms.into());
-        self
-    }
-
-    pub fn with_specific(mut self, key: impl Into<String>, value: impl Into<Value>) -> Self {
-        self.ensure_metadata()
-            .specific
-            .insert(key.into(), value.into());
-        self
-    }
-
-    fn ensure_metadata(&mut self) -> &mut Metadata {
-        self.metadata.get_or_insert_with(Metadata::default)
-    }
-}
 
 /// Creates a Content with the user role from the provided prompt strings.
 ///
