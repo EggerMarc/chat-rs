@@ -1,13 +1,17 @@
 use schemars::JsonSchema;
 use tools_rs::ToolCollection;
 
-use crate::core::{
-    lib::{ChatError, ChatOptions, ChatProvider},
-    messages::{
-        Messages,
-        content::Content,
-        parts::{PartEnum, Parts},
+use crate::{
+    core::{
+        lib::{ChatError, ChatOptions, ChatProvider},
+        messages::{
+            Messages,
+            content::Content,
+            parts::{PartEnum, Parts},
+        },
     },
+    lib::{ChatFailure, ChatResponse},
+    metadata::Metadata,
 };
 
 #[derive(Default)]
@@ -45,23 +49,55 @@ impl<CP: ChatProvider> Chat<CP> {
     /// }
     /// # }
     /// ```
-    pub async fn complete(&mut self, messages: &mut Messages) -> Result<Content, ChatError> {
+    pub async fn complete(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
         let max_retries = self.max_retries.unwrap_or(1);
+
         let mut last_err: Option<ChatError> = None;
+        let mut last_metadata: Option<Metadata> = None;
 
         for _ in 0..max_retries {
             let retry_messages = messages.clone();
 
             match self.call_loop(&retry_messages).await {
-                Ok(content) => return Ok(content),
+                Ok(response) => {
+                    if let Some(metadata) = response.metadata {
+                        match &mut last_metadata {
+                            Some(existing) => {
+                                existing.extend(&metadata);
+                            }
+                            None => {
+                                last_metadata = Some(metadata);
+                            }
+                        }
+                    }
+
+                    return Ok(ChatResponse {
+                        content: response.content,
+                        metadata: last_metadata,
+                    });
+                }
+
                 Err(err) => {
-                    last_err = Some(err);
-                    continue;
+                    if let Some(metadata) = err.metadata {
+                        match &mut last_metadata {
+                            Some(existing) => {
+                                existing.extend(&metadata);
+                            }
+                            None => {
+                                last_metadata = Some(metadata);
+                            }
+                        }
+                    }
+
+                    last_err = Some(err.err);
                 }
             }
         }
 
-        Err(last_err.unwrap_or(ChatError::RateLimited))
+        Err(ChatFailure {
+            metadata: last_metadata,
+            err: last_err.unwrap_or(ChatError::RateLimited),
+        })
     }
 
     /// Calls each function-call part in `content` using the chat's configured tool collection and
@@ -113,8 +149,9 @@ impl<CP: ChatProvider> Chat<CP> {
     /// // assert!(result.is_ok() || result.is_err());
     /// # }
     /// ```
-    async fn call_loop(&mut self, messages: &Messages) -> Result<Content, ChatError> {
+    async fn call_loop(&mut self, messages: &Messages) -> Result<ChatResponse, ChatFailure> {
         let mut inner_messages = messages.clone();
+        let mut last_metadata: Option<Metadata> = None;
         for _ in 0..self.max_steps.unwrap_or(1) {
             let mut response = self
                 .model
@@ -126,17 +163,29 @@ impl<CP: ChatProvider> Chat<CP> {
                 )
                 .await?;
 
-            if let Ok(frs) = self.tool_call(&response).await?
-                && !frs.is_empty()
-            {
-                response.parts.extend(frs);
+            if let Some(metadata) = response.metadata {
+                match &mut last_metadata {
+                    Some(existing) => {
+                        existing.extend(&metadata);
+                    }
+                    None => {
+                        last_metadata = Some(metadata);
+                    }
+                }
             }
 
-            match response.parts.last() {
+            if let Ok(frs) = self.tool_call(&response.content).await
+                && !frs.is_empty()
+            {
+                response.content.parts.extend(frs);
+            }
+
+            match response.content.parts.last() {
                 Some(res) => match res {
                     PartEnum::Text(_text) => return Ok(response),
                     PartEnum::Reasoning(reasoning) => {
                         response
+                            .content
                             .parts
                             .push(PartEnum::from_reasoning(reasoning.to_owned()));
                     }
@@ -146,15 +195,21 @@ impl<CP: ChatProvider> Chat<CP> {
                     _ => {}
                 },
                 None => {
-                    return Err(ChatError::InvalidResponse(
-                        "Response did not generate any parts".to_string(),
-                    ));
+                    return Err(ChatFailure {
+                        err: ChatError::InvalidResponse(
+                            "Response did not generate any parts".to_string(),
+                        ),
+                        metadata: last_metadata,
+                    });
                 }
             };
 
-            inner_messages.push(response.clone());
+            inner_messages.push(response.content.clone());
         }
-        Err(ChatError::RateLimited)
+        Err(ChatFailure {
+            err: ChatError::RateLimited,
+            metadata: last_metadata,
+        })
     }
 }
 

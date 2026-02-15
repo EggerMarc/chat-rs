@@ -16,7 +16,6 @@ pub struct Metadata {
     pub system_fingerprint: Option<String>,
     #[serde(default)]
     pub usage: Usage,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<u64>,
 
@@ -27,6 +26,26 @@ pub struct Metadata {
     pub specific: HashMap<String, Value>, // TODO: rename to smth else
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<u64>,
+}
+
+impl Metadata {
+    pub fn add_usage(&mut self, usage: &Usage) -> &Self {
+        self.usage.output_tokens += usage.output_tokens;
+        self.usage.input_tokens += usage.input_tokens;
+        self.usage.total_tokens += usage.total_tokens;
+        self
+    }
+
+    pub fn extend(&mut self, metadata: &Metadata) -> &Self {
+        self.add_usage(&metadata.usage);
+
+        // TODO: rethink multiple metadatas per call
+        if let Some(other) = metadata.duration_ms {
+            let current = self.duration_ms.get_or_insert(0);
+            *current += other;
+        }
+        self
+    }
 }
 
 #[cfg(test)]

@@ -15,6 +15,7 @@ pub struct ChatResponse {
     pub content: Content,
 }
 
+#[derive(Clone)]
 pub struct ChatFailure {
     pub metadata: Option<Metadata>,
     pub err: ChatError,
@@ -28,7 +29,7 @@ pub trait ChatProvider: Send + Sync {
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
-    ) -> Result<ChatResponse, ChatError>;
+    ) -> Result<ChatResponse, ChatFailure>;
 }
 
 /*
