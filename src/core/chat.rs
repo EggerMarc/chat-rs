@@ -163,7 +163,9 @@ impl<CP: ChatProvider> Chat<CP> {
                 )
                 .await?;
 
-            if let Some(metadata) = response.metadata {
+            let response_metadata = response.metadata.clone();
+
+            if let Some(metadata) = response_metadata {
                 match &mut last_metadata {
                     Some(existing) => {
                         existing.extend(&metadata);
@@ -182,7 +184,12 @@ impl<CP: ChatProvider> Chat<CP> {
 
             match response.content.parts.last() {
                 Some(res) => match res {
-                    PartEnum::Text(_text) => return Ok(response),
+                    PartEnum::Text(_text) => {
+                        return Ok(ChatResponse {
+                            metadata: last_metadata,
+                            content: response.content,
+                        });
+                    }
                     PartEnum::Reasoning(reasoning) => {
                         response
                             .content
@@ -190,7 +197,10 @@ impl<CP: ChatProvider> Chat<CP> {
                             .push(PartEnum::from_reasoning(reasoning.to_owned()));
                     }
                     PartEnum::Structured(_structured) => {
-                        return Ok(response);
+                        return Ok(ChatResponse {
+                            metadata: last_metadata,
+                            content: response.content,
+                        });
                     }
                     _ => {}
                 },
