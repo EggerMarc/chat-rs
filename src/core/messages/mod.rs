@@ -1,6 +1,5 @@
 pub mod content;
 pub mod parts;
-pub mod structured;
 pub mod text;
 
 use content::Content;
