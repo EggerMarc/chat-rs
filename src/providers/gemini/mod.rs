@@ -17,7 +17,7 @@ use crate::gemini::code_execution::CodeExecutionTool;
 use crate::gemini::google_maps::GoogleMapsTool;
 use crate::gemini::google_search::GoogleSearchTool;
 use crate::gemini::lib::GeminiNativeTool;
-use crate::lib::ChatResponse;
+use crate::lib::{ChatFailure, ChatResponse};
 use crate::messages::content::{CompleteReasonEnum, RoleEnum};
 use crate::messages::parts::{PartEnum, Parts};
 use crate::metadata::Metadata;
@@ -287,7 +287,7 @@ impl ChatProvider for GeminiClient {
         custom_tools: Option<&ToolCollection>,
         _options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
-    ) -> Result<ChatResponse, ChatError> {
+    ) -> Result<ChatResponse, ChatFailure> {
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
             self.model_name
@@ -299,7 +299,11 @@ impl ChatProvider for GeminiClient {
             structured_output,
             &self.native_tools,
             self.function_config.as_ref(),
-        )?;
+        )
+        .map_err(|err| ChatFailure {
+            metadata: None,
+            err,
+        })?;
 
         let req = reqwest::Client::new()
             .post(url)
@@ -307,22 +311,27 @@ impl ChatProvider for GeminiClient {
             .header("x-goog-api-key", &self.api_key)
             .body(body.to_string());
 
-        let res = req
-            .send()
-            .await
-            .map_err(|e| ChatError::Provider(e.to_string()))?;
+        let res = req.send().await.map_err(|e| ChatFailure {
+            err: ChatError::Provider(e.to_string()),
+            metadata: None,
+        })?;
 
         match res.error_for_status() {
             Ok(data) => {
-                let text = data
-                    .text()
-                    .await
-                    .map_err(|e| ChatError::Provider(e.to_string()))?;
+                let text = data.text().await.map_err(|e| ChatFailure {
+                    err: ChatError::Provider(e.to_string()),
+                    metadata: None,
+                })?;
 
-                let json: Value = serde_json::from_str(&text)
-                    .map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
+                let json: Value = serde_json::from_str(&text).map_err(|e| ChatFailure {
+                    err: ChatError::InvalidResponse(e.to_string()),
+                    metadata: None,
+                })?;
 
-                let content = parse_gemini_response(&json)?;
+                let content = parse_gemini_response(&json).map_err(|err| ChatFailure {
+                    err,
+                    metadata: Some(parse_metadata(&json)),
+                })?;
                 let metadata = parse_metadata(&json);
                 Ok(ChatResponse {
                     content,
@@ -331,7 +340,10 @@ impl ChatProvider for GeminiClient {
             }
             Err(err) => {
                 eprintln!("Gemini API Error: {}", err);
-                Err(ChatError::Provider(err.without_url().to_string()))
+                Err(ChatFailure {
+                    err: ChatError::Provider(err.without_url().to_string()),
+                    metadata: None,
+                })
             }
         }
     }
