@@ -311,6 +311,8 @@ impl ChatProvider for GeminiClient {
             .header("x-goog-api-key", &self.api_key)
             .body(body.to_string());
 
+        println!("BODY: {:#?}", body);
+        println!("REQUEST: {:#?}", req);
         let res = req.send().await.map_err(|e| ChatFailure {
             err: ChatError::Provider(e.to_string()),
             metadata: None,
