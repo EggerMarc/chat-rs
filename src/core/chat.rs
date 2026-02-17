@@ -453,16 +453,22 @@ mod tests {
             _tools: Option<&ToolCollection>,
             _options: Option<&ChatOptions>,
             _schema: Option<&schemars::Schema>,
-        ) -> Result<Content, ChatError> {
+        ) -> Result<ChatResponse, ChatFailure> {
             let mut count = self.call_count.lock().unwrap();
             let idx = *count;
             *count += 1;
 
             if idx < self.responses.len() {
-                Ok(self.responses[idx].clone())
+                Ok(ChatResponse {
+                    content: self.responses[idx].clone(),
+                    metadata: Some(Metadata::default()),
+                })
             } else {
                 // Return last response if called more times than we have responses
-                Ok(self.responses.last().unwrap().clone())
+                Ok(ChatResponse {
+                    content: self.responses.last().unwrap().clone(),
+                    metadata: Some(Metadata::default()),
+                })
             }
         }
     }
@@ -539,10 +545,10 @@ mod tests {
         let result = chat.complete(&mut messages).await;
         assert!(result.is_ok());
 
-        let content = result.unwrap();
-        assert_eq!(content.role, RoleEnum::Model);
+        let result = result.unwrap();
+        assert_eq!(result.content.role, RoleEnum::Model);
         assert_eq!(
-            content.parts.text_response().unwrap().as_str(),
+            result.content.parts.text_response().unwrap().as_str(),
             "Hello, world!"
         );
     }
@@ -601,7 +607,7 @@ mod tests {
 
         let result = chat.complete(&mut messages).await;
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.unwrap_err().err {
             ChatError::InvalidResponse(msg) => {
                 assert!(msg.contains("did not generate any parts"));
             }
@@ -628,7 +634,7 @@ mod tests {
 
         let result = chat.complete(&mut messages).await;
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.unwrap_err().err {
             ChatError::Other(msg) => {
                 assert!(msg.contains("Structured output not yet implemented"));
             }
@@ -738,12 +744,10 @@ mod tests {
         let mut messages = Messages::default();
         messages.push(crate::messages::content::from_user(vec!["Question"]));
 
-        let result = chat.complete(&mut messages).await;
-        assert!(result.is_ok());
+        let result = chat.complete(&mut messages).await.unwrap();
 
-        let content = result.unwrap();
         // Should have both reasoning and final text
-        assert!(!content.parts.is_empty());
+        assert!(!result.content.parts.is_empty());
     }
 
     #[tokio::test]
@@ -768,7 +772,7 @@ mod tests {
         let result = chat.complete(&mut messages).await;
         // Should return RateLimited error when max_steps is exceeded
         assert!(result.is_err());
-        match result.unwrap_err() {
+        match result.unwrap_err().err {
             ChatError::RateLimited => {
                 // Expected
             }

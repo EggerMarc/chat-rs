@@ -9,13 +9,13 @@ use crate::{
 };
 use async_trait::async_trait;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ChatResponse {
     pub metadata: Option<Metadata>,
     pub content: Content,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ChatFailure {
     pub metadata: Option<Metadata>,
     pub err: ChatError,
