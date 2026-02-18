@@ -24,21 +24,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-2.5-flash".to_string())
         //.with_google_maps(None, false)
-<<<<<<< HEAD
         .with_google_maps(Some((34.050_481, -118.248_526)), false)
-=======
         //.with_google_maps(Some((34.050_481, -118.248_526)), false)
->>>>>>> main
         //.with_google_search()
         .build();
 
     let tools = collect_tools();
 
     let mut chat = ChatBuilder::new()
-<<<<<<< HEAD
-=======
         .with_structured_output::<User>()
->>>>>>> main
         //.with_tools(tools)
         .with_model(client)
         .with_max_steps(5)
@@ -56,20 +50,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let user_message = content::from_user(vec![&user_input]);
         messages.push(user_message);
 
-<<<<<<< HEAD
         let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
-        messages.push(response.content.clone());
-        println!("Model:\t{:?}", response.content.parts.last());
+        //messages.push(response.content.clone());
+        //println!("Model:\t{:?}", response.content.parts.last());
         println!("Metadata:\t{:?}", response.metadata);
-=======
-        let response = chat.complete(&mut messages).await?;
 
         println!("Found user: {:#?}", response);
 
         //messages.push(response.clone());
 
         //println!("Model:\t{:?}", response.parts.last());
->>>>>>> main
     }
 }
-

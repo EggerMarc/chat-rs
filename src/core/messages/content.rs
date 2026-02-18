@@ -1,10 +1,6 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-use crate::{
-    core::messages::parts::{PartEnum, Parts},
-    metadata::{Metadata, usage::Usage},
-};
+use crate::core::messages::parts::{PartEnum, Parts};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Content {
@@ -32,7 +28,6 @@ pub enum CompleteReasonEnum {
     None,
     Other(String),
 }
-
 
 /// Creates a Content with the user role from the provided prompt strings.
 ///
@@ -330,5 +325,3 @@ mod tests {
         assert!(serialized.contains("\"tool_call\""));
     }
 }
-
-
