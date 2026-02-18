@@ -48,22 +48,22 @@ tools_core.workspace    = true
 tools_macros.workspace  = true
 
 [[example]]
-name = "gemini/structured"
+name = "gemini-structured"
 path = "./examples/gemini/structured.rs"
 
 [[example]]
-name = "gemini/native-tools"
+name = "gemini-native-tools"
 path = "./examples/gemini/native_tools.rs"
 
 [[example]]
-name = "gemini/code-execution"
+name = "gemini-code-execution"
 path = "./examples/gemini/code_execution.rs"
 
 [[example]]
-name = "gemini/google-maps"
+name = "gemini-google-maps"
 path = "./examples/gemini/google_maps.rs"
 
 [[example]]
-name = "gemini/tools"
+name = "gemini-tools"
 path = "./examples/gemini/tools.rs"
 
