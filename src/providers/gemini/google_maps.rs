@@ -82,7 +82,10 @@ impl GeminiNativeTool for GoogleMapsTool {
         })
     }
 
-    /// Create a boxed clone of the tool.
+    /// Creates a boxed clone of the tool as a `dyn GeminiNativeTool`.
+    ///
+    /// The returned value is an owned `Box` containing a clone of `self` and can be used where a
+    /// trait object implementing `GeminiNativeTool` is required.
     ///
     /// # Examples
     ///

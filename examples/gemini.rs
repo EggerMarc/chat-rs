@@ -4,6 +4,7 @@ use chat_rs::{
     messages::{self, content},
 };
 use schemars::JsonSchema;
+use serde::Deserialize;
 use tools_rs::{collect_tools, tool};
 
 #[tool]
@@ -12,34 +13,32 @@ async fn get_user_metadata(name: String) -> String {
     format!("The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate", name).to_string()
 }
 
-#[derive(JsonSchema)]
+#[derive(JsonSchema, Deserialize, Clone, Debug)]
 struct User {
     name: String,
     likes: Vec<String>,
 }
 
-/// Starts an interactive chat loop that sends user input to a configured Gemini model with tools and prints model responses.
-///
-/// The program builds a Gemini client (configured with a model and optional Google Maps), collects available tools, constructs a chat pipeline with a step limit, then repeatedly reads a line from standard input, sends it to the model, and prints the model's latest response part. Propagates I/O and chat errors via the returned `Result`.
-///
-/// # Examples
-///
-/// ```no_run
-/// // Run the compiled binary and interact with it via stdin:
-/// // $ cargo run --release --bin your_binary
-/// ```
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-2.5-flash".to_string())
         //.with_google_maps(None, false)
+<<<<<<< HEAD
         .with_google_maps(Some((34.050_481, -118.248_526)), false)
+=======
+        //.with_google_maps(Some((34.050_481, -118.248_526)), false)
+>>>>>>> main
         //.with_google_search()
         .build();
 
     let tools = collect_tools();
 
     let mut chat = ChatBuilder::new()
+<<<<<<< HEAD
+=======
+        .with_structured_output::<User>()
+>>>>>>> main
         //.with_tools(tools)
         .with_model(client)
         .with_max_steps(5)
@@ -57,9 +56,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let user_message = content::from_user(vec![&user_input]);
         messages.push(user_message);
 
+<<<<<<< HEAD
         let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
         messages.push(response.content.clone());
         println!("Model:\t{:?}", response.content.parts.last());
         println!("Metadata:\t{:?}", response.metadata);
+=======
+        let response = chat.complete(&mut messages).await?;
+
+        println!("Found user: {:#?}", response);
+
+        //messages.push(response.clone());
+
+        //println!("Model:\t{:?}", response.parts.last());
+>>>>>>> main
     }
 }
+
