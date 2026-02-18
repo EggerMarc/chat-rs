@@ -48,11 +48,22 @@ tools_core.workspace    = true
 tools_macros.workspace  = true
 
 [[example]]
-name = "gemini"
-path = "./examples/gemini.rs"
+name = "gemini/structured"
+path = "./examples/gemini/structured.rs"
 
-# Comprehensive unit tests have been added for:
-# - src/core/metadata/mod.rs: Complete test coverage for Metadata struct
-# - src/core/metadata/usage.rs: Complete test coverage for Usage struct  
-# - src/core/messages/content.rs: Additional tests for new builder methods
-# - src/core/chat.rs: Additional tests for extract_structured_candidate function
+[[example]]
+name = "gemini/native-tools"
+path = "./examples/gemini/native_tools.rs"
+
+[[example]]
+name = "gemini/code-execution"
+path = "./examples/gemini/code_execution.rs"
+
+[[example]]
+name = "gemini/google-maps"
+path = "./examples/gemini/google_maps.rs"
+
+[[example]]
+name = "gemini/tools"
+path = "./examples/gemini/tools.rs"
+

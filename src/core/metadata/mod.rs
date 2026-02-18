@@ -53,8 +53,6 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-   
-
     #[test]
     fn test_metadata_with_created_at() {
         let timestamp = 1640000000u64;
