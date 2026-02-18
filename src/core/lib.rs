@@ -3,8 +3,36 @@ use std::collections::HashMap;
 use thiserror::Error;
 use tools_rs::ToolCollection;
 
-use crate::core::messages::{Messages, content::Content};
+use crate::{
+    core::messages::{Messages, content::Content},
+    metadata::Metadata,
+};
 use async_trait::async_trait;
+
+#[derive(Clone, Debug)]
+pub struct ChatResponse {
+    pub metadata: Option<Metadata>,
+    pub content: Content,
+}
+
+#[derive(Clone, Debug)]
+pub struct ChatFailure {
+    pub metadata: Option<Metadata>,
+    pub err: ChatError,
+}
+
+/* TODO: Change to this. Better ergonomics with structured output
+type ChatResult<T> = Result<ChatResponse<T>, ChatError>;
+struct ChatResponse<T> {
+    content: T,
+    metadata: Metadata,
+}
+
+struct ChatError {
+    kind: ChatErrorKind,
+    metadata: Metadata,
+}
+*/
 
 #[async_trait]
 pub trait ChatProvider: Send + Sync {
@@ -14,7 +42,7 @@ pub trait ChatProvider: Send + Sync {
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
-    ) -> Result<Content, ChatError>;
+    ) -> Result<ChatResponse, ChatFailure>;
 }
 
 /*
@@ -33,7 +61,7 @@ pub struct ChatOptions {
     pub metadata: HashMap<String, Value>, // provider-specific extensions
 }
 
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub enum ChatError {
     #[error("network error: {0}")]
     Network(String),

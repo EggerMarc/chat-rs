@@ -1,6 +1,5 @@
 pub mod content;
 pub mod parts;
-pub mod structured;
 pub mod text;
 
 use content::Content;
@@ -155,7 +154,7 @@ mod tests {
         let model_content = Content {
             parts: Parts(vec![thinking_part]),
             role: RoleEnum::Model,
-            complete_reason: CompleteReasonEnum::None,
+            ..Content::default()
         };
 
         messages.push(model_content.clone());
@@ -171,6 +170,7 @@ mod tests {
             parts: Parts(vec![response_part]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::Stop,
+            ..Content::default()
         };
 
         messages.push(model_content);
@@ -311,6 +311,7 @@ mod tests {
             parts: Parts(vec![thinking_part, fc_part]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::None,
+            ..Content::default()
         };
 
         messages.push(model_content);

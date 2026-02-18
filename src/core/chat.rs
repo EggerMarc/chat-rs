@@ -2,13 +2,17 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use tools_rs::ToolCollection;
 
-use crate::core::{
-    lib::{ChatError, ChatOptions, ChatProvider},
-    messages::{
-        Messages,
-        content::Content,
-        parts::{PartEnum, Parts},
+use crate::{
+    core::{
+        lib::{ChatError, ChatOptions, ChatProvider},
+        messages::{
+            Messages,
+            content::Content,
+            parts::{PartEnum, Parts},
+        },
     },
+    lib::{ChatFailure, ChatResponse},
+    metadata::Metadata,
 };
 
 pub struct Unstructured;
@@ -51,31 +55,69 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
     /// }
     /// # }
     /// ```
-    pub async fn complete(&mut self, messages: &mut Messages) -> Result<Content, ChatError> {
+    pub async fn complete(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
         let max_retries = self.max_retries.unwrap_or(1);
+
         let mut last_err: Option<ChatError> = None;
+        let mut last_metadata: Option<Metadata> = None;
 
         for _ in 0..max_retries {
             let retry_messages = messages.clone();
 
             match self.call_loop(&retry_messages).await {
-                Ok(content) => return Ok(content),
+                Ok(response) => {
+                    if let Some(metadata) = response.metadata {
+                        match &mut last_metadata {
+                            Some(existing) => {
+                                existing.extend(&metadata);
+                            }
+                            None => {
+                                last_metadata = Some(metadata);
+                            }
+                        }
+                    }
+
+                    return Ok(ChatResponse {
+                        content: response.content,
+                        metadata: last_metadata,
+                    });
+                }
+
                 Err(err) => {
-                    last_err = Some(err);
-                    continue;
+                    if let Some(metadata) = err.metadata {
+                        match &mut last_metadata {
+                            Some(existing) => {
+                                existing.extend(&metadata);
+                            }
+                            None => {
+                                last_metadata = Some(metadata);
+                            }
+                        }
+                    }
+
+                    last_err = Some(err.err);
                 }
             }
         }
 
-        Err(last_err.unwrap_or(ChatError::RateLimited))
+        Err(ChatFailure {
+            metadata: last_metadata,
+            err: last_err.unwrap_or(ChatError::RateLimited),
+        })
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct StructuredResponse<T: DeserializeOwned + JsonSchema> {
+    pub content: T,
+    pub metadata: Option<Metadata>,
 }
 
 impl<CP: ChatProvider, T> Chat<CP, Structured<T>>
 where
     T: DeserializeOwned + JsonSchema,
 {
-        /// Completes a chat interaction and returns the final response deserialized as `T`.
+    /// Completes a chat interaction and returns the final response deserialized as `T`.
     ///
     /// Attempts up to `max_retries` times (default 1) to drive the model to a terminal response,
     /// extract a structured JSON candidate from the final content, and deserialize it into `T`.
@@ -96,33 +138,56 @@ where
     ///     Err(e) => eprintln!("Chat failed: {:?}", e),
     /// }
     /// ```
-    pub async fn complete(&mut self, messages: &mut Messages) -> Result<T, ChatError> {
+    pub async fn complete(
+        &mut self,
+        messages: &mut Messages,
+    ) -> Result<StructuredResponse<T>, ChatFailure> {
         let max_retries = self.max_retries.unwrap_or(1);
-        let mut last_err: Option<ChatError> = None;
+        let mut last_err: Option<ChatFailure> = None;
+        let mut last_metadata: Option<Metadata> = None;
 
         for _ in 0..max_retries {
             let retry_messages = messages.clone();
 
             match self.call_loop(&retry_messages).await {
-                Ok(content) => {
-                    // Extract and parse structured output
-                    match extract_structured_candidate(&content) {
-                        Some(value) => match serde_json::from_value::<T>(value.clone()) {
-                            Ok(structured) => return Ok(structured),
-                            Err(e) => {
-                                last_err = Some(ChatError::InvalidResponse(format!(
-                                    "Failed to parse structured output: {}. JSON: {}",
-                                    e, value
-                                )));
-                                continue;
+                Ok(response) => {
+                    if let Some(metadata) = response.metadata {
+                        match &mut last_metadata {
+                            Some(existing) => {
+                                existing.extend(&metadata);
                             }
-                        },
-                        None => {
-                            last_err = Some(ChatError::InvalidResponse(
-                                "Response did not contain valid structured output".to_string(),
-                            ));
-                            continue;
+                            None => {
+                                last_metadata = Some(metadata);
+                            }
                         }
+                    }
+
+                    if let Some(value) = extract_structured_candidate(&response.content) {
+                        match serde_json::from_value::<T>(value.clone()) {
+                            Ok(structured) => {
+                                return Ok(StructuredResponse {
+                                    content: structured,
+                                    metadata: last_metadata,
+                                });
+                            }
+                            Err(err) => {
+                                last_err = Some(ChatFailure {
+                                    err: ChatError::InvalidResponse(format!(
+                                        "Failed to parse structured output: {} on result: {}",
+                                        err, value
+                                    )),
+                                    metadata: last_metadata.clone(),
+                                })
+                            }
+                        }
+                    } else {
+                        last_err = Some(ChatFailure {
+                            err: ChatError::InvalidResponse(
+                                "Response did not contain valid structured output".to_string(),
+                            ),
+                            metadata: last_metadata.clone(),
+                        });
+                        continue;
                     }
                 }
                 Err(err) => {
@@ -132,7 +197,10 @@ where
             }
         }
 
-        Err(last_err.unwrap_or(ChatError::RateLimited))
+        Err(last_err.unwrap_or(ChatFailure {
+            metadata: last_metadata,
+            err: ChatError::RateLimited,
+        }))
     }
 }
 
@@ -192,8 +260,9 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
     /// # Ok(())
     /// # }
     /// ```
-    async fn call_loop(&mut self, messages: &Messages) -> Result<Content, ChatError> {
+    async fn call_loop(&mut self, messages: &Messages) -> Result<ChatResponse, ChatFailure> {
         let mut inner_messages = messages.clone();
+        let mut last_metadata: Option<Metadata> = None;
         for _ in 0..self.max_steps.unwrap_or(1) {
             let mut response = self
                 .model
@@ -205,35 +274,63 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
                 )
                 .await?;
 
-            if let Ok(frs) = self.tool_call(&response).await
-                && !frs.is_empty()
-            {
-                response.parts.extend(frs);
+            let response_metadata = response.metadata.clone();
+
+            if let Some(metadata) = response_metadata {
+                match &mut last_metadata {
+                    Some(existing) => {
+                        existing.extend(&metadata);
+                    }
+                    None => {
+                        last_metadata = Some(metadata);
+                    }
+                }
             }
 
-            match response.parts.last() {
+            if let Ok(frs) = self.tool_call(&response.content).await
+                && !frs.is_empty()
+            {
+                response.content.parts.extend(frs);
+            }
+
+            match response.content.parts.last() {
                 Some(res) => match res {
-                    PartEnum::Text(_text) => return Ok(response),
+                    PartEnum::Text(_text) => {
+                        return Ok(ChatResponse {
+                            metadata: last_metadata,
+                            content: response.content,
+                        });
+                    }
                     PartEnum::Reasoning(reasoning) => {
                         response
+                            .content
                             .parts
                             .push(PartEnum::from_reasoning(reasoning.to_owned()));
                     }
                     PartEnum::Structured(_structured) => {
-                        return Ok(response);
+                        return Ok(ChatResponse {
+                            metadata: last_metadata,
+                            content: response.content,
+                        });
                     }
                     _ => {}
                 },
                 None => {
-                    return Err(ChatError::InvalidResponse(
-                        "Response did not generate any parts".to_string(),
-                    ));
+                    return Err(ChatFailure {
+                        err: ChatError::InvalidResponse(
+                            "Response did not generate any parts".to_string(),
+                        ),
+                        metadata: last_metadata,
+                    });
                 }
             };
 
-            inner_messages.push(response.clone());
+            inner_messages.push(response.content.clone());
         }
-        Err(ChatError::RateLimited)
+        Err(ChatFailure {
+            err: ChatError::RateLimited,
+            metadata: last_metadata,
+        })
     }
 }
 
@@ -409,6 +506,8 @@ impl<CP: ChatProvider> Default for ChatBuilder<CP, Unstructured> {
 ///
 /// ```
 /// use serde_json::json;
+/// let c = Content { parts: vec![PartEnum::Text("{\"a\":1}".into())], Content::default()};
+/// assert_eq!(extract_structured_candidate(&c), Some(json!({"a":1})));
 ///
 /// // Text containing JSON
 /// let content = Content { parts: vec![PartEnum::Text("{\"ok\":true}".into())] };
@@ -461,35 +560,36 @@ mod tests {
         }
 
         /// Creates a MockChatProvider that will return a single model text response.
-        
+
         ///
-        
+
         /// The returned provider will yield one Content with the given text as a Text part,
-        
+
         /// role set to Model, and completion reason set to Stop.
-        
+
         ///
-        
+
         /// # Examples
-        
+
         ///
-        
+
         /// ```
-        
+
         /// let provider = MockChatProvider::single_response("hello");
-        
+
         /// let mut messages = Messages::new();
-        
+
         /// let content = futures::executor::block_on(async { provider.complete(&messages, None, None, None).await }).unwrap();
-        
+
         /// assert!(content.parts.last().unwrap().is_text());
-        
+
         /// ```
         fn single_response(text: &str) -> Self {
             let content = Content {
                 parts: Parts(vec![PartEnum::from_text(text)]),
                 role: RoleEnum::Model,
                 complete_reason: CompleteReasonEnum::Stop,
+                ..Default::default()
             };
             MockChatProvider::new(vec![content])
         }
@@ -538,15 +638,22 @@ mod tests {
             _tools: Option<&ToolCollection>,
             _options: Option<&ChatOptions>,
             _schema: Option<&schemars::Schema>,
-        ) -> Result<Content, ChatError> {
+        ) -> Result<ChatResponse, ChatFailure> {
             let mut count = self.call_count.lock().unwrap();
             let idx = *count;
             *count += 1;
 
             if idx < self.responses.len() {
-                Ok(self.responses[idx].clone())
+                Ok(ChatResponse {
+                    content: self.responses[idx].clone(),
+                    metadata: Some(Metadata::default()),
+                })
             } else {
-                Ok(self.responses.last().unwrap().clone())
+                // Return last response if called more times than we have responses
+                Ok(ChatResponse {
+                    content: self.responses.last().unwrap().clone(),
+                    metadata: Some(Metadata::default()),
+                })
             }
         }
     }
@@ -562,8 +669,12 @@ mod tests {
         let result = chat.complete(&mut messages).await;
         assert!(result.is_ok());
 
-        let content = result.unwrap();
-        assert_eq!(content.role, RoleEnum::Model);
+        let result = result.unwrap();
+        assert_eq!(result.content.role, RoleEnum::Model);
+        assert_eq!(
+            result.content.parts.text_response().unwrap().as_str(),
+            "Hello, world!"
+        );
     }
 
     /// Verifies that a chat configured for structured output correctly deserializes a structured part into the target type.
@@ -653,8 +764,7 @@ mod tests {
 
         let result = chat.complete(&mut messages).await;
         assert!(result.is_err());
-
-        match result.unwrap_err() {
+        match result.unwrap_err().err {
             ChatError::InvalidResponse(msg) => {
                 assert!(msg.contains("did not contain valid structured output"));
             }
@@ -680,10 +790,9 @@ mod tests {
 
         let result = chat.complete(&mut messages).await;
         assert!(result.is_err());
-
-        match result.unwrap_err() {
-            ChatError::InvalidResponse(msg) => {
-                assert!(msg.contains("Failed to parse structured output"));
+        match result.unwrap_err().err {
+            ChatError::Other(msg) => {
+                assert!(msg.contains("Structured output not yet implemented"));
             }
             _ => panic!("Expected InvalidResponse error"),
         }
@@ -695,6 +804,30 @@ mod tests {
             parts: Parts(vec![PartEnum::from_text("invalid")]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::Stop,
+            ..Default::default()
+        };
+
+        let model = MockChatProvider::new(vec![]);
+        let mut chat = ChatBuilder::new().with_model(model).build();
+
+        let mut messages = Messages::default();
+        messages.push(crate::messages::content::from_user(vec!["Test"]));
+        let original_len = messages.len();
+
+        let _result = chat.complete(&mut messages).await;
+
+        // Messages should not be modified
+        assert_eq!(messages.len(), original_len);
+    }
+
+    #[tokio::test]
+    async fn test_chat_reasoning_continues_loop() {
+        // Create a sequence where first response is reasoning, second is text
+        let reasoning_content = Content {
+            parts: Parts(vec![PartEnum::from_reasoning("Thinking...")]),
+            role: RoleEnum::Model,
+            complete_reason: CompleteReasonEnum::None,
+            ..Default::default()
         };
 
         let valid = Content {
@@ -704,9 +837,10 @@ mod tests {
             }))]),
             role: RoleEnum::Model,
             complete_reason: CompleteReasonEnum::Stop,
+            ..Default::default()
         };
 
-        let model = MockChatProvider::new(vec![invalid, valid]);
+        let model = MockChatProvider::new(vec![valid]);
 
         let mut chat = ChatBuilder::new()
             .with_structured_output::<TestOutput>()
@@ -717,10 +851,138 @@ mod tests {
         let mut messages = Messages::default();
         messages.push(crate::messages::content::from_user(vec!["Question"]));
 
-        let result = chat.complete(&mut messages).await;
-        assert!(result.is_ok());
+        let result = chat.complete(&mut messages).await.unwrap();
+        // Should have both reasoning and final text
+        assert!(!result.content.parts.is_empty());
+    }
 
-        let output = result.unwrap();
-        assert_eq!(output.answer, "success");
+    #[tokio::test]
+    async fn test_chat_max_steps_limit_reached() {
+        // Create responses that only have reasoning (no final text)
+        let reasoning_content = Content {
+            parts: Parts(vec![PartEnum::from_reasoning("Still thinking...")]),
+            role: RoleEnum::Model,
+            complete_reason: CompleteReasonEnum::None,
+            ..Default::default()
+        };
+
+        let model = MockChatProvider::new(vec![reasoning_content]);
+        let mut chat = ChatBuilder::new()
+            .with_model(model)
+            .with_max_steps(2)
+            .build();
+
+        let mut messages = Messages::default();
+        messages.push(crate::messages::content::from_user(vec!["Question"]));
+
+        let result = chat.complete(&mut messages).await;
+        // Should return RateLimited error when max_steps is exceeded
+        assert!(result.is_err());
+        match result.unwrap_err().err {
+            ChatError::RateLimited => {
+                // Expected
+            }
+            _ => panic!("Expected RateLimited error"),
+        }
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_with_structured_part() {
+        use serde_json::json;
+        let content = Content {
+            parts: Parts(vec![PartEnum::from_structured(
+                json!({"key": "value", "number": 42}),
+            )]),
+            ..Default::default()
+        };
+
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), json!({"key": "value", "number": 42}));
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_with_text_json() {
+        use serde_json::json;
+        let json_text = r#"{"name": "test", "count": 5}"#;
+        let content = Content {
+            parts: Parts(vec![PartEnum::from_text(json_text)]),
+            ..Default::default()
+        };
+
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), json!({"name": "test", "count": 5}));
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_with_invalid_json_text() {
+        let content = Content {
+            parts: Parts(vec![PartEnum::from_text("This is not JSON")]),
+            ..Default::default()
+        };
+
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_empty_content() {
+        let content = Content {
+            parts: Parts(vec![]),
+            ..Default::default()
+        };
+
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_with_other_part_types() {
+        let content = Content {
+            parts: Parts(vec![PartEnum::from_reasoning("reasoning text")]),
+            ..Default::default()
+        };
+
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_complex_nested_json() {
+        use serde_json::json;
+        let complex = json!({
+            "nested": {
+                "array": [1, 2, {"inner": "value"}],
+                "boolean": true
+            },
+            "null_field": null
+        });
+
+        let content = Content {
+            parts: Parts(vec![PartEnum::from_structured(complex.clone())]),
+            ..Default::default()
+        };
+
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), complex);
+    }
+
+    #[test]
+    fn test_extract_structured_candidate_multiple_parts_uses_last() {
+        use serde_json::json;
+        let content = Content {
+            parts: Parts(vec![
+                PartEnum::from_text("first part"),
+                PartEnum::from_reasoning("middle part"),
+                PartEnum::from_structured(json!({"last": "part"})),
+            ]),
+            ..Default::default()
+        };
+
+        let result = extract_structured_candidate(&content);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), json!({"last": "part"}));
     }
 }

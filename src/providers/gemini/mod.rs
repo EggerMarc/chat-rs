@@ -17,8 +17,11 @@ use crate::gemini::code_execution::CodeExecutionTool;
 use crate::gemini::google_maps::GoogleMapsTool;
 use crate::gemini::google_search::GoogleSearchTool;
 use crate::gemini::lib::GeminiNativeTool;
+use crate::lib::{ChatFailure, ChatResponse};
 use crate::messages::content::{CompleteReasonEnum, RoleEnum};
 use crate::messages::parts::{PartEnum, Parts};
+use crate::metadata::Metadata;
+use crate::metadata::usage::Usage;
 
 #[derive(Clone, Default)]
 pub struct FunctionCallingConfig {
@@ -284,7 +287,7 @@ impl ChatProvider for GeminiClient {
         custom_tools: Option<&ToolCollection>,
         _options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
-    ) -> Result<Content, ChatError> {
+    ) -> Result<ChatResponse, ChatFailure> {
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
             self.model_name
@@ -296,7 +299,11 @@ impl ChatProvider for GeminiClient {
             structured_output,
             &self.native_tools,
             self.function_config.as_ref(),
-        )?;
+        )
+        .map_err(|err| ChatFailure {
+            metadata: None,
+            err,
+        })?;
 
         let req = reqwest::Client::new()
             .post(url)
@@ -304,27 +311,39 @@ impl ChatProvider for GeminiClient {
             .header("x-goog-api-key", &self.api_key)
             .body(body.to_string());
 
-        let res = req
-            .send()
-            .await
-            .map_err(|e| ChatError::Provider(e.to_string()))?;
+        let res = req.send().await.map_err(|e| ChatFailure {
+            err: ChatError::Provider(e.to_string()),
+            metadata: None,
+        })?;
 
         match res.error_for_status() {
             Ok(data) => {
-                let text = data
-                    .text()
-                    .await
-                    .map_err(|e| ChatError::Provider(e.to_string()))?;
+                let text = data.text().await.map_err(|e| ChatFailure {
+                    err: ChatError::Provider(e.to_string()),
+                    metadata: None,
+                })?;
 
-                let json: Value = serde_json::from_str(&text)
-                    .map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
+                let json: Value = serde_json::from_str(&text).map_err(|e| ChatFailure {
+                    err: ChatError::InvalidResponse(e.to_string()),
+                    metadata: None,
+                })?;
 
-                let content = parse_gemini_response(&json)?;
-                Ok(content)
+                let content = parse_gemini_response(&json).map_err(|err| ChatFailure {
+                    err,
+                    metadata: Some(parse_metadata(&json)),
+                })?;
+                let metadata = parse_metadata(&json);
+                Ok(ChatResponse {
+                    content,
+                    metadata: Some(metadata),
+                })
             }
             Err(err) => {
                 eprintln!("Gemini API Error: {}", err);
-                Err(ChatError::Provider(err.without_url().to_string()))
+                Err(ChatFailure {
+                    err: ChatError::Provider(err.without_url().to_string()),
+                    metadata: None,
+                })
             }
         }
     }
@@ -527,73 +546,39 @@ fn build_tools_and_config(
 }
 
 /// Recursively remove keys that Gemini does not accept from a JSON schema value.
-
 ///
-
 /// This function walks the given `serde_json::Value` in-place and removes the following keys
-
 /// from any object it encounters: `$schema`, `title`, `$id`, `additionalProperties`, and `definitions`.
-
 /// Arrays and nested objects are traversed recursively so the sanitization is applied throughout the schema.
-
 ///
-
 /// # Examples
-
 ///
-
 /// ```
-
 /// use serde_json::json;
-
 /// let mut schema = json!({
-
 ///     "$schema": "http://example",
-
 ///     "title": "Example",
-
 ///     "properties": {
-
 ///         "inner": {
-
 ///             "$id": "id",
-
 ///             "definitions": { "x": {} },
-
 ///             "type": "object"
-
 ///         }
-
 ///     },
-
 ///     "additionalProperties": false
-
 /// });
-
 ///
-
 /// sanitize_schema_for_gemini(&mut schema);
-
 ///
-
 /// // Top-level removals
-
 /// assert!(!schema.as_object().unwrap().contains_key("$schema"));
-
 /// assert!(!schema.as_object().unwrap().contains_key("title"));
-
 /// assert!(!schema.as_object().unwrap().contains_key("additionalProperties"));
-
 ///
-
 /// // Nested removals
-
 /// let inner = &schema["properties"]["inner"];
-
 /// assert!(!inner.as_object().unwrap().contains_key("$id"));
-
 /// assert!(!inner.as_object().unwrap().contains_key("definitions"));
-
 /// ```
 fn sanitize_schema_for_gemini(schema: &mut Value) {
     if let Value::Object(map) = schema {
@@ -716,11 +701,12 @@ fn build_contents(messages: &Messages) -> Option<Value> {
 /// assert!(gemini["parts"].is_array());
 /// ```
 fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
-    match content.role {
-        RoleEnum::User => json!({ "role": "user", "parts": parts }),
-        RoleEnum::Model => json!({ "role": "model", "parts": parts }),
-        _ => json!({ "role": "user", "parts": parts }),
-    }
+    let role_str = match content.role {
+        RoleEnum::User => "user",
+        RoleEnum::Model => "model",
+        RoleEnum::System => "user",
+    };
+    json!({ "role": role_str, "parts": parts })
 }
 
 /// Convert an internal PartEnum into the JSON representation expected by the Gemini API.
@@ -742,8 +728,8 @@ fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
 /// ```
 fn part_to_gemini(part: &PartEnum) -> Value {
     match part {
-        PartEnum::Text(text) => json!({ "text": text }),
-        PartEnum::Reasoning(text) => json!({ "text": text }),
+        PartEnum::Text(t) => json!({ "text": t.0}),
+        PartEnum::Reasoning(r) => json!({ "text": r.0}),
         PartEnum::FunctionCall(fc) => json!({
             "functionCall": {
                 "name": fc.name,
@@ -763,7 +749,7 @@ fn part_to_gemini(part: &PartEnum) -> Value {
                 }
             })
         }
-        _ => json!({ "text": "" }),
+        _ => json!({ "text": ""}),
     }
 }
 
@@ -813,11 +799,12 @@ fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
     let role = parse_role(content_json);
     let complete_reason = parse_finish_reason(candidate);
 
-    Ok(Content {
+    let content = Content {
         parts,
         role,
         complete_reason,
-    })
+    };
+    Ok(content)
 }
 
 /// Parses the `"parts"` array of a Gemini content JSON object into the internal `Parts` representation.
@@ -845,6 +832,7 @@ fn parse_parts(content_json: &Value) -> Result<Parts, ChatError> {
             if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
                 parts.push(PartEnum::Text(Text::new(text)));
             }
+
             if let Some(fc) = item.get("functionCall") {
                 let name = fc.get("name").and_then(|v| v.as_str()).ok_or_else(|| {
                     ChatError::InvalidResponse("Missing function call name".to_string())
@@ -921,14 +909,52 @@ fn parse_role(content_json: &Value) -> RoleEnum {
 /// assert_eq!(crate::parse_finish_reason(&c2), CompleteReasonEnum::None);
 /// ```
 fn parse_finish_reason(candidate: &Value) -> CompleteReasonEnum {
-    match candidate
+    let finish_reason = candidate
         .get("finishReason")
         .and_then(|v| v.as_str())
-        .unwrap_or("")
-    {
+        .unwrap_or("");
+    match finish_reason {
         "STOP" => CompleteReasonEnum::Stop,
         "MAX_TOKENS" => CompleteReasonEnum::MaxTokens,
-        "SAFETY" | "RECITATION" | "OTHER" => CompleteReasonEnum::ContentFilter,
+        "SAFETY" | "RECITATION" | "OTHER" => CompleteReasonEnum::Other(finish_reason.to_string()),
         _ => CompleteReasonEnum::None,
+    }
+}
+
+pub fn parse_metadata(body: &Value) -> Metadata {
+    Metadata {
+        id: body
+            .get("responseId")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        model_slug: body
+            .get("modelVersion")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        usage: parse_usage(body),
+        ..Metadata::default()
+    }
+}
+
+pub fn parse_usage(body: &Value) -> Usage {
+    let u = body.get("usageMetadata");
+
+    let input = u
+        .and_then(|v| v.get("promptTokenCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let output = u
+        .and_then(|v| v.get("candidatesTokenCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let total = u
+        .and_then(|v| v.get("totalTokenCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(input + output);
+
+    Usage {
+        input_tokens: input as usize,
+        output_tokens: output as usize,
+        total_tokens: total as usize,
     }
 }

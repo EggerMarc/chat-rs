@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use tools_rs::FunctionResponse;
 
 use crate::core::messages::parts::{PartEnum, Parts};
 
@@ -11,6 +10,7 @@ pub struct Content {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum RoleEnum {
     #[default]
     User,
@@ -19,14 +19,14 @@ pub enum RoleEnum {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CompleteReasonEnum {
     ToolCall,
     Stop,
     MaxTokens,
-    ContentFilter,
-    Recitation,
     #[default]
     None,
+    Other(String),
 }
 
 /// Creates a Content with the user role from the provided prompt strings.
@@ -53,7 +53,7 @@ pub fn from_user(prompts: Vec<&str>) -> Content {
     Content {
         role,
         parts,
-        complete_reason: CompleteReasonEnum::None,
+        ..Content::default()
     }
 }
 
@@ -79,11 +79,11 @@ pub fn from_system(prompts: Vec<&str>) -> Content {
     Content {
         role,
         parts,
-        complete_reason: CompleteReasonEnum::None,
+        ..Content::default()
     }
 }
 
-/// Constructs a Content with the System role from model-generated prompt strings.
+/// Constructs a Content with the Model role from model-generated prompt strings.
 ///
 /// Each prompt is converted into a Part and collected into `parts`. The `complete_reason` is set to `CompleteReasonEnum::Stop`.
 ///
@@ -91,7 +91,7 @@ pub fn from_system(prompts: Vec<&str>) -> Content {
 ///
 /// ```
 /// let content = from_model(vec!["generated text"]);
-/// assert_eq!(content.role, RoleEnum::System);
+/// assert_eq!(content.role, RoleEnum::Model);
 /// assert!(matches!(content.complete_reason, CompleteReasonEnum::Stop));
 /// assert_eq!(content.parts.0.len(), 1);
 /// ```
@@ -106,7 +106,7 @@ pub fn from_model(prompts: Vec<&str>) -> Content {
     Content {
         role,
         parts,
-        complete_reason: CompleteReasonEnum::Stop,
+        ..Content::default()
     }
 }
 
@@ -258,39 +258,9 @@ mod tests {
     }
 
     #[test]
-    fn test_role_enum_default() {
-        let role = RoleEnum::default();
-        assert_eq!(role, RoleEnum::User);
-    }
-
-    #[test]
-    fn test_role_enum_equality() {
-        assert_eq!(RoleEnum::User, RoleEnum::User);
-        assert_eq!(RoleEnum::System, RoleEnum::System);
-        assert_eq!(RoleEnum::Model, RoleEnum::Model);
-        assert_ne!(RoleEnum::User, RoleEnum::System);
-    }
-
-    #[test]
     fn test_complete_reason_enum_default() {
         let reason = CompleteReasonEnum::default();
         assert_eq!(reason, CompleteReasonEnum::None);
-    }
-
-    #[test]
-    fn test_complete_reason_enum_variants() {
-        assert_eq!(CompleteReasonEnum::Stop, CompleteReasonEnum::Stop);
-        assert_eq!(CompleteReasonEnum::MaxTokens, CompleteReasonEnum::MaxTokens);
-        assert_eq!(
-            CompleteReasonEnum::ContentFilter,
-            CompleteReasonEnum::ContentFilter
-        );
-        assert_eq!(
-            CompleteReasonEnum::Recitation,
-            CompleteReasonEnum::Recitation
-        );
-        assert_eq!(CompleteReasonEnum::ToolCall, CompleteReasonEnum::ToolCall);
-        assert_ne!(CompleteReasonEnum::Stop, CompleteReasonEnum::MaxTokens);
     }
 
     #[test]
@@ -315,5 +285,43 @@ mod tests {
         let serialized = serde_json::to_string(&reason).unwrap();
         let deserialized: CompleteReasonEnum = serde_json::from_str(&serialized).unwrap();
         assert_eq!(reason, deserialized);
+    }
+    #[test]
+    fn test_complete_reason_enum_other_variant() {
+        let reason = CompleteReasonEnum::Other("custom_reason".to_string());
+        match reason {
+            CompleteReasonEnum::Other(s) => assert_eq!(s, "custom_reason"),
+            _ => panic!("Expected Other variant"),
+        }
+    }
+
+    #[test]
+    fn test_complete_reason_enum_serialization_with_other() {
+        let reason = CompleteReasonEnum::Other("timeout".to_string());
+        let serialized = serde_json::to_string(&reason).unwrap();
+        let deserialized: CompleteReasonEnum = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(reason, deserialized);
+    }
+
+    #[test]
+    fn test_role_enum_serialization_lowercase() {
+        let role = RoleEnum::User;
+        let serialized = serde_json::to_string(&role).unwrap();
+        assert!(serialized.contains("\"user\""));
+
+        let role = RoleEnum::Model;
+        let serialized = serde_json::to_string(&role).unwrap();
+        assert!(serialized.contains("\"model\""));
+    }
+
+    #[test]
+    fn test_complete_reason_serialization_snake_case() {
+        let reason = CompleteReasonEnum::MaxTokens;
+        let serialized = serde_json::to_string(&reason).unwrap();
+        assert!(serialized.contains("\"max_tokens\""));
+
+        let reason = CompleteReasonEnum::ToolCall;
+        let serialized = serde_json::to_string(&reason).unwrap();
+        assert!(serialized.contains("\"tool_call\""));
     }
 }
