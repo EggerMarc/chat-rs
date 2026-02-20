@@ -1,5 +1,7 @@
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::str::FromStr;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum File {
@@ -22,15 +24,18 @@ pub struct UrlData {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct MimeType(String);
 
-impl UrlData {
-    pub fn from_str(value: impl Into<String>) -> Result<UrlData, Box<dyn std::error::Error>> {
-        let url = Url::parse(&value.into())?;
+impl FromStr for UrlData {
+    type Err = Box<dyn std::error::Error>;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let url = Url::parse(s)?;
         Ok(UrlData {
             url,
             mimetype: None,
         })
     }
+}
 
+impl UrlData {
     pub fn with_mimetype(&mut self, mimetype: MimeType) -> &mut Self {
         self.mimetype = Some(mimetype);
         self
@@ -57,8 +62,26 @@ impl RawData {
     }
 }
 
-impl MimeType {
-    pub fn to_string(&self) -> String {
-        self.0.to_string()
+impl fmt::Display for MimeType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl File {
+    pub fn from_bytes(bytes: impl Into<Vec<u8>>, mimetype: impl Into<String>) -> File {
+        File::Bytes(RawData::from(bytes, mimetype))
+    }
+
+    pub fn from_url(
+        url: impl Into<String>,
+        mimetype: Option<&str>,
+    ) -> Result<File, Box<dyn std::error::Error>> {
+        let url = if let Some(mimetype) = mimetype {
+            UrlData::from(url, mimetype)?
+        } else {
+            UrlData::from_str(&url.into())?
+        };
+        Ok(File::Url(url))
     }
 }
