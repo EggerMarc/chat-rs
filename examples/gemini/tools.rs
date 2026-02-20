@@ -3,8 +3,6 @@ use chat_rs::{
     gemini::{self},
     messages::{self, content},
 };
-use schemars::JsonSchema;
-use serde::Deserialize;
 use tools_rs::{collect_tools, tool};
 
 #[tool]

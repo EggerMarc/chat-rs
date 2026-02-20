@@ -133,6 +133,12 @@ impl Parts {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub enum File {
+    Url(String),
+    Bytes { bytes: Vec<u8>, mimetype: String },
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", content = "value")]
 pub enum PartEnum {
     Reasoning(Text),
@@ -140,6 +146,7 @@ pub enum PartEnum {
     FunctionCall(FunctionCall),
     FunctionResponse(FunctionResponse),
     Structured(serde_json::Value),
+    File(File),
     /*
     Document,
     */
@@ -187,6 +194,13 @@ impl PartEnum {
         }
     }
 
+    pub fn file(&self) -> Option<File> {
+        match self {
+            PartEnum::File(file) => Some(file.clone()),
+            _ => None,
+        }
+    }
+
     pub fn from_reasoning(s: impl Into<String>) -> PartEnum {
         PartEnum::Reasoning(Text::new(s))
     }
@@ -205,6 +219,10 @@ impl PartEnum {
     pub fn from_structured(value: serde_json::Value) -> PartEnum {
         PartEnum::Structured(value)
     }
+
+    pub fn from_file(file: File) -> PartEnum {
+        PartEnum::File(file)
+    }
 }
 
 impl Display for PartEnum {
@@ -215,6 +233,14 @@ impl Display for PartEnum {
             PartEnum::Text(text) => write!(f, "{}", text),
             PartEnum::FunctionCall(fc) => write!(f, "{}", fc.name),
             PartEnum::FunctionResponse(fr) => write!(f, "{}", fr.name),
+            PartEnum::File(file) => write!(
+                f,
+                "{}",
+                match file {
+                    File::Url(url) => url,
+                    File::Bytes { bytes: _, mimetype } => mimetype,
+                }
+            ),
         }
     }
 }
