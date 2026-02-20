@@ -229,8 +229,8 @@ impl Display for PartEnum {
                 f,
                 "{}",
                 match file {
-                    File::Url { url, mimetype } => format!("{} {:?}", url, mimetype),
-                    File::Bytes { bytes: _, mimetype } => mimetype.to_string(),
+                    File::Url(url) => format!("{} {:?}", url.url, url.mimetype),
+                    File::Bytes(raw) => raw.mimetype.to_string(),
                 }
             ),
         }

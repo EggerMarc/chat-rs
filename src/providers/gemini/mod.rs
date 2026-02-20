@@ -4,7 +4,7 @@ mod google_search;
 pub mod lib;
 
 use async_trait::async_trait;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use std::env;
 use tools_rs::{FunctionCall, ToolCollection};
 
@@ -19,6 +19,7 @@ use crate::gemini::google_search::GoogleSearchTool;
 use crate::gemini::lib::GeminiNativeTool;
 use crate::lib::{ChatFailure, ChatResponse};
 use crate::messages::content::{CompleteReasonEnum, RoleEnum};
+use crate::messages::file::File;
 use crate::messages::parts::{PartEnum, Parts};
 use crate::metadata::Metadata;
 use crate::metadata::usage::Usage;
@@ -749,6 +750,23 @@ fn part_to_gemini(part: &PartEnum) -> Value {
                 }
             })
         }
+        PartEnum::File(file) => match file {
+            File::Url(url) => {
+                let mut file_data = Map::new();
+                file_data.insert("file_uri".to_string(), json!(url.url));
+
+                if let Some(mimetype) = url.mimetype.clone() {
+                    file_data.insert("mime_type".to_string(), json!(mimetype));
+                }
+
+                json!({
+                    "file_data": Value::Object(file_data)
+                })
+            }
+            File::Bytes(raw) => {
+                json!({ "inline_data": { "mime_type": raw.mimetype, "data": raw.bytes}})
+            }
+        },
         _ => json!({ "text": ""}),
     }
 }

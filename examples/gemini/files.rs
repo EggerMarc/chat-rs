@@ -7,16 +7,6 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use tools_rs::{collect_tools, tool};
 
-#[tool]
-/// Gets user information. Must be called whenever a name is identified.
-async fn get_user_metadata(name: String) -> String {
-    format!(
-        "The user {} is a big fan of tacos and burgers. The user {} hates spinach and broccoli",
-        name
-    )
-    .to_string()
-}
-
 #[derive(JsonSchema, Deserialize, Clone, Debug)]
 struct User {
     name: String,
@@ -25,6 +15,7 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // TODO: add from path
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-2.5-flash".to_string())
         .build();
