@@ -4,6 +4,7 @@ mod google_search;
 pub mod lib;
 
 use async_trait::async_trait;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Map, Value, json};
 use std::env;
 use tools_rs::{FunctionCall, ToolCollection};
@@ -767,7 +768,8 @@ fn part_to_gemini(part: &PartEnum) -> Value {
                 })
             }
             File::Bytes(raw) => {
-                json!({ "inline_data": { "mime_type": raw.mimetype, "data": raw.bytes}})
+                let data_b64 = STANDARD.encode(&raw.bytes);
+                json!({ "inline_data": { "mime_type": raw.mimetype, "data": data_b64}})
             }
         },
         _ => json!({ "text": ""}),
@@ -979,3 +981,4 @@ pub fn parse_usage(body: &Value) -> Usage {
         total_tokens: total as usize,
     }
 }
+
