@@ -46,6 +46,7 @@ tokio.workspace         = true
 tools-rs.workspace      = true
 tools_core.workspace    = true
 tools_macros.workspace  = true
+url = { version = "2.5.8", features = ["serde"] }
 
 [[example]]
 name = "gemini-structured"

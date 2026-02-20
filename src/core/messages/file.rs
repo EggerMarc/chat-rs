@@ -1,4 +1,3 @@
-use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -17,7 +16,7 @@ pub struct RawData {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct UrlData {
-    pub url: Url,
+    pub url: url::Url,
     pub mimetype: Option<MimeType>,
 }
 
@@ -27,7 +26,7 @@ pub struct MimeType(String);
 impl FromStr for UrlData {
     type Err = Box<dyn std::error::Error>;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let url = Url::parse(s)?;
+        let url = url::Url::parse(s)?;
         Ok(UrlData {
             url,
             mimetype: None,
@@ -45,7 +44,7 @@ impl UrlData {
         url: impl Into<String>,
         mimetype: impl Into<String>,
     ) -> Result<UrlData, Box<dyn std::error::Error>> {
-        let url = Url::parse(&url.into())?;
+        let url = url::Url::parse(&url.into())?;
         let mimetype = MimeType(mimetype.into());
         Ok(UrlData {
             url,
