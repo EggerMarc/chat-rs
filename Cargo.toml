@@ -52,10 +52,6 @@ name = "gemini-structured"
 path = "./examples/gemini/structured.rs"
 
 [[example]]
-name = "gemini-native-tools"
-path = "./examples/gemini/native_tools.rs"
-
-[[example]]
 name = "gemini-code-execution"
 path = "./examples/gemini/code_execution.rs"
 

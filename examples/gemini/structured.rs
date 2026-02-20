@@ -12,15 +12,15 @@ use tools_rs::{collect_tools, tool};
 async fn get_user_metadata(name: String) -> String {
     format!(
         "The user {} is a big fan of tacos and burgers. The user {} hates spinach and broccoli",
-        name
+        name, name
     )
     .to_string()
 }
 
 #[derive(JsonSchema, Deserialize, Clone, Debug)]
 struct User {
-    name: String,
-    likes: Vec<String>,
+    pub name: String,
+    pub likes: Vec<String>,
 }
 
 #[tokio::main]
@@ -51,6 +51,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         messages.push(user_message);
 
         let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
-        println!("Found user: {:#?}", response);
+        println!(
+            "User {} likes {:?}",
+            response.content.name, response.content.likes
+        );
     }
 }
