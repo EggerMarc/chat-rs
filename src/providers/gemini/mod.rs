@@ -710,19 +710,22 @@ fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
     json!({ "role": role_str, "parts": parts })
 }
 
-/// Convert an internal PartEnum into the JSON representation expected by the Gemini API.
+/// Convert a PartEnum into the JSON object shape expected by the Gemini API.
 ///
-/// Maps PartEnum variants to the corresponding Gemini part object:
-/// - `Text` and `Reasoning` become `{"text": "..."}`
-/// - `FunctionCall` becomes `{"functionCall": {"name": ..., "args": ...}}`
-/// - `FunctionResponse` becomes `{"functionResponse": {"name": ..., "response": ...}}`
-/// - Any other variant becomes `{"text": ""}`
+/// The returned `serde_json::Value` represents a single Gemini "part":
+/// - `Text` and `Reasoning` produce `{ "text": "..." }`.
+/// - `FunctionCall` produces `{ "functionCall": { "name": <name>, "args": <args> } }`.
+/// - `FunctionResponse` produces `{ "functionResponse": { "name": <name>, "response": <object-or-content> } }`
+///   where non-object responses are wrapped as `{ "content": <value> }`.
+/// - `File::Url` produces `{ "file_data": { "file_uri": <uri>, "mime_type": <opt> } }`.
+/// - `File::Bytes` produces `{ "inline_data": { "mime_type": <mime>, "data": <bytes> } }`.
+/// - All other variants produce `{ "text": "" }`.
 ///
 /// # Examples
 ///
 /// ```
 /// use serde_json::Value;
-/// // assume PartEnum::Text exists and is constructible
+/// // Construct a text part; exact constructors depend on the crate's types.
 /// let p = PartEnum::Text(String::from("hello"));
 /// let v: Value = part_to_gemini(&p);
 /// assert_eq!(v["text"], "hello");
