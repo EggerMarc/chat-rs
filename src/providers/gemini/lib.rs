@@ -25,7 +25,7 @@ pub trait GeminiNativeTool: Send + Sync {
 }
 
 impl Clone for Box<dyn GeminiNativeTool> {
-    /// Returns a boxed clone of the underlying `GeminiNativeTool`.
+    /// Create a boxed clone of the underlying `GeminiNativeTool`.
     ///
     /// # Examples
     ///
