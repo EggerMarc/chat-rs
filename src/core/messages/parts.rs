@@ -1,4 +1,5 @@
 use crate::core::messages::text::Text;
+use crate::messages::file::File;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::slice::{Iter, IterMut};
@@ -133,12 +134,6 @@ impl Parts {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub enum File {
-    Url(String),
-    Bytes { bytes: Vec<u8>, mimetype: String },
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", content = "value")]
 pub enum PartEnum {
     Reasoning(Text),
@@ -147,9 +142,6 @@ pub enum PartEnum {
     FunctionResponse(FunctionResponse),
     Structured(serde_json::Value),
     File(File),
-    /*
-    Document,
-    */
 }
 
 impl Default for PartEnum {
@@ -237,8 +229,8 @@ impl Display for PartEnum {
                 f,
                 "{}",
                 match file {
-                    File::Url(url) => url,
-                    File::Bytes { bytes: _, mimetype } => mimetype,
+                    File::Url { url, mimetype } => format!("{} {:?}", url, mimetype),
+                    File::Bytes { bytes: _, mimetype } => mimetype.to_string(),
                 }
             ),
         }

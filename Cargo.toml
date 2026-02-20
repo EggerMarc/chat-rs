@@ -67,3 +67,6 @@ path = "./examples/gemini/google_maps.rs"
 name = "gemini-tools"
 path = "./examples/gemini/tools.rs"
 
+[[example]]
+name = "gemini-files"
+path = "./examples/gemini/files.rs"
