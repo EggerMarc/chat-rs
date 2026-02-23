@@ -23,6 +23,12 @@ pub struct UrlData {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct MimeType(String);
 
+impl MimeType {
+    pub fn from(s: impl Into<String>) -> MimeType {
+        MimeType(s.into())
+    }
+}
+
 impl FromStr for UrlData {
     type Err = Box<dyn std::error::Error + Send + Sync>;
     /// Parses a string as a URL and constructs a `UrlData` with no MIME type.
