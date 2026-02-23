@@ -24,7 +24,7 @@ pub struct UrlData {
 pub struct MimeType(String);
 
 impl FromStr for UrlData {
-    type Err = Box<dyn std::error::Error>;
+    type Err = Box<dyn std::error::Error + Send + Sync>;
     /// Parses a string as a URL and constructs a `UrlData` with no MIME type.
     ///
     /// Returns an error if the input is not a valid URL.
@@ -82,7 +82,7 @@ impl UrlData {
     pub fn from(
         url: impl Into<String>,
         mimetype: impl Into<String>,
-    ) -> Result<UrlData, Box<dyn std::error::Error>> {
+    ) -> Result<UrlData, Box<dyn std::error::Error + Send + Sync>> {
         let url = url::Url::parse(&url.into())?;
         let mimetype = MimeType(mimetype.into());
         Ok(UrlData {
@@ -178,7 +178,7 @@ impl File {
     pub fn from_url(
         url: impl Into<String>,
         mimetype: Option<&str>,
-    ) -> Result<File, Box<dyn std::error::Error>> {
+    ) -> Result<File, Box<dyn std::error::Error + Send + Sync>> {
         let url = if let Some(mimetype) = mimetype {
             UrlData::from(url, mimetype)?
         } else {
@@ -187,3 +187,4 @@ impl File {
         Ok(File::Url(url))
     }
 }
+

@@ -24,7 +24,7 @@ use chat_rs::{
 /// // $ cargo run --example files
 /// ```
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // TODO: add from path
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-2.5-flash".to_string())
@@ -36,22 +36,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = messages::Messages::default();
-
-    messages.push(content::from_system(vec![
+    let mut system_messages = content::from_system(vec![
         "You are a helpful assistant. Your job is to be as useful as possible.",
-    ]));
+    ])
+    .parts
+    .push(messages::parts::PartEnum::File(File::from_url(
+        "https://www.youtube.com/watch?v=g-ydgmNjReQ",
+        None,
+    )?));
+
+    messages.push(system_messages);
 
     loop {
         let mut user_input = String::new();
         println!("User:\t");
         std::io::stdin().read_line(&mut user_input)?;
         let mut user_message = content::from_user(vec![&user_input]);
-        user_message
-            .parts
-            .push(messages::parts::PartEnum::File(File::from_url(
-                "https://www.youtube.com/watch?v=ZsvZsVPhTVs",
-                None,
-            )?));
 
         messages.push(user_message);
 
@@ -60,3 +60,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Model:\t{:?}", response.content.parts);
     }
 }
+
