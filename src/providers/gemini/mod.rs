@@ -4,7 +4,8 @@ mod google_search;
 pub mod lib;
 
 use async_trait::async_trait;
-use serde_json::{Value, json};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use serde_json::{Map, Value, json};
 use std::env;
 use tools_rs::{FunctionCall, ToolCollection};
 
@@ -19,6 +20,7 @@ use crate::gemini::google_search::GoogleSearchTool;
 use crate::gemini::lib::GeminiNativeTool;
 use crate::lib::{ChatFailure, ChatResponse};
 use crate::messages::content::{CompleteReasonEnum, RoleEnum};
+use crate::messages::file::File;
 use crate::messages::parts::{PartEnum, Parts};
 use crate::metadata::Metadata;
 use crate::metadata::usage::Usage;
@@ -709,19 +711,22 @@ fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
     json!({ "role": role_str, "parts": parts })
 }
 
-/// Convert an internal PartEnum into the JSON representation expected by the Gemini API.
+/// Convert a PartEnum into the JSON object shape expected by the Gemini API.
 ///
-/// Maps PartEnum variants to the corresponding Gemini part object:
-/// - `Text` and `Reasoning` become `{"text": "..."}`
-/// - `FunctionCall` becomes `{"functionCall": {"name": ..., "args": ...}}`
-/// - `FunctionResponse` becomes `{"functionResponse": {"name": ..., "response": ...}}`
-/// - Any other variant becomes `{"text": ""}`
+/// The returned `serde_json::Value` represents a single Gemini "part":
+/// - `Text` and `Reasoning` produce `{ "text": "..." }`.
+/// - `FunctionCall` produces `{ "functionCall": { "name": <name>, "args": <args> } }`.
+/// - `FunctionResponse` produces `{ "functionResponse": { "name": <name>, "response": <object-or-content> } }`
+///   where non-object responses are wrapped as `{ "content": <value> }`.
+/// - `File::Url` produces `{ "file_data": { "file_uri": <uri>, "mime_type": <opt> } }`.
+/// - `File::Bytes` produces `{ "inline_data": { "mime_type": <mime>, "data": <bytes> } }`.
+/// - All other variants produce `{ "text": "" }`.
 ///
 /// # Examples
 ///
 /// ```
 /// use serde_json::Value;
-/// // assume PartEnum::Text exists and is constructible
+/// // Construct a text part; exact constructors depend on the crate's types.
 /// let p = PartEnum::Text(String::from("hello"));
 /// let v: Value = part_to_gemini(&p);
 /// assert_eq!(v["text"], "hello");
@@ -749,6 +754,24 @@ fn part_to_gemini(part: &PartEnum) -> Value {
                 }
             })
         }
+        PartEnum::File(file) => match file {
+            File::Url(url) => {
+                let mut file_data = Map::new();
+                file_data.insert("file_uri".to_string(), json!(url.url));
+
+                if let Some(mimetype) = url.mimetype.clone() {
+                    file_data.insert("mime_type".to_string(), json!(mimetype));
+                }
+
+                json!({
+                    "file_data": Value::Object(file_data)
+                })
+            }
+            File::Bytes(raw) => {
+                let data_b64 = STANDARD.encode(&raw.bytes);
+                json!({ "inline_data": { "mime_type": raw.mimetype, "data": data_b64}})
+            }
+        },
         _ => json!({ "text": ""}),
     }
 }
@@ -958,3 +981,4 @@ pub fn parse_usage(body: &Value) -> Usage {
         total_tokens: total as usize,
     }
 }
+

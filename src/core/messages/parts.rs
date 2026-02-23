@@ -1,4 +1,5 @@
 use crate::core::messages::text::Text;
+use crate::messages::file::File;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::slice::{Iter, IterMut};
@@ -140,9 +141,7 @@ pub enum PartEnum {
     FunctionCall(FunctionCall),
     FunctionResponse(FunctionResponse),
     Structured(serde_json::Value),
-    /*
-    Document,
-    */
+    File(File),
 }
 
 impl Default for PartEnum {
@@ -180,6 +179,17 @@ impl PartEnum {
         }
     }
 
+    /// Returns the contained JSON value if this part is a `Structured` variant.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use serde_json::json;
+    /// use crate::core::messages::parts::PartEnum;
+    ///
+    /// let part = PartEnum::Structured(json!({"key": "value"}));
+    /// assert_eq!(part.structured(), Some(json!({"key": "value"})));
+    /// ```
     pub fn structured(&self) -> Option<serde_json::Value> {
         match self {
             PartEnum::Structured(value) => Some(value.clone()),
@@ -187,6 +197,40 @@ impl PartEnum {
         }
     }
 
+    /// Accesses the contained File when this enum is the `File` variant.
+    ///
+    /// # Returns
+    ///
+    /// `Some(File)` containing the file when the variant is `PartEnum::File`, `None` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::core::messages::parts::PartEnum;
+    /// use crate::messages::file::File;
+    ///
+    /// let file = File::default();
+    /// let part = PartEnum::from_file(file.clone());
+    /// assert_eq!(part.file(), Some(file));
+    /// ```
+    pub fn file(&self) -> Option<File> {
+        match self {
+            PartEnum::File(file) => Some(file.clone()),
+            _ => None,
+        }
+    }
+
+    /// Creates a `PartEnum::Reasoning` from the provided string.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let part = PartEnum::from_reasoning("inference detail");
+    /// match part {
+    ///     PartEnum::Reasoning(text) => assert_eq!(text.as_str(), "inference detail"),
+    ///     _ => panic!("expected Reasoning variant"),
+    /// }
+    /// ```
     pub fn from_reasoning(s: impl Into<String>) -> PartEnum {
         PartEnum::Reasoning(Text::new(s))
     }
@@ -202,12 +246,57 @@ impl PartEnum {
         PartEnum::FunctionResponse(fr)
     }
 
+    /// Creates a `PartEnum::Structured` variant containing the given JSON `value`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use serde_json::json;
+    ///
+    /// let value = json!({ "key": "value" });
+    /// let part = PartEnum::from_structured(value.clone());
+    ///
+    /// match part {
+    ///     PartEnum::Structured(v) => assert_eq!(v, value),
+    ///     _ => panic!("expected Structured variant"),
+    /// }
+    /// ```
     pub fn from_structured(value: serde_json::Value) -> PartEnum {
         PartEnum::Structured(value)
+    }
+
+    /// Creates a `PartEnum::File` variant containing the provided `File`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let file: File = /* obtain or construct a File */ unimplemented!();
+    /// let part = PartEnum::from_file(file);
+    /// match part {
+    ///     PartEnum::File(f) => { /* use f */ },
+    ///     _ => unreachable!(),
+    /// }
+    /// ```
+    pub fn from_file(file: File) -> PartEnum {
+        PartEnum::File(file)
     }
 }
 
 impl Display for PartEnum {
+    /// Formats a PartEnum for human-readable display.
+    ///
+    /// Each variant is rendered to a concise textual representation:
+    /// - `Structured`: the JSON value is printed.
+    /// - `Reasoning` and `Text`: the contained text is printed.
+    /// - `FunctionCall` and `FunctionResponse`: the function name is printed.
+    /// - `File`: prints the URL and MIME type for `File::Url`, or the MIME type for `File::Bytes`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let p = PartEnum::from_text("hello");
+    /// assert_eq!(format!("{}", p), "hello");
+    /// ```
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PartEnum::Structured(value) => write!(f, "{}", value),
@@ -215,6 +304,14 @@ impl Display for PartEnum {
             PartEnum::Text(text) => write!(f, "{}", text),
             PartEnum::FunctionCall(fc) => write!(f, "{}", fc.name),
             PartEnum::FunctionResponse(fr) => write!(f, "{}", fr.name),
+            PartEnum::File(file) => write!(
+                f,
+                "{}",
+                match file {
+                    File::Url(url) => format!("{} {:?}", url.url, url.mimetype),
+                    File::Bytes(raw) => raw.mimetype.to_string(),
+                }
+            ),
         }
     }
 }

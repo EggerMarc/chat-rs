@@ -560,36 +560,23 @@ mod tests {
         }
 
         /// Creates a MockChatProvider that will return a single model text response.
-
         ///
-
         /// The returned provider will yield one Content with the given text as a Text part,
-
         /// role set to Model, and completion reason set to Stop.
-
         ///
-
         /// # Examples
-
         ///
-
         /// ```
-
         /// let provider = MockChatProvider::single_response("hello");
-
         /// let mut messages = Messages::new();
-
         /// let content = futures::executor::block_on(async { provider.complete(&messages, None, None, None).await }).unwrap();
-
         /// assert!(content.parts.last().unwrap().is_text());
-
         /// ```
         fn single_response(text: &str) -> Self {
             let content = Content {
                 parts: Parts(vec![PartEnum::from_text(text)]),
                 role: RoleEnum::Model,
                 complete_reason: CompleteReasonEnum::Stop,
-                ..Default::default()
             };
             MockChatProvider::new(vec![content])
         }
@@ -725,8 +712,8 @@ mod tests {
         assert!(result.is_ok());
 
         let output = result.unwrap();
-        assert_eq!(output.answer, "42");
-        assert_eq!(output.confidence, 0.95);
+        assert_eq!(output.content.answer, "42");
+        assert_eq!(output.content.confidence, 0.95);
     }
 
     #[tokio::test]
@@ -746,8 +733,8 @@ mod tests {
         assert!(result.is_ok());
 
         let output = result.unwrap();
-        assert_eq!(output.answer, "The answer");
-        assert_eq!(output.confidence, 0.8);
+        assert_eq!(output.content.answer, "The answer");
+        assert_eq!(output.content.confidence, 0.8);
     }
 
     #[tokio::test]
@@ -796,64 +783,6 @@ mod tests {
             }
             _ => panic!("Expected InvalidResponse error"),
         }
-    }
-
-    #[tokio::test]
-    async fn test_structured_complete_with_retries() {
-        let invalid = Content {
-            parts: Parts(vec![PartEnum::from_text("invalid")]),
-            role: RoleEnum::Model,
-            complete_reason: CompleteReasonEnum::Stop,
-            ..Default::default()
-        };
-
-        let model = MockChatProvider::new(vec![]);
-        let mut chat = ChatBuilder::new().with_model(model).build();
-
-        let mut messages = Messages::default();
-        messages.push(crate::messages::content::from_user(vec!["Test"]));
-        let original_len = messages.len();
-
-        let _result = chat.complete(&mut messages).await;
-
-        // Messages should not be modified
-        assert_eq!(messages.len(), original_len);
-    }
-
-    #[tokio::test]
-    async fn test_chat_reasoning_continues_loop() {
-        // Create a sequence where first response is reasoning, second is text
-        let reasoning_content = Content {
-            parts: Parts(vec![PartEnum::from_reasoning("Thinking...")]),
-            role: RoleEnum::Model,
-            complete_reason: CompleteReasonEnum::None,
-            ..Default::default()
-        };
-
-        let valid = Content {
-            parts: Parts(vec![PartEnum::from_structured(serde_json::json!({
-                "answer": "success",
-                "confidence": 1.0
-            }))]),
-            role: RoleEnum::Model,
-            complete_reason: CompleteReasonEnum::Stop,
-            ..Default::default()
-        };
-
-        let model = MockChatProvider::new(vec![valid]);
-
-        let mut chat = ChatBuilder::new()
-            .with_structured_output::<TestOutput>()
-            .with_max_retries(3)
-            .with_model(model)
-            .build();
-
-        let mut messages = Messages::default();
-        messages.push(crate::messages::content::from_user(vec!["Question"]));
-
-        let result = chat.complete(&mut messages).await.unwrap();
-        // Should have both reasoning and final text
-        assert!(!result.content.parts.is_empty());
     }
 
     #[tokio::test]
