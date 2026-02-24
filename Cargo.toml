@@ -5,7 +5,7 @@ description  = "Build LLM clients with ease, attach them to your tools"
 edition      = "2024"
 license      = "MIT"
 name         = "chat-rs"
-version      = "0.0.1"
+version      = "0.0.2"
 
 [lib]
 name = "chat_rs"
@@ -33,6 +33,10 @@ tools-rs            = "0.1.5"
 tools_core          = "0.1.4"
 tools_macros        = "0.1.1"
 tokio               = { version = "1.48.0", features = ["macros", "rt-multi-thread", "time", "sync"] }
+
+[dev-dependencies]
+regex     = "1"
+once_cell = "1"
 
 [dependencies]
 async-trait.workspace   = true
@@ -66,5 +70,5 @@ name = "gemini-tools"
 path = "./examples/gemini/tools.rs"
 
 [[example]]
-name = "gemini-files"
-path = "./examples/gemini/files.rs"
+name = "gemini-youtube"
+path = "./examples/gemini/youtube.rs"
