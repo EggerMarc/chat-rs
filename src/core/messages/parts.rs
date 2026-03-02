@@ -1,4 +1,5 @@
 use crate::core::messages::text::Text;
+use crate::messages::embeddings::Embeddings;
 use crate::messages::file::File;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -142,6 +143,7 @@ pub enum PartEnum {
     FunctionResponse(FunctionResponse),
     Structured(serde_json::Value),
     File(File),
+    Embeddings(Embeddings),
 }
 
 impl Default for PartEnum {
@@ -175,6 +177,13 @@ impl PartEnum {
     pub fn reasoning(&self) -> Option<Text> {
         match self {
             PartEnum::Reasoning(text) => Some(text.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn embeddings(&self) -> Option<Embeddings> {
+        match self {
+            PartEnum::Embeddings(embeddings) => Some(embeddings.to_owned()),
             _ => None,
         }
     }
@@ -242,8 +251,13 @@ impl PartEnum {
     pub fn from_function_call(fc: FunctionCall) -> PartEnum {
         PartEnum::FunctionCall(fc)
     }
+
     pub fn from_function_response(fr: FunctionResponse) -> PartEnum {
         PartEnum::FunctionResponse(fr)
+    }
+
+    pub fn from_embeddings(embeddings: Embeddings) -> PartEnum {
+        PartEnum::Embeddings(embeddings)
     }
 
     /// Creates a `PartEnum::Structured` variant containing the given JSON `value`.
@@ -312,6 +326,22 @@ impl Display for PartEnum {
                     File::Bytes(raw) => raw.mimetype.to_string(),
                 }
             ),
+            PartEnum::Embeddings(embeddings) => {
+                let content = &embeddings.content;
+                let len = content.len();
+
+                match len {
+                    0 => write!(f, "[]"),
+                    1..=3 => write!(f, "{:?}", content),
+                    _ => write!(
+                        f,
+                        "[{:.4}, {:.4}, ..., {:.4}]",
+                        content[0],
+                        content[1],
+                        content[len - 1]
+                    ),
+                }
+            }
         }
     }
 }
@@ -668,3 +698,4 @@ mod tests {
         assert_ne!(part1, part3);
     }
 }
+

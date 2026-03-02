@@ -1,4 +1,5 @@
 pub mod content;
+pub mod embeddings;
 pub mod file;
 pub mod parts;
 pub mod text;
