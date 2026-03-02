@@ -29,25 +29,6 @@ fn find_youtube_urls(text: &str) -> Vec<Url> {
         .collect()
 }
 
-/// Runs an interactive loop that reads user input from stdin, attaches a youtube video (from a URL) to each user message,
-/// sends the conversation to a Gemini-backed chat model, and prints the model's metadata and content parts.
-///
-/// The program constructs a Gemini client and a ChatBuilder-backed chat, initializes the conversation with a
-/// system prompt, then repeatedly reads a line from stdin, attaches a File part built from a URL to the user message,
-/// appends it to the conversation, awaits the model completion, and prints the response.
-///
-/// # Returns
-///
-/// `Ok(())` on successful execution; a boxed error (`Box<dyn std::error::Error>`) if any I/O or client error occurs.
-///
-/// # Examples
-///
-/// ```no_run
-/// // Run the compiled binary and type messages at the prompt. Each message will be sent to the model
-/// // with a hardcoded file URL attached; the model's metadata and content parts are printed to stdout.
-/// // Example invocation:
-/// // $ cargo run --example files
-/// ```
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // TODO: add from path
