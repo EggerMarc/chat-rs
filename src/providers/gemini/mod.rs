@@ -31,11 +31,25 @@ pub struct FunctionCallingConfig {
     pub allowed_function_names: Option<Vec<String>>,
 }
 
+#[derive(Default, Clone)]
+enum EmbeddingsTask {
+    SemanticSimilarity,
+    #[default]
+    Embed,
+}
+
+#[derive(Clone, Default)]
+pub struct EmbeddingsConfig {
+    pub dimensions: Option<usize>,
+    pub task: EmbeddingsTask,
+}
+
 pub struct GeminiBuilder {
     model_name: Option<String>,
     api_key: Option<String>,
     native_tools: Vec<Box<dyn GeminiNativeTool>>,
     function_config: Option<FunctionCallingConfig>,
+    embeddings_config: Option<EmbeddingsConfig>,
 }
 
 impl Default for GeminiBuilder {
@@ -68,6 +82,7 @@ impl GeminiBuilder {
             api_key: None,
             native_tools: Vec::new(),
             function_config: None,
+            embeddings_config: None,
         }
     }
 
@@ -197,6 +212,29 @@ impl GeminiBuilder {
         self
     }
 
+    pub fn with_embeddings(&mut self, dimensions: Option<usize>) -> &mut Self {
+        self.embeddings_config = Some(EmbeddingsConfig {
+            dimensions,
+            ..Default::default()
+        });
+        self
+    }
+
+    pub fn with_embeddings_task(&mut self, task: EmbeddingsTask) -> &mut Self {
+        if let Some(config) = &self.embeddings_config {
+            self.embeddings_config = Some(EmbeddingsConfig {
+                task,
+                ..config.clone()
+            })
+        } else {
+            self.embeddings_config = Some(EmbeddingsConfig {
+                task,
+                ..Default::default()
+            })
+        };
+        self
+    }
+
     /// Builds a `GeminiClient` from this builder, applying sensible defaults where fields are unset.
     ///
     /// The returned client is configured with the builder's current `model_name`, `api_key`,
@@ -231,6 +269,7 @@ impl GeminiBuilder {
             }),
             native_tools: self.native_tools.clone(),
             function_config: self.function_config.clone(),
+            embeddings_config: self.embeddings_config.clone(),
         }
     }
 }
@@ -240,6 +279,7 @@ pub struct GeminiClient {
     api_key: String,
     native_tools: Vec<Box<dyn GeminiNativeTool>>,
     function_config: Option<FunctionCallingConfig>,
+    embeddings_config: Option<EmbeddingsConfig>,
 }
 
 impl GeminiClient {
@@ -260,11 +300,13 @@ impl GeminiClient {
     /// ```
     pub fn new(model_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let api_key = env::var("GEMINI_API_KEY")?;
+
         Ok(GeminiClient {
             model_name: model_name.to_string(),
             api_key,
             native_tools: Vec::new(),
             function_config: None,
+            embeddings_config: None,
         })
     }
 }
@@ -290,17 +332,25 @@ impl ChatProvider for GeminiClient {
         _options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
+        let task = if self.embeddings_config.is_some() {
+            ":embedContent"
+        } else {
+            ":generateContent"
+        };
+
         let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
-            self.model_name
+            "https://generativelanguage.googleapis.com/v1beta/models/{}{}",
+            self.model_name, task
         );
 
         let body = build_request_body(
             messages,
+            &self.model_name,
             custom_tools,
             structured_output,
             &self.native_tools,
             self.function_config.as_ref(),
+            self.embeddings_config.as_ref(),
         )
         .map_err(|err| ChatFailure {
             metadata: None,
@@ -313,11 +363,12 @@ impl ChatProvider for GeminiClient {
             .header("x-goog-api-key", &self.api_key)
             .body(body.to_string());
 
+        println!("Body: {}", body);
+
         let res = req.send().await.map_err(|e| ChatFailure {
             err: ChatError::Provider(e.to_string()),
             metadata: None,
         })?;
-
         match res.error_for_status() {
             Ok(data) => {
                 let text = data.text().await.map_err(|e| ChatFailure {
@@ -378,14 +429,39 @@ impl ChatProvider for GeminiClient {
 /// ```
 fn build_request_body(
     messages: &Messages,
+    model_name: &str,
     custom_tools: Option<&ToolCollection>,
     structured_output: Option<&schemars::Schema>,
     native_tools: &[Box<dyn GeminiNativeTool>],
     function_config: Option<&FunctionCallingConfig>,
+    embeddings_config: Option<&EmbeddingsConfig>,
 ) -> Result<Value, ChatError> {
     validate_combinations(custom_tools, structured_output, native_tools);
 
     let mut body = json!({});
+
+    if embeddings_config.is_some() {
+        let model_name = format!(
+            "models/{}",
+            model_name.split(":").next().unwrap_or(model_name)
+        );
+
+        body["model"] = Value::String(model_name.to_string());
+
+        let content = messages.last().ok_or(ChatError::Provider(
+            "Sent empty content to embed, expected Text parts".to_string(),
+        ))?;
+
+        let parts = content
+            .parts
+            .clone()
+            .into_iter()
+            .map(|part| part_to_gemini(&part))
+            .collect();
+
+        body["content"] = json!({ "parts": Value::Array(parts)});
+        return Ok(body);
+    }
 
     if let Some(schema) = structured_output {
         let mut clean_schema = serde_json::to_value(schema)
@@ -809,25 +885,27 @@ fn part_to_gemini(part: &PartEnum) -> Value {
 /// assert_eq!(content.parts.len(), 1);
 /// ```
 fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
-    let candidate = json
-        .get("candidates")
-        .and_then(|c| c.get(0))
-        .ok_or_else(|| ChatError::InvalidResponse("No candidates in response".to_string()))?;
+    println!("Content: {:?}", json);
+
+    let candidate = json.get("candidates").and_then(|c| c.get(0));
 
     let content_json = candidate
-        .get("content")
-        .ok_or_else(|| ChatError::InvalidResponse("No content in candidate".to_string()))?;
+        .and_then(|c| c.get("content"))
+        .or_else(|| json.get("content"))
+        .ok_or_else(|| ChatError::InvalidResponse("No content in response".to_string()))?;
 
     let parts = parse_parts(content_json)?;
     let role = parse_role(content_json);
-    let complete_reason = parse_finish_reason(candidate);
 
-    let content = Content {
+    let complete_reason = candidate
+        .map(parse_finish_reason)
+        .unwrap_or(CompleteReasonEnum::None);
+
+    Ok(Content {
         parts,
         role,
         complete_reason,
-    };
-    Ok(content)
+    })
 }
 
 /// Parses the `"parts"` array of a Gemini content JSON object into the internal `Parts` representation.
@@ -981,4 +1059,3 @@ pub fn parse_usage(body: &Value) -> Usage {
         total_tokens: total as usize,
     }
 }
-
