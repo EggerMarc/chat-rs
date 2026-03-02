@@ -11,7 +11,7 @@ use crate::{
             parts::{PartEnum, Parts},
         },
     },
-    lib::{ChatFailure, ChatResponse},
+    lib::{ChatFailure, ChatResponse, EmbeddingsResponse},
     metadata::Metadata,
 };
 
@@ -104,6 +104,27 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
             metadata: last_metadata,
             err: last_err.unwrap_or(ChatError::RateLimited),
         })
+    }
+
+    pub async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure> {
+        let response = self.model.complete(messages, None, None, None).await?;
+
+        let metadata = response.metadata;
+        let embeddings_part = response.content.parts.last().ok_or_else(|| ChatFailure {
+            err: ChatError::InvalidResponse("No parts in response".to_string()),
+            metadata: metadata.clone(),
+        })?;
+
+        match embeddings_part {
+            PartEnum::Embeddings(embeddings) => Ok(EmbeddingsResponse {
+                metadata,
+                embeddings: embeddings.clone(),
+            }),
+            _ => Err(ChatFailure {
+                err: ChatError::InvalidResponse("Response was not embeddings".to_string()),
+                metadata,
+            }),
+        }
     }
 }
 
