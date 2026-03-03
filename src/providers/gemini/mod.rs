@@ -71,7 +71,7 @@ impl Default for GeminiBuilder {
 }
 
 impl GeminiBuilder {
-    /// Creates a new GeminiBuilder initialized with empty/default fields.
+    /// Creates a new GeminiBuilder with default (empty) configuration.
     ///
     /// # Examples
     ///
@@ -295,17 +295,16 @@ pub struct GeminiClient {
 }
 
 impl GeminiClient {
-    /// Creates a GeminiClient for the given model name using the `GEMINI_API_KEY` from the environment.
+    /// Creates a GeminiClient configured with the `GEMINI_API_KEY` taken from the environment.
     ///
-    /// The function reads the `GEMINI_API_KEY` environment variable and returns a configured client
-    /// with no native tools and no function-calling configuration. Returns an `Err` if the
-    /// `GEMINI_API_KEY` environment variable is not set or cannot be read.
+    /// If the `GEMINI_API_KEY` environment variable is missing or cannot be read, this function
+    /// returns an error.
     ///
     /// # Examples
     ///
     /// ```
     /// use std::env;
-    /// // In tests set the env var before calling `new`.
+    /// // Set the env var for the example
     /// env::set_var("GEMINI_API_KEY", "test-key");
     /// let client = crate::providers::gemini::GeminiClient::new("gemini-2.0-flash-exp").unwrap();
     /// assert_eq!(client.model_name, "gemini-2.0-flash-exp");
@@ -325,7 +324,9 @@ impl GeminiClient {
 
 #[async_trait]
 impl ChatProvider for GeminiClient {
-    /// Send messages to the Gemini (Google Generative Language) model and parse its response into a `Content`.
+    /// Send the provided messages to the Gemini model and return the model's parsed response as `Content`.
+    ///
+    /// If an embeddings configuration is set on the client, the request will target Gemini's embedding task and return embedding results; otherwise it will request generated content.
     ///
     /// # Examples
     ///
@@ -336,7 +337,7 @@ impl ChatProvider for GeminiClient {
     ///
     /// # Returns
     ///
-    /// `Content` parsed from the model's response on success; returns a `ChatError` if the request, response parsing, or API call fails.
+    /// `Ok(ChatResponse)` containing the parsed `Content` and associated metadata on success; `Err(ChatFailure)` if the HTTP request, response parsing, or API call fails.
     async fn complete(
         &self,
         messages: &Messages,
@@ -412,19 +413,18 @@ impl ChatProvider for GeminiClient {
     }
 }
 
-/// Builds the JSON request body for the Gemini Generative Language API from the provided
-/// messages, optional custom tools, optional structured output schema, native tools, and
-/// optional function-calling configuration.
+/// Assembles a Gemini Generative Language API request body from messages, tools, and optional configurations.
 ///
-/// The returned JSON contains any of: a sanitized `generationConfig` (when `structured_output` is
-/// provided), `system_instruction` (from system-role messages), `contents` (from non-system
-/// messages), and optional `tools` and `toolConfig` fields assembled from `custom_tools`,
-/// `native_tools`, and `function_config`.
+/// The produced JSON may include a sanitized `generationConfig` (when `structured_output` is provided),
+/// a `system_instruction` (from system-role messages), `contents` (from non-system messages),
+/// and optional `tools` and `toolConfig` fields built from `custom_tools`, `native_tools`, and `function_config`.
+/// When `embeddings_config` is present the body is constructed for an embeddings request and will contain
+/// `model`, `content` (from the last message's parts), an optional `taskType`, and optional `output_dimensionality`.
 ///
 /// # Returns
 ///
-/// A `serde_json::Value` representing the assembled request body, or a `ChatError` if schema
-/// serialization or tool/config assembly fails.
+/// A `serde_json::Value` representing the assembled request body, or a `ChatError` if schema serialization
+/// or tool/config assembly fails.
 ///
 /// # Examples
 ///
@@ -435,7 +435,16 @@ impl ChatProvider for GeminiClient {
 /// // let schema: Option<&schemars::Schema> = None;
 /// // let native_tools: Vec<Box<dyn GeminiNativeTool>> = vec![];
 /// // let function_config: Option<&FunctionCallingConfig> = None;
-/// // let body = build_request_body(&messages, custom_tools, schema, &native_tools, function_config)?;
+/// // let embeddings_config: Option<&EmbeddingsConfig> = None;
+/// // let body = build_request_body(
+/// //     &messages,
+/// //     "gemini-2.0",
+/// //     custom_tools,
+/// //     schema,
+/// //     &native_tools,
+/// //     function_config,
+/// //     embeddings_config,
+/// // )?;
 /// ```
 fn build_request_body(
     messages: &Messages,
@@ -888,22 +897,17 @@ fn part_to_gemini(part: &PartEnum) -> Value {
     }
 }
 
-/// Parse a Gemini API response JSON into the crate's `Content` representation.
+/// Parse a Gemini API response into a Content value.
 ///
-/// The function extracts the first candidate from the response, reads its `content` object,
-/// converts its parts into internal `Part` values, and maps the role and finish reason into
-/// `RoleEnum` and `CompleteReasonEnum`. Returns an error when the response does not contain
-/// an expected `candidates[0].content` structure or when parts parsing fails.
-///
-/// # Returns
-///
-/// `Content` containing parsed `parts`, `role`, and `complete_reason`.
+/// When `embedding.values` is present, parses embeddings into parts and returns a model Content.
+/// Otherwise extracts the first candidate's `content`, converts its parts, maps the role and finish reason, and returns the resulting Content.
+/// Returns an error if required fields are missing or if parts/embeddings parsing fails.
 ///
 /// # Examples
 ///
 /// ```
 /// use serde_json::json;
-/// // Construct a minimal Gemini-like response containing one candidate with content and a text part.
+///
 /// let resp = json!({
 ///     "candidates": [
 ///         {
@@ -917,7 +921,6 @@ fn part_to_gemini(part: &PartEnum) -> Value {
 /// });
 ///
 /// let content = crate::providers::gemini::parse_gemini_response(&resp).unwrap();
-/// // Expect one parsed part and a model role
 /// assert_eq!(content.parts.len(), 1);
 /// ```
 fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
@@ -1080,6 +1083,31 @@ pub fn parse_metadata(body: &Value) -> Metadata {
     }
 }
 
+/// Extracts token usage counts from a Gemini response JSON object.
+///
+/// Reads `usageMetadata.promptTokenCount`, `usageMetadata.candidatesTokenCount`, and
+/// `usageMetadata.totalTokenCount` and returns a `Usage` with `input_tokens`, `output_tokens`,
+/// and `total_tokens`. If any fields are missing, `promptTokenCount` and `candidatesTokenCount`
+/// default to 0 and `totalTokenCount` defaults to `promptTokenCount + candidatesTokenCount`.
+///
+/// # Examples
+///
+/// ```
+/// use serde_json::json;
+///
+/// let body = json!({
+///     "usageMetadata": {
+///         "promptTokenCount": 5u64,
+///         "candidatesTokenCount": 7u64,
+///         "totalTokenCount": 12u64
+///     }
+/// });
+///
+/// let usage = crate::providers::gemini::parse_usage(&body);
+/// assert_eq!(usage.input_tokens, 5);
+/// assert_eq!(usage.output_tokens, 7);
+/// assert_eq!(usage.total_tokens, 12);
+/// ```
 pub fn parse_usage(body: &Value) -> Usage {
     let u = body.get("usageMetadata");
 
@@ -1103,6 +1131,30 @@ pub fn parse_usage(body: &Value) -> Usage {
     }
 }
 
+/// Parse a JSON value containing embedding vectors into a Parts collection.
+///
+/// Accepts either a single embedding as an array of numbers (e.g. [f1, f2, ...])
+/// or a batched form (an array of embedding arrays). Each numeric value is
+/// converted to `f32` and wrapped in an `Embeddings` part which is pushed into
+/// the returned `Parts`.
+///
+/// Returns an error if the JSON is not an array, if a batched entry is not an
+/// array, or if any element cannot be interpreted as a number.
+///
+/// # Examples
+///
+/// ```
+/// use serde_json::json;
+/// // single embedding
+/// let v = json!([0.1, 0.2, 0.3]);
+/// let parts = crate::providers::gemini::parse_embeddings(&v).unwrap();
+/// assert!(!parts.is_empty());
+///
+/// // batched embeddings
+/// let b = json!([[0.1, 0.2], [0.3, 0.4]]);
+/// let parts_batched = crate::providers::gemini::parse_embeddings(&b).unwrap();
+/// assert_eq!(parts_batched.len(), 2);
+/// ```
 pub fn parse_embeddings(value: &Value) -> Result<Parts, ChatError> {
     let mut parts = Parts::default();
 

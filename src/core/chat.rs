@@ -30,28 +30,21 @@ pub struct Chat<CP: ChatProvider, Output = Unstructured> {
 }
 
 impl<CP: ChatProvider> Chat<CP, Unstructured> {
-    /// Perform completion using the configured model and return the final content.
+    /// Perform a model-driven completion loop and return the final ChatResponse.
     ///
-    /// Attempts the model completion up to the configured `max_retries` (default 1). On the first successful
-    /// completion it returns the produced `Content`; if all attempts fail it returns the last encountered
-    /// `ChatError` or `ChatError::RateLimited` if no error was recorded.
-    ///
-    /// # Returns
-    ///
-    /// `Ok(Content)` with the model's final content if a completion succeeds; `Err(ChatError)` with the last
-    /// encountered error after exhausting retries, or `ChatError::RateLimited` if no error was captured.
+    /// Attempts completion up to the configured `max_retries` (default 1). On the first successful
+    /// completion returns the produced content and aggregated metadata. If all attempts fail, returns
+    /// a `ChatFailure` containing the last observed `ChatError` (or `ChatError::RateLimited` if none).
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// // `chat` is a configured Chat instance and `messages` is a Messages buffer.
-    /// // This example demonstrates the call-site usage; replace with concrete setup.
-    /// # use core::chat::{Chat, Messages};
-    /// # async fn example(mut chat: Chat<impl Send, _>, mut messages: Messages) {
+    /// # use crate::core::chat::{Chat, Messages};
+    /// # async fn example(mut chat: Chat<impl crate::core::lib::ChatProvider, _>, mut messages: Messages) {
     /// let result = chat.complete(&mut messages).await;
     /// match result {
-    ///     Ok(content) => println!("Got content: {:?}", content),
-    ///     Err(err) => eprintln!("Completion failed: {:?}", err),
+    ///     Ok(response) => println!("Got content: {:?}", response.content),
+    ///     Err(failure) => eprintln!("Completion failed: {:?}", failure.err),
     /// }
     /// # }
     /// ```
@@ -106,6 +99,24 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
         })
     }
 
+    /// Extracts embeddings from the model's response to the provided messages.
+    ///
+    /// Calls the provider with the given messages and returns the embeddings part of the final response along with any associated metadata.
+    ///
+    /// # Returns
+    ///
+    /// `EmbeddingsResponse` containing the embeddings and any response metadata on success.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # async fn example(chat: &crate::Chat<impl crate::ChatProvider>) -> Result<(), crate::ChatFailure> {
+    /// let mut messages = crate::Messages::default();
+    /// let embeddings_resp = chat.embed(&mut messages).await?;
+    /// assert!(!embeddings_resp.embeddings.is_empty());
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure> {
         let response = self.model.complete(messages, None, None, None).await?;
 

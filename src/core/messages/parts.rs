@@ -174,6 +174,19 @@ impl PartEnum {
         }
     }
 
+    /// Retrieve the reasoning text if this part is the `Reasoning` variant.
+    ///
+    /// # Returns
+    ///
+    /// `Some(Text)` containing the reasoning text if this is a `Reasoning` variant, `None` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let part = PartEnum::from_reasoning("because it's correct");
+    /// let text = part.reasoning().unwrap();
+    /// assert_eq!(text, Text::new("because it's correct"));
+    /// ```
     pub fn reasoning(&self) -> Option<Text> {
         match self {
             PartEnum::Reasoning(text) => Some(text.clone()),
@@ -181,6 +194,22 @@ impl PartEnum {
         }
     }
 
+    /// Get the contained embeddings when the variant is `Embeddings`.
+    ///
+    /// # Returns
+    ///
+    /// `Some(Embeddings)` with a cloned value when the part is `PartEnum::Embeddings`, `None` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::messages::parts::PartEnum;
+    /// use crate::messages::embeddings::Embeddings;
+    ///
+    /// let emb = Embeddings { content: vec![0.1_f32, 0.2, 0.3] };
+    /// let part = PartEnum::from_embeddings(emb.clone());
+    /// assert_eq!(part.embeddings(), Some(emb));
+    /// ```
     pub fn embeddings(&self) -> Option<Embeddings> {
         match self {
             PartEnum::Embeddings(embeddings) => Some(embeddings.to_owned()),
@@ -248,14 +277,46 @@ impl PartEnum {
         PartEnum::Text(Text::new(s))
     }
 
+    /// Creates a PartEnum containing the given FunctionCall.
+    ///
+    /// Returns the `PartEnum::FunctionCall` variant wrapping `fc`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let fc = FunctionCall::default(); // construct a FunctionCall as appropriate
+    /// let part = PartEnum::from_function_call(fc);
+    /// matches!(part, PartEnum::FunctionCall(_));
+    /// ```
     pub fn from_function_call(fc: FunctionCall) -> PartEnum {
         PartEnum::FunctionCall(fc)
     }
 
+    /// Wraps a `FunctionResponse` in a `PartEnum::FunctionResponse`.
+    ///
+    /// # Parameters
+    ///
+    /// - `fr`: the `FunctionResponse` to wrap.
+    ///
+    /// # Returns
+    ///
+    /// A `PartEnum::FunctionResponse` containing the provided `FunctionResponse`.
     pub fn from_function_response(fr: FunctionResponse) -> PartEnum {
         PartEnum::FunctionResponse(fr)
     }
 
+    /// Creates a `PartEnum` that wraps the provided `Embeddings`.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let embeddings = /* obtain an Embeddings value */ unimplemented!();
+    /// let part = from_embeddings(embeddings);
+    /// match part {
+    ///     PartEnum::Embeddings(e) => { /* use `e` */ }
+    ///     _ => unreachable!(),
+    /// }
+    /// ```
     pub fn from_embeddings(embeddings: Embeddings) -> PartEnum {
         PartEnum::Embeddings(embeddings)
     }
@@ -297,13 +358,16 @@ impl PartEnum {
 }
 
 impl Display for PartEnum {
-    /// Formats a PartEnum for human-readable display.
+    /// Render a `PartEnum` as a concise, human-readable string.
     ///
-    /// Each variant is rendered to a concise textual representation:
+    /// Each variant is represented as:
     /// - `Structured`: the JSON value is printed.
     /// - `Reasoning` and `Text`: the contained text is printed.
     /// - `FunctionCall` and `FunctionResponse`: the function name is printed.
     /// - `File`: prints the URL and MIME type for `File::Url`, or the MIME type for `File::Bytes`.
+    /// - `Embeddings`: if the embedding vector is empty prints `[]`; if it has 1–3 elements prints the debug
+    ///   representation of the full vector; if it has more than 3 elements prints a truncated preview
+    ///   formatted as `[first, second, ..., last]` with 4-decimal precision for the shown values.
     ///
     /// # Examples
     ///
