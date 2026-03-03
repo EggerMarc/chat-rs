@@ -4,7 +4,7 @@ use chat_rs::{chat::ChatBuilder, gemini, messages, messages::content};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-embedding-001".to_string())
-        .with_embeddings(Some(756))
+        .with_embeddings(Some(126))
         .build();
 
     let chat = ChatBuilder::new().with_model(client).build();

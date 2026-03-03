@@ -20,8 +20,9 @@ use crate::gemini::google_search::GoogleSearchTool;
 use crate::gemini::lib::GeminiNativeTool;
 use crate::lib::{ChatFailure, ChatResponse};
 use crate::messages::content::{CompleteReasonEnum, RoleEnum};
+use crate::messages::embeddings::Embeddings;
 use crate::messages::file::File;
-use crate::messages::parts::{PartEnum, Parts};
+use crate::messages::parts::{self, PartEnum, Parts};
 use crate::metadata::Metadata;
 use crate::metadata::usage::Usage;
 
@@ -885,27 +886,34 @@ fn part_to_gemini(part: &PartEnum) -> Value {
 /// assert_eq!(content.parts.len(), 1);
 /// ```
 fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
-    println!("Content: {:?}", json);
+    if let Some(value) = json.get("embedding").and_then(|json| json.get("values")) {
+        let parts = parse_embeddings(value)?;
+        return Ok(Content {
+            role: RoleEnum::Model,
+            parts,
+            complete_reason: CompleteReasonEnum::None,
+        });
+    }
 
-    let candidate = json.get("candidates").and_then(|c| c.get(0));
+    let candidate = json
+        .get("candidates")
+        .and_then(|c| c.get(0))
+        .ok_or_else(|| ChatError::InvalidResponse("No candidates in response".to_string()))?;
 
     let content_json = candidate
-        .and_then(|c| c.get("content"))
-        .or_else(|| json.get("content"))
-        .ok_or_else(|| ChatError::InvalidResponse("No content in response".to_string()))?;
+        .get("content")
+        .ok_or_else(|| ChatError::InvalidResponse("No content in candidate".to_string()))?;
 
     let parts = parse_parts(content_json)?;
     let role = parse_role(content_json);
+    let complete_reason = parse_finish_reason(candidate);
 
-    let complete_reason = candidate
-        .map(parse_finish_reason)
-        .unwrap_or(CompleteReasonEnum::None);
-
-    Ok(Content {
+    let content = Content {
         parts,
         role,
         complete_reason,
-    })
+    };
+    Ok(content)
 }
 
 /// Parses the `"parts"` array of a Gemini content JSON object into the internal `Parts` representation.
@@ -1058,4 +1066,50 @@ pub fn parse_usage(body: &Value) -> Usage {
         output_tokens: output as usize,
         total_tokens: total as usize,
     }
+}
+
+pub fn parse_embeddings(value: &Value) -> Result<Parts, ChatError> {
+    let mut parts = Parts::default();
+
+    let array = value
+        .as_array()
+        .ok_or_else(|| ChatError::InvalidResponse("Embedding values not array".to_string()))?;
+
+    if array.first().and_then(|v| v.as_array()).is_some() {
+        // Batched embeddings
+        for embedding in array {
+            let inner = embedding.as_array().ok_or_else(|| {
+                ChatError::InvalidResponse("Invalid batched embedding".to_string())
+            })?;
+
+            let vector: Vec<f32> = inner
+                .iter()
+                .map(|v| {
+                    v.as_f64()
+                        .ok_or_else(|| {
+                            ChatError::InvalidResponse("Invalid embedding number".to_string())
+                        })
+                        .map(|n| n as f32)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            parts.push(parts::PartEnum::from_embeddings(Embeddings::from(vector)));
+        }
+    } else {
+        // Single embedding
+        let vector: Vec<f32> = array
+            .iter()
+            .map(|v| {
+                v.as_f64()
+                    .ok_or_else(|| {
+                        ChatError::InvalidResponse("Invalid embedding number".to_string())
+                    })
+                    .map(|n| n as f32)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        parts.push(parts::PartEnum::from_embeddings(Embeddings::from(vector)));
+    }
+
+    Ok(parts)
 }
