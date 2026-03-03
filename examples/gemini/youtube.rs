@@ -15,6 +15,21 @@ static YT_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
+/// Extracts YouTube video links from the given text and returns them as parsed `Url` values.
+///
+/// The function scans the input for YouTube URLs (both `youtube.com/watch?v=...` and `youtu.be/...`),
+/// ensures each match starts with a scheme (prepends `https://` when missing), and returns only those
+/// that successfully parse as `Url`.
+///
+/// # Examples
+///
+/// ```
+/// let txt = "Check these: youtube.com/watch?v=abc123 and https://youtu.be/xyz789";
+/// let urls = find_youtube_urls(txt);
+/// assert_eq!(urls.len(), 2);
+/// assert!(urls[0].to_string().contains("youtube.com/watch?v=abc123"));
+/// assert!(urls[1].to_string().contains("youtu.be/xyz789"));
+/// ```
 fn find_youtube_urls(text: &str) -> Vec<Url> {
     YT_REGEX
         .captures_iter(text)
@@ -29,24 +44,19 @@ fn find_youtube_urls(text: &str) -> Vec<Url> {
         .collect()
 }
 
-/// Runs an interactive loop that reads user input from stdin, attaches a youtube video (from a URL) to each user message,
-/// sends the conversation to a Gemini-backed chat model, and prints the model's metadata and content parts.
+/// Starts an interactive Gemini chat session that reads user input, attaches any found YouTube URLs as video file parts to user messages, sends the conversation to the model, and prints model metadata and content.
 ///
-/// The program constructs a Gemini client and a ChatBuilder-backed chat, initializes the conversation with a
-/// system prompt, then repeatedly reads a line from stdin, attaches a File part built from a URL to the user message,
-/// appends it to the conversation, awaits the model completion, and prints the response.
+/// The process runs until terminated; each loop iteration reads a line from stdin, converts discovered YouTube links into message parts, appends them to the conversation, and awaits a model completion which is then printed.
 ///
 /// # Returns
 ///
-/// `Ok(())` on successful execution; a boxed error (`Box<dyn std::error::Error>`) if any I/O or client error occurs.
+/// `Ok(())` on successful exit; an error if reading stdin, parsing URLs/files, or the chat completion fails.
 ///
 /// # Examples
 ///
 /// ```no_run
-/// // Run the compiled binary and type messages at the prompt. Each message will be sent to the model
-/// // with a hardcoded file URL attached; the model's metadata and content parts are printed to stdout.
-/// // Example invocation:
-/// // $ cargo run --example files
+/// // Build and run the compiled binary, then type messages including YouTube links:
+/// // $ cargo run --bin your_binary_name
 /// ```
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
