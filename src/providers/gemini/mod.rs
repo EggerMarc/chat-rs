@@ -33,7 +33,7 @@ pub struct FunctionCallingConfig {
 }
 
 #[derive(Default, Clone)]
-enum EmbeddingsTask {
+pub enum EmbeddingsTask {
     SemanticSimilarity,
     #[default]
     Embed,
@@ -364,8 +364,6 @@ impl ChatProvider for GeminiClient {
             .header("x-goog-api-key", &self.api_key)
             .body(body.to_string());
 
-        println!("Body: {}", body);
-
         let res = req.send().await.map_err(|e| ChatFailure {
             err: ChatError::Provider(e.to_string()),
             metadata: None,
@@ -441,7 +439,7 @@ fn build_request_body(
 
     let mut body = json!({});
 
-    if embeddings_config.is_some() {
+    if let Some(config) = embeddings_config {
         let model_name = format!(
             "models/{}",
             model_name.split(":").next().unwrap_or(model_name)
@@ -461,6 +459,18 @@ fn build_request_body(
             .collect();
 
         body["content"] = json!({ "parts": Value::Array(parts)});
+
+        match config.task {
+            EmbeddingsTask::SemanticSimilarity => {
+                body["taskType"] = Value::String("SEMANTIC_SIMILARITY".to_string());
+            }
+            EmbeddingsTask::Embed => {}
+        };
+
+        if let Some(dims) = config.dimensions {
+            body["output_dimensionality"] = Value::Number(dims.into());
+        }
+
         return Ok(body);
     }
 
@@ -1076,7 +1086,6 @@ pub fn parse_embeddings(value: &Value) -> Result<Parts, ChatError> {
         .ok_or_else(|| ChatError::InvalidResponse("Embedding values not array".to_string()))?;
 
     if array.first().and_then(|v| v.as_array()).is_some() {
-        // Batched embeddings
         for embedding in array {
             let inner = embedding.as_array().ok_or_else(|| {
                 ChatError::InvalidResponse("Invalid batched embedding".to_string())
@@ -1096,7 +1105,6 @@ pub fn parse_embeddings(value: &Value) -> Result<Parts, ChatError> {
             parts.push(parts::PartEnum::from_embeddings(Embeddings::from(vector)));
         }
     } else {
-        // Single embedding
         let vector: Vec<f32> = array
             .iter()
             .map(|v| {
@@ -1110,6 +1118,5 @@ pub fn parse_embeddings(value: &Value) -> Result<Parts, ChatError> {
 
         parts.push(parts::PartEnum::from_embeddings(Embeddings::from(vector)));
     }
-
     Ok(parts)
 }
