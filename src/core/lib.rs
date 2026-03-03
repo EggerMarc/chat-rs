@@ -5,6 +5,7 @@ use tools_rs::ToolCollection;
 
 use crate::{
     core::messages::{Messages, content::Content},
+    messages::embeddings::Embeddings,
     metadata::Metadata,
 };
 use async_trait::async_trait;
@@ -13,6 +14,12 @@ use async_trait::async_trait;
 pub struct ChatResponse {
     pub metadata: Option<Metadata>,
     pub content: Content,
+}
+
+#[derive(Clone, Debug)]
+pub struct EmbeddingsResponse {
+    pub metadata: Option<Metadata>,
+    pub embeddings: Embeddings,
 }
 
 #[derive(Clone, Debug)]

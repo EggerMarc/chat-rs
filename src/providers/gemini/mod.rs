@@ -35,6 +35,10 @@ pub struct FunctionCallingConfig {
 #[derive(Default, Clone)]
 pub enum EmbeddingsTask {
     SemanticSimilarity,
+    Classification,
+    Clustering,
+    RetrievalDocument,
+    RetrievalQuery,
     #[default]
     Embed,
 }
@@ -213,49 +217,21 @@ impl GeminiBuilder {
         self
     }
 
-    /// Configure embeddings dimensionality for the builder.
-    ///
-    /// Sets the builder's embeddings configuration to an `EmbeddingsConfig` with the
-    /// provided `dimensions` (number of elements in each embedding vector). Use
-    /// `None` to leave the dimensionality unspecified and rely on defaults.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut b = GeminiBuilder::new();
-    /// b.with_embeddings(Some(768));
-    /// ```
     pub fn with_embeddings(&mut self, dimensions: Option<usize>) -> &mut Self {
-        self.embeddings_config = Some(EmbeddingsConfig {
-            dimensions,
-            ..Default::default()
-        });
+        if let Some(config) = &self.embeddings_config {
+            self.embeddings_config = Some(EmbeddingsConfig {
+                dimensions,
+                ..config.clone()
+            })
+        } else {
+            self.embeddings_config = Some(EmbeddingsConfig {
+                dimensions,
+                ..Default::default()
+            });
+        }
         self
     }
 
-    /// Sets the embeddings task for the builder's embeddings configuration.
-    
-    ///
-    
-    /// This updates or creates the builder's `embeddings_config` so its `task` field
-    
-    /// is set to `task`, preserving any existing `dimensions` value if present.
-    
-    ///
-    
-    /// # Examples
-    
-    ///
-    
-    /// ```
-    
-    /// let mut b = GeminiBuilder::new();
-    
-    /// b.with_embeddings(Some(128)).with_embeddings_task(EmbeddingsTask::SemanticSimilarity);
-    
-    /// assert_eq!(b.embeddings_config.as_ref().unwrap().task, EmbeddingsTask::SemanticSimilarity);
-    
-    /// ```
     pub fn with_embeddings_task(&mut self, task: EmbeddingsTask) -> &mut Self {
         if let Some(config) = &self.embeddings_config {
             self.embeddings_config = Some(EmbeddingsConfig {
@@ -495,20 +471,34 @@ fn build_request_body(
             "Sent empty content to embed, expected Text parts".to_string(),
         ))?;
 
-        let parts = content
+        let parts: Vec<Value> = content
             .parts
-            .clone()
-            .into_iter()
-            .map(|part| part_to_gemini(&part))
-            .collect();
+            .0
+            .iter()
+            .map(|part| match part {
+                PartEnum::Text(t) | PartEnum::Reasoning(t) => Ok(json!({ "text": t.as_str() })),
+                _ => Err(ChatError::InvalidResponse(
+                    "Embedding requests require text-like parts only".to_string(),
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
-        body["content"] = json!({ "parts": Value::Array(parts)});
+        if parts.is_empty() {
+            return Err(ChatError::InvalidResponse(
+                "Sent empty content to embed, expected Text parts".to_string(),
+            ));
+        }
 
+        body["content"] = json!({ "parts": parts });
         match config.task {
             EmbeddingsTask::SemanticSimilarity => {
                 body["taskType"] = Value::String("SEMANTIC_SIMILARITY".to_string());
             }
+            EmbeddingsTask::Clustering => {
+                body["taskType"] = Value::String("CLUSTERING".to_string())
+            }
             EmbeddingsTask::Embed => {}
+            _ => {}
         };
 
         if let Some(dims) = config.dimensions {

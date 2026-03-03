@@ -72,3 +72,11 @@ path = "./examples/gemini/tools.rs"
 [[example]]
 name = "gemini-youtube"
 path = "./examples/gemini/youtube.rs"
+
+[[example]]
+name = "gemini-embeddings"
+path = "./examples/gemini/embeddings.rs"
+
+[[example]]
+name = "gemini-classification"
+path = "./examples/gemini/classification.rs"
