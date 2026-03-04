@@ -3,7 +3,6 @@ use chat_rs::{
     gemini::{self},
     messages::{self, content},
 };
-use serde::Deserialize;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -11,7 +10,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_model("gemini-2.5-flash".to_string())
         .with_code_execution()
         .build();
-
 
     let mut chat = ChatBuilder::new()
         .with_model(client)
@@ -32,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
         messages.push(response.content.clone());
-        println!("Model:\t{:?}", response.content.parts.last());
+        println!("Model:\t{:?}", response.content.parts);
         //println!("Metadata:\t{:?}", response.metadata);
     }
 }
