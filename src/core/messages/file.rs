@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::fs;
+use std::path::Path;
 use std::str::FromStr;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -163,6 +165,35 @@ impl File {
         File::Bytes(RawData::from(bytes, mimetype))
     }
 
+    pub fn from_path(
+        path: impl AsRef<Path>,
+        mimetype: Option<String>,
+    ) -> Result<File, std::io::Error> {
+        // TODO: improve this to be a bit more robust and compatible with other filetypes
+        let path = path.as_ref();
+
+        let bytes = fs::read(path)?;
+
+        let mimetype = mimetype.unwrap_or_else(|| {
+            match path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase()
+                .as_str()
+            {
+                "png" => "image/png",
+                "jpg" | "jpeg" => "image/jpeg",
+                "webp" => "image/webp",
+                "gif" => "image/gif",
+                "bmp" => "image/bmp",
+                _ => "application/octet-stream",
+            }
+            .to_string()
+        });
+
+        Ok(File::from_bytes(bytes, mimetype))
+    }
     /// Parses a URL string and returns a `File::Url` containing the parsed `UrlData`, optionally with the provided MIME type.
     ///
     /// If `mimetype` is `Some`, the returned `UrlData` will include that MIME type; if `None`, the `UrlData` will have no MIME type set.
@@ -193,4 +224,3 @@ impl File {
         Ok(File::Url(url))
     }
 }
-
