@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .into_iter()
         .map(|path| {
             PartEnum::from_file(
-                messages::file::File::from_path(path, None).expect("Failed to load image file"),
+                messages::file::File::from_path(path).expect("Failed to load image file"),
             )
         })
         .collect();

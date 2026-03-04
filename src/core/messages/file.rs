@@ -4,6 +4,8 @@ use std::fs;
 use std::path::Path;
 use std::str::FromStr;
 
+use crate::utils::detect_mimetype;
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum File {
     Url(UrlData),
@@ -161,38 +163,18 @@ impl File {
     ///     _ => panic!("expected Bytes variant"),
     /// }
     /// ```
-    pub fn from_bytes(bytes: impl Into<Vec<u8>>, mimetype: impl Into<String>) -> File {
-        File::Bytes(RawData::from(bytes, mimetype))
+    pub fn from_bytes(bytes: impl Into<Vec<u8>>) -> File {
+        let bytes_vec = bytes.into();
+        let mimetype = detect_mimetype(&bytes_vec);
+        File::Bytes(RawData::from(bytes_vec, mimetype))
     }
 
-    pub fn from_path(
-        path: impl AsRef<Path>,
-        mimetype: Option<String>,
-    ) -> Result<File, std::io::Error> {
+    pub fn from_path(path: impl AsRef<Path>) -> Result<File, std::io::Error> {
         // TODO: improve this to be a bit more robust and compatible with other filetypes
         let path = path.as_ref();
-
         let bytes = fs::read(path)?;
 
-        let mimetype = mimetype.unwrap_or_else(|| {
-            match path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("")
-                .to_lowercase()
-                .as_str()
-            {
-                "png" => "image/png",
-                "jpg" | "jpeg" => "image/jpeg",
-                "webp" => "image/webp",
-                "gif" => "image/gif",
-                "bmp" => "image/bmp",
-                _ => "application/octet-stream",
-            }
-            .to_string()
-        });
-
-        Ok(File::from_bytes(bytes, mimetype))
+        Ok(File::from_bytes(bytes))
     }
     /// Parses a URL string and returns a `File::Url` containing the parsed `UrlData`, optionally with the provided MIME type.
     ///
