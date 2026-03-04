@@ -278,9 +278,8 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
     /// - treats a last-part of type `Text` or `Structured` as terminal and returns that `Content`,
     /// - treats a last-part of type `Reasoning` by pushing the reasoning back into the response parts
     ///   and continuing the loop.
-    /// If a model response contains no parts, returns `ChatError::InvalidResponse`. If no terminal
-    /// content is produced within the allowed steps, returns `ChatError::RateLimited`.
-    ///
+    ///If a model response contains no parts, returns `ChatError::InvalidResponse`. If no terminal
+    ///content is produced within the allowed steps, returns `ChatError::RateLimited`.
     /// # Examples
     ///
     /// ```

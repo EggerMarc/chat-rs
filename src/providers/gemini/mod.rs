@@ -992,6 +992,32 @@ fn parse_parts(content_json: &Value) -> Result<Parts, ChatError> {
                     Value::Object(args.clone()),
                 )));
             }
+            if let Some(exec) = item.get("executableCode") {
+                let language = exec
+                    .get("language")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("code")
+                    .to_lowercase();
+
+                let code = exec.get("code").and_then(|v| v.as_str()).unwrap_or("");
+
+                let md = format!("```{}\n{}\n```", language, code);
+
+                parts.push(PartEnum::from_text(md));
+            }
+
+            if let Some(result) = item.get("codeExecutionResult") {
+                let status = result
+                    .get("outcome")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("result");
+
+                let output = result.get("output").and_then(|v| v.as_str()).unwrap_or("");
+
+                let md = format!("```{}\n{}\n```", status, output);
+
+                parts.push(PartEnum::from_text(md));
+            }
         }
     }
     Ok(parts)
