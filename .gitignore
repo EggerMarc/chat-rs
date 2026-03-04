@@ -1,4 +1,4 @@
 /target
-
+/example-data
 **.DS_Store
 **.env
