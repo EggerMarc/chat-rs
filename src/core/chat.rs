@@ -235,7 +235,7 @@ where
                             messages: Arc::new(messages.to_owned()),
                         };
 
-                        if let Some(mut strategy) = self.retry_strategy {
+                        if let Some(strategy) = self.retry_strategy.as_mut() {
                             strategy(ctx).await;
                         }
                     }

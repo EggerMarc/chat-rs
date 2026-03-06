@@ -7,7 +7,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_embeddings(Some(126))
         .build();
 
-    let chat = ChatBuilder::new().with_model(client).build();
+    let chat = ChatBuilder::new()
+        .with_model(client)
+        .with_max_retries(2)
+        .build();
+
     let mut messages = messages::Messages::default();
 
     let mut flag = 0;
