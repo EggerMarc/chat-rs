@@ -32,7 +32,7 @@ pub struct ChatFailure {
 pub trait ChatProvider: Send + Sync {
     async fn complete(
         &self,
-        messages: &Messages,
+        messages: Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
