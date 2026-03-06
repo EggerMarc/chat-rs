@@ -52,7 +52,7 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
     /// }
     /// # }
     /// ```
-    pub async fn complete(&mut self, messages: Messages) -> Result<ChatResponse, ChatFailure> {
+    pub async fn complete(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
         let max_retries = self.max_retries.unwrap_or(1);
 
         let mut last_err: Option<ChatError> = None;
@@ -94,7 +94,7 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
 
                     last_err = Some(err.err.clone());
 
-                    if max_retries > 1 {
+                    if idx + 1 < max_retries {
                         let ctx = RetryContext {
                             idx,
                             failure: err.clone(),
@@ -133,7 +133,7 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn embed(&self, messages: Messages) -> Result<EmbeddingsResponse, ChatFailure> {
+    pub async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure> {
         if self.max_steps.is_some() {
             println!("Warning, embeddings is a one shot call, it does not implement steps")
         }
@@ -192,7 +192,7 @@ where
     /// ```
     pub async fn complete(
         &mut self,
-        messages: Messages,
+        messages: &mut Messages,
     ) -> Result<StructuredResponse<T>, ChatFailure> {
         let max_retries = self.max_retries.unwrap_or(1);
         let mut last_err: Option<ChatFailure> = None;
@@ -244,7 +244,7 @@ where
                 }
                 Err(err) => {
                     last_err = Some(err.clone());
-                    if max_retries > 1 {
+                    if idx + 1 < max_retries {
                         let ctx = RetryContext {
                             idx,
                             failure: err.clone(),
@@ -330,7 +330,7 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
             let mut response = self
                 .model
                 .complete(
-                    inner_messages.clone(),
+                    &mut inner_messages,
                     self.tools.as_ref(),
                     self.model_options.as_ref(),
                     self.output_shape.as_ref(),
@@ -693,7 +693,7 @@ mod tests {
         /// ```
         async fn complete(
             &self,
-            _messages: Messages,
+            _messages: &mut Messages,
             _tools: Option<&ToolCollection>,
             _options: Option<&ChatOptions>,
             _schema: Option<&schemars::Schema>,
@@ -725,7 +725,7 @@ mod tests {
         let mut messages = Messages::default();
         messages.push(crate::messages::content::from_user(vec!["Hi"]));
 
-        let result = chat.complete(messages).await;
+        let result = chat.complete(&mut messages).await;
         assert!(result.is_ok());
 
         let result = result.unwrap();
@@ -756,7 +756,7 @@ mod tests {
     /// let mut messages = Messages::default();
     /// messages.push(crate::messages::content::from_user(vec!["What is the answer?"]));
     ///
-    /// let result = chat.complete(messages).await;
+    /// let result = chat.complete(&mut messages).await;
     /// assert!(result.is_ok());
     /// let output = result.unwrap();
     /// assert_eq!(output.answer, "42");
@@ -780,7 +780,7 @@ mod tests {
             "What is the answer?",
         ]));
 
-        let result = chat.complete(messages).await;
+        let result = chat.complete(&mut messages).await;
         assert!(result.is_ok());
 
         let output = result.unwrap();
@@ -801,7 +801,7 @@ mod tests {
         let mut messages = Messages::default();
         messages.push(crate::messages::content::from_user(vec!["Question"]));
 
-        let result = chat.complete(messages).await;
+        let result = chat.complete(&mut messages).await;
         assert!(result.is_ok());
 
         let output = result.unwrap();
@@ -821,7 +821,7 @@ mod tests {
         let mut messages = Messages::default();
         messages.push(crate::messages::content::from_user(vec!["Question"]));
 
-        let result = chat.complete(messages).await;
+        let result = chat.complete(&mut messages).await;
         assert!(result.is_err());
         match result.unwrap_err().err {
             ChatError::InvalidResponse(msg) => {
@@ -847,7 +847,7 @@ mod tests {
         let mut messages = Messages::default();
         messages.push(crate::messages::content::from_user(vec!["Question"]));
 
-        let result = chat.complete(messages).await;
+        let result = chat.complete(&mut messages).await;
         assert!(result.is_err());
         match result.unwrap_err().err {
             ChatError::Other(msg) => {
@@ -876,7 +876,7 @@ mod tests {
         let mut messages = Messages::default();
         messages.push(crate::messages::content::from_user(vec!["Question"]));
 
-        let result = chat.complete(messages).await;
+        let result = chat.complete(&mut messages).await;
         // Should return RateLimited error when max_steps is exceeded
         assert!(result.is_err());
         match result.unwrap_err().err {

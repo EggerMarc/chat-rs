@@ -340,7 +340,7 @@ impl ChatProvider for GeminiClient {
     /// `Ok(ChatResponse)` containing the parsed `Content` and associated metadata on success; `Err(ChatFailure)` if the HTTP request, response parsing, or API call fails.
     async fn complete(
         &self,
-        messages: Messages,
+        messages: &mut Messages,
         custom_tools: Option<&ToolCollection>,
         _options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
@@ -357,7 +357,7 @@ impl ChatProvider for GeminiClient {
         );
 
         let body = build_request_body(
-            &messages,
+            messages,
             &self.model_name,
             custom_tools,
             structured_output,
