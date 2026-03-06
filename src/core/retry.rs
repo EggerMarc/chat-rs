@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 pub struct RetryContext {
     pub failure: ChatFailure,
-    pub idx: usize,
+    pub idx: u16,
     pub messages: Arc<Messages>,
 }
 

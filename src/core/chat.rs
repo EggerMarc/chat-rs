@@ -26,8 +26,8 @@ pub struct Chat<CP: ChatProvider, Output = Unstructured> {
     model: CP,
     output_shape: Option<schemars::Schema>,
     model_options: Option<ChatOptions>,
-    max_steps: Option<u8>,
-    max_retries: Option<u8>,
+    max_steps: Option<u16>,
+    max_retries: Option<u16>,
     retry_strategy: Option<RetryStrategy>,
     tools: Option<ToolCollection>,
     _output: std::marker::PhantomData<Output>,
@@ -58,7 +58,7 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
         let mut last_err: Option<ChatError> = None;
         let mut last_metadata: Option<Metadata> = None;
 
-        for _ in 0..max_retries {
+        for idx in 0..max_retries {
             let retry_messages = messages.clone();
 
             match self.call_loop(&retry_messages).await {
@@ -81,7 +81,7 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
                 }
 
                 Err(err) => {
-                    if let Some(metadata) = err.metadata {
+                    if let Some(metadata) = err.clone().metadata {
                         match &mut last_metadata {
                             Some(existing) => {
                                 existing.extend(&metadata);
@@ -92,7 +92,19 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
                         }
                     }
 
-                    last_err = Some(err.err);
+                    last_err = Some(err.err.clone());
+
+                    if max_retries > 1 {
+                        let ctx = RetryContext {
+                            idx,
+                            failure: err.clone(),
+                            messages: Arc::new(messages.to_owned()),
+                        };
+
+                        if let Some(strategy) = self.retry_strategy.as_mut() {
+                            strategy(ctx).await;
+                        }
+                    }
                 }
             }
         }
@@ -230,7 +242,7 @@ where
                     last_err = Some(err.clone());
                     if max_retries > 1 {
                         let ctx = RetryContext {
-                            idx: idx.into(),
+                            idx,
                             failure: err.clone(),
                             messages: Arc::new(messages.to_owned()),
                         };
@@ -385,8 +397,8 @@ pub struct ChatBuilder<CP: ChatProvider, Output = Unstructured> {
     model: Option<CP>,
     output_shape: Option<schemars::Schema>,
     model_options: Option<ChatOptions>,
-    max_steps: Option<u8>,
-    max_retries: Option<u8>,
+    max_steps: Option<u16>,
+    max_retries: Option<u16>,
     retry_strategy: Option<RetryStrategy>,
     tools: Option<ToolCollection>,
     _output: std::marker::PhantomData<Output>,
@@ -464,13 +476,13 @@ impl<CP: ChatProvider, Output> ChatBuilder<CP, Output> {
     /// ```no_run
     /// let builder = ChatBuilder::<MockProvider>::new().with_max_steps(3);
     /// ```
-    pub fn with_max_steps(mut self, max_steps: impl Into<u8>) -> Self {
-        self.max_steps = Some(max_steps.into());
+    pub fn with_max_steps(mut self, max_steps: u16) -> Self {
+        self.max_steps = Some(max_steps);
         self
     }
 
-    pub fn with_max_retries(mut self, max_retries: impl Into<u8>) -> Self {
-        self.max_retries = Some(max_retries.into());
+    pub fn with_max_retries(mut self, max_retries: u16) -> Self {
+        self.max_retries = Some(max_retries);
         self
     }
 
