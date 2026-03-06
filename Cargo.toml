@@ -85,3 +85,7 @@ path = "./examples/gemini/classification.rs"
 [[example]]
 name = "gemini-image-understanding"
 path = "./examples/gemini/image_understanding.rs"
+
+[[example]]
+name = "retry"
+path = "./examples/retry.rs"

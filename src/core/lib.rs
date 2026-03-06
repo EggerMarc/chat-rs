@@ -28,24 +28,11 @@ pub struct ChatFailure {
     pub err: ChatError,
 }
 
-/* TODO: Change to this. Better ergonomics with structured output
-type ChatResult<T> = Result<ChatResponse<T>, ChatError>;
-struct ChatResponse<T> {
-    content: T,
-    metadata: Metadata,
-}
-
-struct ChatError {
-    kind: ChatErrorKind,
-    metadata: Metadata,
-}
-*/
-
 #[async_trait]
 pub trait ChatProvider: Send + Sync {
     async fn complete(
         &self,
-        messages: &Messages,
+        messages: &mut Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
