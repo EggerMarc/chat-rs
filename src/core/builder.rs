@@ -176,6 +176,17 @@ impl<CP: ChatProvider> Default for ChatBuilder<CP, Unstructured> {
     /// // Both constructors produce a builder configured for unstructured output.
     /// ```
     fn default() -> Self {
-        ChatBuilder::new()
+        ChatBuilder {
+            model: None,
+            output_shape: None,
+            model_options: None,
+            max_steps: None,
+            max_retries: None,
+            retry_strategy: None,
+            before_strategy: None,
+            after_strategy: None,
+            tools: None,
+            _output: std::marker::PhantomData,
+        }
     }
 }
