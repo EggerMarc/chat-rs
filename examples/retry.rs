@@ -11,6 +11,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .with_model("gibberish-model".to_string())
         .build();
 
+    let retry_model = ChatBuilder::new().with_model(client);
+
     let mut chat = ChatBuilder::new()
         .with_model(client)
         .with_max_retries(5)

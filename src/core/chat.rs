@@ -5,6 +5,7 @@ use serde::de::DeserializeOwned;
 use tools_rs::ToolCollection;
 
 use crate::{
+    callback::{CallbackRetryContext, CallbackStrategy, RetryStrategy},
     core::{
         lib::{ChatError, ChatOptions, ChatProvider},
         messages::{
@@ -15,7 +16,6 @@ use crate::{
     },
     lib::{ChatFailure, ChatResponse, EmbeddingsResponse},
     metadata::Metadata,
-    retry::{RetryContext, RetryStrategy},
 };
 
 pub struct Unstructured;
@@ -95,7 +95,7 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
                     last_err = Some(err.err.clone());
 
                     if idx + 1 < max_retries {
-                        let ctx = RetryContext {
+                        let ctx = CallbackRetryContext {
                             idx,
                             failure: err.clone(),
                             messages: Arc::new(messages.to_owned()),
@@ -245,7 +245,7 @@ where
                 Err(err) => {
                     last_err = Some(err.clone());
                     if idx + 1 < max_retries {
-                        let ctx = RetryContext {
+                        let ctx = CallbackRetryContext {
                             idx,
                             failure: err.clone(),
                             messages: Arc::new(messages.to_owned()),
