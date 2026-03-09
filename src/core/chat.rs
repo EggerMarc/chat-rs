@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use tools_rs::ToolCollection;
@@ -29,6 +27,8 @@ pub struct Chat<CP: ChatProvider, Output = Unstructured> {
     max_steps: Option<u16>,
     max_retries: Option<u16>,
     retry_strategy: Option<RetryStrategy>,
+    before_strategy: Option<CallbackStrategy>,
+    after_strategy: Option<CallbackStrategy>,
     tools: Option<ToolCollection>,
     _output: std::marker::PhantomData<Output>,
 }
@@ -58,6 +58,10 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
         let mut last_err: Option<ChatError> = None;
         let mut last_metadata: Option<Metadata> = None;
 
+        if let Some(strategy) = self.before_strategy.as_mut() {
+            strategy(messages).await;
+        }
+
         for idx in 0..max_retries {
             let retry_messages = messages.clone();
 
@@ -72,6 +76,10 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
                                 last_metadata = Some(metadata);
                             }
                         }
+                    }
+
+                    if let Some(strategy) = self.after_strategy.as_mut() {
+                        strategy(messages).await;
                     }
 
                     return Ok(ChatResponse {
@@ -98,11 +106,10 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
                         let ctx = CallbackRetryContext {
                             idx,
                             failure: err.clone(),
-                            messages: Arc::new(messages.to_owned()),
                         };
 
                         if let Some(strategy) = self.retry_strategy.as_mut() {
-                            strategy(ctx).await;
+                            strategy(messages, ctx).await;
                         }
                     }
                 }
@@ -133,11 +140,17 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure> {
+    pub async fn embed(
+        &mut self,
+        messages: &mut Messages,
+    ) -> Result<EmbeddingsResponse, ChatFailure> {
         if self.max_steps.is_some() {
             println!("Warning, embeddings is a one shot call, it does not implement steps")
         }
 
+        if let Some(strategy) = self.before_strategy.as_mut() {
+            strategy(messages).await;
+        }
         let response = self.model.complete(messages, None, None, None).await?;
 
         let metadata = response.metadata;
@@ -147,14 +160,33 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
         })?;
 
         match embeddings_part {
-            PartEnum::Embeddings(embeddings) => Ok(EmbeddingsResponse {
-                metadata,
-                embeddings: embeddings.clone(),
-            }),
-            _ => Err(ChatFailure {
-                err: ChatError::InvalidResponse("Response was not embeddings".to_string()),
-                metadata,
-            }),
+            PartEnum::Embeddings(embeddings) => {
+                if let Some(strategy) = self.after_strategy.as_mut() {
+                    strategy(messages).await;
+                }
+
+                Ok(EmbeddingsResponse {
+                    metadata,
+                    embeddings: embeddings.clone(),
+                })
+            }
+            _ => {
+                let failure = ChatFailure {
+                    err: ChatError::InvalidResponse("Response was not embeddings".to_string()),
+                    metadata,
+                };
+
+                let ctx = CallbackRetryContext {
+                    idx: 0,
+                    failure: failure.clone(),
+                };
+
+                if let Some(strategy) = self.retry_strategy.as_mut() {
+                    strategy(messages, ctx).await;
+                }
+
+                Err(failure)
+            }
         }
     }
 }
@@ -198,6 +230,10 @@ where
         let mut last_err: Option<ChatFailure> = None;
         let mut last_metadata: Option<Metadata> = None;
 
+        if let Some(strategy) = self.before_strategy.as_mut() {
+            strategy(messages).await;
+        }
+
         for idx in 0..max_retries {
             let retry_messages = messages.clone();
 
@@ -217,6 +253,10 @@ where
                     if let Some(value) = extract_structured_candidate(&response.content) {
                         match serde_json::from_value::<T>(value.clone()) {
                             Ok(structured) => {
+                                if let Some(strategy) = self.after_strategy.as_mut() {
+                                    strategy(messages).await;
+                                }
+
                                 return Ok(StructuredResponse {
                                     content: structured,
                                     metadata: last_metadata,
@@ -248,11 +288,10 @@ where
                         let ctx = CallbackRetryContext {
                             idx,
                             failure: err.clone(),
-                            messages: Arc::new(messages.to_owned()),
                         };
 
                         if let Some(strategy) = self.retry_strategy.as_mut() {
-                            strategy(ctx).await;
+                            strategy(messages, ctx).await;
                         }
                     }
 
@@ -397,6 +436,7 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
     }
 }
 
+#[derive(Default)]
 pub struct ChatBuilder<CP: ChatProvider, Output = Unstructured> {
     model: Option<CP>,
     output_shape: Option<schemars::Schema>,
@@ -404,6 +444,8 @@ pub struct ChatBuilder<CP: ChatProvider, Output = Unstructured> {
     max_steps: Option<u16>,
     max_retries: Option<u16>,
     retry_strategy: Option<RetryStrategy>,
+    before_strategy: Option<CallbackStrategy>,
+    after_strategy: Option<CallbackStrategy>,
     tools: Option<ToolCollection>,
     _output: std::marker::PhantomData<Output>,
 }
@@ -422,14 +464,8 @@ impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
     /// ```
     pub fn new() -> Self {
         ChatBuilder {
-            model: None,
-            max_steps: None,
-            max_retries: None,
-            retry_strategy: None,
-            output_shape: None,
-            tools: None,
-            model_options: None,
             _output: std::marker::PhantomData,
+            ..Default::default()
         }
     }
 
@@ -464,6 +500,8 @@ impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
             max_steps: self.max_steps,
             max_retries: self.max_retries,
             retry_strategy: self.retry_strategy,
+            before_strategy: self.before_strategy,
+            after_strategy: self.after_strategy,
             output_shape: Some(shape),
             tools: self.tools,
             model_options: self.model_options,
@@ -546,6 +584,8 @@ impl<CP: ChatProvider, Output> ChatBuilder<CP, Output> {
             max_steps: self.max_steps,
             max_retries: self.max_retries,
             retry_strategy: self.retry_strategy,
+            before_strategy: self.before_strategy,
+            after_strategy: self.after_strategy,
             tools: self.tools,
             model_options: self.model_options,
             _output: std::marker::PhantomData,
