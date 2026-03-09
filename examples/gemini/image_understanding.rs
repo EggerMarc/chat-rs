@@ -1,5 +1,5 @@
 use chat_rs::{
-    chat::ChatBuilder,
+    builder::ChatBuilder,
     gemini,
     messages::{self, content, parts::PartEnum},
 };

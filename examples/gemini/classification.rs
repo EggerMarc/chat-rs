@@ -1,4 +1,4 @@
-use chat_rs::{chat::ChatBuilder, gemini, messages, messages::content};
+use chat_rs::{builder::ChatBuilder, gemini, messages, messages::content};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -7,7 +7,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_embeddings(Some(126))
         .build();
 
-    let chat = ChatBuilder::new()
+    let mut chat = ChatBuilder::new()
         .with_model(client)
         .with_max_retries(2)
         .build();

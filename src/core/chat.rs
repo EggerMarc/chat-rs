@@ -21,16 +21,16 @@ pub struct Structured<T>(std::marker::PhantomData<T>);
 
 #[derive(Default)]
 pub struct Chat<CP: ChatProvider, Output = Unstructured> {
-    model: CP,
-    output_shape: Option<schemars::Schema>,
-    model_options: Option<ChatOptions>,
-    max_steps: Option<u16>,
-    max_retries: Option<u16>,
-    retry_strategy: Option<RetryStrategy>,
-    before_strategy: Option<CallbackStrategy>,
-    after_strategy: Option<CallbackStrategy>,
-    tools: Option<ToolCollection>,
-    _output: std::marker::PhantomData<Output>,
+    pub(crate) model: CP,
+    pub(crate) output_shape: Option<schemars::Schema>,
+    pub(crate) model_options: Option<ChatOptions>,
+    pub(crate) max_steps: Option<u16>,
+    pub(crate) max_retries: Option<u16>,
+    pub(crate) retry_strategy: Option<RetryStrategy>,
+    pub(crate) before_strategy: Option<CallbackStrategy>,
+    pub(crate) after_strategy: Option<CallbackStrategy>,
+    pub(crate) tools: Option<ToolCollection>,
+    pub(crate) _output: std::marker::PhantomData<Output>,
 }
 
 impl<CP: ChatProvider> Chat<CP, Unstructured> {
@@ -53,73 +53,13 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
     /// # }
     /// ```
     pub async fn complete(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
-        let max_retries = self.max_retries.unwrap_or(1);
-
-        let mut last_err: Option<ChatError> = None;
-        let mut last_metadata: Option<Metadata> = None;
-
-        if let Some(strategy) = self.before_strategy.as_mut() {
-            strategy(messages).await;
-        }
-
-        for idx in 0..max_retries {
-            let retry_messages = messages.clone();
-
-            match self.call_loop(&retry_messages).await {
-                Ok(response) => {
-                    if let Some(metadata) = response.metadata {
-                        match &mut last_metadata {
-                            Some(existing) => {
-                                existing.extend(&metadata);
-                            }
-                            None => {
-                                last_metadata = Some(metadata);
-                            }
-                        }
-                    }
-
-                    if let Some(strategy) = self.after_strategy.as_mut() {
-                        strategy(messages).await;
-                    }
-
-                    return Ok(ChatResponse {
-                        content: response.content,
-                        metadata: last_metadata,
-                    });
-                }
-
-                Err(err) => {
-                    if let Some(metadata) = err.clone().metadata {
-                        match &mut last_metadata {
-                            Some(existing) => {
-                                existing.extend(&metadata);
-                            }
-                            None => {
-                                last_metadata = Some(metadata);
-                            }
-                        }
-                    }
-
-                    last_err = Some(err.err.clone());
-
-                    if idx + 1 < max_retries {
-                        let ctx = CallbackRetryContext {
-                            idx,
-                            failure: err.clone(),
-                        };
-
-                        if let Some(strategy) = self.retry_strategy.as_mut() {
-                            strategy(messages, ctx).await;
-                        }
-                    }
-                }
-            }
-        }
-
-        Err(ChatFailure {
-            metadata: last_metadata,
-            err: last_err.unwrap_or(ChatError::RateLimited),
+        self.execute_with_retries(messages, |response| {
+            Ok(ChatResponse {
+                content: response.content.clone(),
+                metadata: response.metadata.clone(),
+            })
         })
+        .await
     }
 
     /// Extracts embeddings from the model's response to the provided messages.
@@ -226,84 +166,26 @@ where
         &mut self,
         messages: &mut Messages,
     ) -> Result<StructuredResponse<T>, ChatFailure> {
-        let max_retries = self.max_retries.unwrap_or(1);
-        let mut last_err: Option<ChatFailure> = None;
-        let mut last_metadata: Option<Metadata> = None;
+        self.execute_with_retries(messages, |response| {
+            let value = extract_structured_candidate(&response.content).ok_or_else(|| {
+                ChatError::InvalidResponse(
+                    "Response did not contain valid structured output".into(),
+                )
+            })?;
 
-        if let Some(strategy) = self.before_strategy.as_mut() {
-            strategy(messages).await;
-        }
-
-        for idx in 0..max_retries {
-            let retry_messages = messages.clone();
-
-            match self.call_loop(&retry_messages).await {
-                Ok(response) => {
-                    if let Some(metadata) = response.metadata {
-                        match &mut last_metadata {
-                            Some(existing) => {
-                                existing.extend(&metadata);
-                            }
-                            None => {
-                                last_metadata = Some(metadata);
-                            }
-                        }
-                    }
-
-                    if let Some(value) = extract_structured_candidate(&response.content) {
-                        match serde_json::from_value::<T>(value.clone()) {
-                            Ok(structured) => {
-                                if let Some(strategy) = self.after_strategy.as_mut() {
-                                    strategy(messages).await;
-                                }
-
-                                return Ok(StructuredResponse {
-                                    content: structured,
-                                    metadata: last_metadata,
-                                });
-                            }
-                            Err(err) => {
-                                last_err = Some(ChatFailure {
-                                    err: ChatError::InvalidResponse(format!(
-                                        "Failed to parse structured output: {} on result: {}",
-                                        err, value
-                                    )),
-                                    metadata: last_metadata.clone(),
-                                })
-                            }
-                        }
-                    } else {
-                        last_err = Some(ChatFailure {
-                            err: ChatError::InvalidResponse(
-                                "Response did not contain valid structured output".to_string(),
-                            ),
-                            metadata: last_metadata.clone(),
-                        });
-                        continue;
-                    }
-                }
-                Err(err) => {
-                    last_err = Some(err.clone());
-                    if idx + 1 < max_retries {
-                        let ctx = CallbackRetryContext {
-                            idx,
-                            failure: err.clone(),
-                        };
-
-                        if let Some(strategy) = self.retry_strategy.as_mut() {
-                            strategy(messages, ctx).await;
-                        }
-                    }
-
-                    continue;
-                }
-            }
-        }
-
-        Err(last_err.unwrap_or(ChatFailure {
-            metadata: last_metadata,
-            err: ChatError::RateLimited,
-        }))
+            serde_json::from_value::<T>(value.clone())
+                .map(|content| StructuredResponse {
+                    content,
+                    metadata: None,
+                })
+                .map_err(|err| {
+                    ChatError::InvalidResponse(format!(
+                        "Failed to parse structured output: {}",
+                        err
+                    ))
+                })
+        })
+        .await
     }
 }
 
@@ -434,177 +316,92 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
             metadata: last_metadata,
         })
     }
-}
 
-#[derive(Default)]
-pub struct ChatBuilder<CP: ChatProvider, Output = Unstructured> {
-    model: Option<CP>,
-    output_shape: Option<schemars::Schema>,
-    model_options: Option<ChatOptions>,
-    max_steps: Option<u16>,
-    max_retries: Option<u16>,
-    retry_strategy: Option<RetryStrategy>,
-    before_strategy: Option<CallbackStrategy>,
-    after_strategy: Option<CallbackStrategy>,
-    tools: Option<ToolCollection>,
-    _output: std::marker::PhantomData<Output>,
-}
-
-impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
-    /// Create a ChatBuilder configured for unstructured output with all configuration fields unset.
-    ///
-    /// This returns a builder where `model`, `max_steps`, `max_retries`, `output_shape`,
-    /// `tools`, and `model_options` are all `None`, ready to be configured.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// let builder = ChatBuilder::<MockProvider>::new();
-    /// let configured = builder.with_max_steps(3).with_model(MockProvider::default());
-    /// ```
-    pub fn new() -> Self {
-        ChatBuilder {
-            _output: std::marker::PhantomData,
-            ..Default::default()
-        }
-    }
-
-    /// Configure the builder to produce structured JSON output shaped like `T`.
-    ///
-    /// Consumes the builder and returns a new `ChatBuilder<CP, Structured<T>>` whose
-    /// `complete()` will deserialize model responses into `T`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use schemars::JsonSchema;
-    /// use serde::Deserialize;
-    ///
-    /// #[derive(JsonSchema, Deserialize)]
-    /// struct MyOutput {
-    ///     pub answer: String,
-    ///     pub confidence: f64,
-    /// }
-    ///
-    /// let builder = ChatBuilder::new().with_structured_output::<MyOutput>();
-    /// // builder.with_model(...).build() -> Chat<_, Structured<MyOutput>>
-    /// ```
-    pub fn with_structured_output<T>(self) -> ChatBuilder<CP, Structured<T>>
+    async fn execute_with_retries<F, R>(
+        &mut self,
+        messages: &mut Messages,
+        mut processor: F,
+    ) -> Result<R, ChatFailure>
     where
-        T: JsonSchema + DeserializeOwned,
+        F: FnMut(&ChatResponse) -> Result<R, ChatError>,
     {
-        let shape = schemars::schema_for!(T);
+        let max_retries = self.max_retries.unwrap_or(1);
+        let mut last_err: Option<ChatError> = None;
+        let mut last_metadata: Option<Metadata> = None;
 
-        ChatBuilder {
-            model: self.model,
-            max_steps: self.max_steps,
-            max_retries: self.max_retries,
-            retry_strategy: self.retry_strategy,
-            before_strategy: self.before_strategy,
-            after_strategy: self.after_strategy,
-            output_shape: Some(shape),
-            tools: self.tools,
-            model_options: self.model_options,
-            _output: std::marker::PhantomData,
+        if let Some(strategy) = self.before_strategy.as_mut() {
+            strategy(messages).await;
         }
-    }
-}
 
-impl<CP: ChatProvider, Output> ChatBuilder<CP, Output> {
-    /// Sets the maximum number of iterations the chat loop will perform when running `call_loop`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// let builder = ChatBuilder::<MockProvider>::new().with_max_steps(3);
-    /// ```
-    pub fn with_max_steps(mut self, max_steps: u16) -> Self {
-        self.max_steps = Some(max_steps);
-        self
-    }
+        for idx in 0..max_retries {
+            let original_len = messages.len();
+            match self.call_loop(messages).await {
+                Ok(response) => {
+                    if let Some(metadata) = response.metadata.clone() {
+                        match &mut last_metadata {
+                            Some(existing) => {
+                                existing.extend(&metadata);
+                            }
+                            None => {
+                                last_metadata = Some(metadata);
+                            }
+                        }
+                    }
 
-    pub fn with_max_retries(mut self, max_retries: u16) -> Self {
-        self.max_retries = Some(max_retries);
-        self
-    }
+                    match processor(&response) {
+                        Ok(parsed_result) => {
+                            if let Some(strategy) = self.after_strategy.as_mut() {
+                                strategy(messages).await;
+                            }
+                            return Ok(parsed_result);
+                        }
+                        Err(err) => {
+                            last_err = Some(err.clone());
+                            if idx + 1 < max_retries {
+                                let ctx = CallbackRetryContext {
+                                    idx,
+                                    failure: ChatFailure {
+                                        err,
+                                        metadata: last_metadata.clone(),
+                                    },
+                                };
+                                if let Some(strategy) = self.retry_strategy.as_mut() {
+                                    strategy(messages, ctx).await;
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(failure) => {
+                    if let Some(metadata) = failure.metadata.clone() {
+                        match &mut last_metadata {
+                            Some(existing) => {
+                                existing.extend(&metadata);
+                            }
+                            None => {
+                                last_metadata = Some(metadata);
+                            }
+                        }
+                    }
 
-    pub fn with_tools(mut self, tools: ToolCollection) -> Self {
-        self.tools = Some(tools);
-        self
-    }
+                    last_err = Some(failure.err.clone());
 
-    pub fn with_retry_strategy(mut self, retry_strategy: RetryStrategy) -> Self {
-        self.retry_strategy = Some(retry_strategy);
-        self
-    }
+                    if idx + 1 < max_retries {
+                        let ctx = CallbackRetryContext { idx, failure };
+                        if let Some(strategy) = self.retry_strategy.as_mut() {
+                            strategy(messages, ctx).await;
+                        }
+                    }
+                }
+            }
 
-    /// Set the chat provider implementation on the builder.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let builder = ChatBuilder::new().with_model(my_model);
-    /// ```
-    pub fn with_model(mut self, model: CP) -> Self {
-        self.model = Some(model);
-        self
-    }
-
-    /// Set model-level chat options on the builder.
-    ///
-    /// The provided `ChatOptions` will be used as the model options for the `Chat` constructed by this builder.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let builder = ChatBuilder::new().with_options(ChatOptions { /* fields */ });
-    /// let chat = builder.with_model(mock_provider).build();
-    /// ```
-    pub fn with_options(mut self, options: ChatOptions) -> Self {
-        self.model_options = Some(options);
-        self
-    }
-
-    /// Constructs a Chat instance from this builder, consuming the builder.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a model was not provided via `with_model`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// let builder = ChatBuilder::new().with_model(my_model);
-    /// let chat = builder.build();
-    /// ```
-    pub fn build(self) -> Chat<CP, Output> {
-        Chat {
-            model: self.model.expect("Need to set a model"),
-            output_shape: self.output_shape,
-            max_steps: self.max_steps,
-            max_retries: self.max_retries,
-            retry_strategy: self.retry_strategy,
-            before_strategy: self.before_strategy,
-            after_strategy: self.after_strategy,
-            tools: self.tools,
-            model_options: self.model_options,
-            _output: std::marker::PhantomData,
+            messages.0.truncate(original_len);
         }
-    }
-}
 
-impl<CP: ChatProvider> Default for ChatBuilder<CP, Unstructured> {
-    /// Creates a default ChatBuilder for unstructured output.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let b1 = ChatBuilder::<()>::new();
-    /// let b2 = ChatBuilder::<()>::default();
-    /// // Both constructors produce a builder configured for unstructured output.
-    /// ```
-    fn default() -> Self {
-        ChatBuilder::new()
+        Err(ChatFailure {
+            metadata: last_metadata,
+            err: last_err.unwrap_or(ChatError::RateLimited),
+        })
     }
 }
 
