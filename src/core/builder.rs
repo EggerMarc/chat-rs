@@ -146,7 +146,7 @@ impl<CP: ChatProvider, Output> ChatBuilder<CP, Output> {
     ///
     /// ```no_run
     /// let builder = ChatBuilder::new().with_model(my_model);
-    /// let //chat = builder.build();
+    /// let chat = builder.build();
     /// ```
     pub fn build(self) -> Chat<CP, Output> {
         Chat {
