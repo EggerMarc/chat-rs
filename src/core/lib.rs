@@ -1,3 +1,4 @@
+use futures::stream::BoxStream;
 use serde_json::Value;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -28,6 +29,12 @@ pub struct ChatFailure {
     pub err: ChatError,
 }
 
+#[derive(Debug, Clone)]
+pub enum StreamEvent {
+    TextChunk(String),
+    Done(crate::lib::ChatResponse),
+}
+
 #[async_trait]
 pub trait ChatProvider: Send + Sync {
     async fn complete(
@@ -39,14 +46,17 @@ pub trait ChatProvider: Send + Sync {
     ) -> Result<ChatResponse, ChatFailure>;
 }
 
-/*
 #[async_trait]
 pub trait ChatStreamProvider {
-    async fn stream() -> {
-
-    }
+    async fn stream(
+        &self,
+        messages: &mut Messages,
+        tools: Option<&ToolCollection>,
+        options: Option<&ChatOptions>,
+    ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError>;
 }
 
+/*
 #[async_trait]
 pub trait ChatSessionProvider {
     async fn session() -> {

@@ -4,8 +4,8 @@ use tools_rs::ToolCollection;
 
 use crate::{
     callback::{CallbackStrategy, RetryStrategy},
-    chat::{Chat, Structured, Unstructured},
-    lib::{ChatOptions, ChatProvider},
+    chat::{Chat, Streamed, Structured, Unstructured},
+    lib::{ChatOptions, ChatProvider, ChatStreamProvider},
 };
 
 pub struct ChatBuilder<CP: ChatProvider, Output = Unstructured> {
@@ -74,6 +74,30 @@ impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
             before_strategy: self.before_strategy,
             after_strategy: self.after_strategy,
             output_shape: Some(shape),
+            tools: self.tools,
+            model_options: self.model_options,
+            _output: std::marker::PhantomData,
+        }
+    }
+
+    pub fn with_streamed_response(self) -> ChatBuilder<CP, Streamed>
+    where
+        CP: ChatStreamProvider,
+    {
+        if self.output_shape.is_some() {
+            println!(
+                "Warning: Cannot called streamed responses with structured outputs. Output shape will be set to None"
+            );
+        }
+
+        ChatBuilder {
+            model: self.model,
+            max_steps: self.max_steps,
+            max_retries: self.max_retries,
+            retry_strategy: self.retry_strategy,
+            before_strategy: self.before_strategy,
+            after_strategy: self.after_strategy,
+            output_shape: None, // No shape for pure streaming
             tools: self.tools,
             model_options: self.model_options,
             _output: std::marker::PhantomData,
