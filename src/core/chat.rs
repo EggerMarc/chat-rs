@@ -19,6 +19,7 @@ use crate::{
 
 pub struct Unstructured;
 pub struct Structured<T>(std::marker::PhantomData<T>);
+pub struct Streamed;
 
 #[derive(Default)]
 pub struct Chat<CP: ChatProvider, Output = Unstructured> {
