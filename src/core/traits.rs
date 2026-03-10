@@ -24,7 +24,7 @@ pub trait CompletionProvider: Send + Sync {
 }
 
 #[async_trait]
-pub trait StreamProvider {
+pub trait StreamProvider: Send + Sync {
     async fn stream(
         &self,
         messages: &mut Messages,
@@ -34,6 +34,6 @@ pub trait StreamProvider {
 }
 
 #[async_trait]
-pub trait EmbeddingsProvider {
+pub trait EmbeddingsProvider: Send + Sync {
     async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;
 }

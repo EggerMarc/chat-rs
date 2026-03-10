@@ -25,56 +25,6 @@ impl<CP: CompletionProvider> Chat<CP, Unstructured> {
         })
         .await
     }
-
-    pub async fn embed(
-        &mut self,
-        messages: &mut Messages,
-    ) -> Result<EmbeddingsResponse, ChatFailure> {
-        if self.max_steps.is_some() {
-            println!("Warning, embeddings is a one shot call, it does not implement steps")
-        }
-
-        if let Some(strategy) = self.before_strategy.as_mut() {
-            strategy(messages, None).await;
-        }
-        let response = self.model.complete(messages, None, None, None).await?;
-
-        let metadata = response.metadata;
-        let embeddings_part = response.content.parts.last().ok_or_else(|| ChatFailure {
-            err: ChatError::InvalidResponse("No parts in response".to_string()),
-            metadata: metadata.clone(),
-        })?;
-
-        match embeddings_part {
-            PartEnum::Embeddings(embeddings) => {
-                if let Some(strategy) = self.after_strategy.as_mut() {
-                    strategy(messages, metadata.as_ref()).await;
-                }
-
-                Ok(EmbeddingsResponse {
-                    metadata,
-                    embeddings: embeddings.clone(),
-                })
-            }
-            _ => {
-                let failure = ChatFailure {
-                    err: ChatError::InvalidResponse("Response was not embeddings".to_string()),
-                    metadata: metadata.clone(),
-                };
-
-                let ctx = CallbackRetryContext {
-                    idx: 0,
-                    failure: failure.clone(),
-                };
-
-                if let Some(strategy) = self.retry_strategy.as_mut() {
-                    strategy(messages, metadata.as_ref(), ctx).await;
-                }
-
-                Err(failure)
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
