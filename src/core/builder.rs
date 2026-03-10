@@ -4,17 +4,17 @@ use tools_rs::ToolCollection;
 
 use crate::{
     chat::{
-        complete::Chat,
+        Chat,
         state::{Embedded, Streamed, Structured, Unstructured},
     },
-    traits::{ChatProvider, ChatStreamProvider},
+    traits::{CompletionProvider, StreamProvider},
     types::{
         callback::{CallbackStrategy, RetryStrategy},
         options::ChatOptions,
     },
 };
 
-pub struct ChatBuilder<CP: ChatProvider, Output = Unstructured> {
+pub struct ChatBuilder<CP: CompletionProvider, Output = Unstructured> {
     model: Option<CP>,
     output_shape: Option<schemars::Schema>,
     model_options: Option<ChatOptions>,
@@ -27,7 +27,7 @@ pub struct ChatBuilder<CP: ChatProvider, Output = Unstructured> {
     _output: std::marker::PhantomData<Output>,
 }
 
-impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
+impl<CP: CompletionProvider> ChatBuilder<CP, Unstructured> {
     pub fn new() -> Self {
         ChatBuilder {
             _output: std::marker::PhantomData,
@@ -57,7 +57,7 @@ impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
 
     pub fn with_streamed_response(self) -> ChatBuilder<CP, Streamed>
     where
-        CP: ChatStreamProvider,
+        CP: StreamProvider,
     {
         if self.output_shape.is_some() {
             println!(
@@ -101,7 +101,7 @@ impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
     }
 }
 
-impl<CP: ChatProvider, Output> ChatBuilder<CP, Output> {
+impl<CP: CompletionProvider, Output> ChatBuilder<CP, Output> {
     pub fn with_max_steps(mut self, max_steps: u16) -> Self {
         self.max_steps = Some(max_steps);
         self
@@ -148,7 +148,7 @@ impl<CP: ChatProvider, Output> ChatBuilder<CP, Output> {
     }
 }
 
-impl<CP: ChatProvider> Default for ChatBuilder<CP, Unstructured> {
+impl<CP: CompletionProvider> Default for ChatBuilder<CP, Unstructured> {
     fn default() -> Self {
         ChatBuilder {
             model: None,

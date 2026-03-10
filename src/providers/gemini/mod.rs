@@ -14,7 +14,7 @@ use crate::gemini::code_execution::CodeExecutionTool;
 use crate::gemini::google_maps::GoogleMapsTool;
 use crate::gemini::google_search::GoogleSearchTool;
 use crate::gemini::lib::GeminiNativeTool;
-use crate::traits::ChatProvider;
+use crate::traits::CompletionProvider;
 use crate::types::messages::content::{CompleteReasonEnum, Content, RoleEnum};
 use crate::types::messages::embeddings::Embeddings;
 use crate::types::messages::file::File;
@@ -323,7 +323,7 @@ impl GeminiClient {
 }
 
 #[async_trait]
-impl ChatProvider for GeminiClient {
+impl CompletionProvider for GeminiClient {
     /// Send the provided messages to the Gemini model and return the model's parsed response as `Content`.
     ///
     /// If an embeddings configuration is set on the client, the request will target Gemini's embedding task and return embedding results; otherwise it will request generated content.

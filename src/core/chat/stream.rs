@@ -2,8 +2,8 @@ use async_stream::try_stream;
 use futures::{StreamExt, stream::BoxStream};
 
 use crate::{
-    chat::{complete::Chat, state::Streamed},
-    traits::{ChatProvider, ChatStreamProvider},
+    chat::{Chat, state::Streamed},
+    traits::StreamProvider,
     types::{
         failure::ChatFailure,
         messages::{Messages, content::Content},
@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-impl<CP: ChatStreamProvider + ChatProvider> Chat<CP, Streamed> {
+impl<CP: StreamProvider> Chat<CP, Streamed> {
     pub async fn stream<'a>(
         &'a mut self,
         messages: &'a mut Messages,

@@ -1,41 +1,21 @@
 use schemars::JsonSchema;
 
-use serde::de::DeserializeOwned;
-use tools_rs::ToolCollection;
-
+use crate::chat::Chat;
 use crate::{
     chat::state::{Structured, Unstructured},
     error::ChatError,
-    traits::ChatProvider,
+    traits::CompletionProvider,
     types::{
-        callback::{CallbackRetryContext, CallbackStrategy, RetryStrategy},
+        callback::CallbackRetryContext,
         failure::ChatFailure,
-        messages::{
-            Messages,
-            content::Content,
-            parts::{PartEnum, Parts},
-        },
+        messages::{Messages, content::Content, parts::PartEnum},
         metadata::Metadata,
-        options::ChatOptions,
         response::{ChatResponse, EmbeddingsResponse},
     },
 };
+use serde::de::DeserializeOwned;
 
-#[derive(Default)]
-pub struct Chat<CP: ChatProvider, Output = Unstructured> {
-    pub(crate) model: CP,
-    pub(crate) output_shape: Option<schemars::Schema>,
-    pub(crate) model_options: Option<ChatOptions>,
-    pub(crate) max_steps: Option<u16>,
-    pub(crate) max_retries: Option<u16>,
-    pub(crate) retry_strategy: Option<RetryStrategy>,
-    pub(crate) before_strategy: Option<CallbackStrategy>,
-    pub(crate) after_strategy: Option<CallbackStrategy>,
-    pub(crate) tools: Option<ToolCollection>,
-    pub(crate) _output: std::marker::PhantomData<Output>,
-}
-
-impl<CP: ChatProvider> Chat<CP, Unstructured> {
+impl<CP: CompletionProvider> Chat<CP, Unstructured> {
     pub async fn complete(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
         self.execute_with_retries(messages, |response| {
             Ok(ChatResponse {
@@ -103,7 +83,7 @@ pub struct StructuredResponse<T: DeserializeOwned + JsonSchema> {
     pub metadata: Option<Metadata>,
 }
 
-impl<CP: ChatProvider, T> Chat<CP, Structured<T>>
+impl<CP: CompletionProvider, T> Chat<CP, Structured<T>>
 where
     T: DeserializeOwned + JsonSchema,
 {
@@ -134,24 +114,7 @@ where
     }
 }
 
-impl<CP: ChatProvider, Output> Chat<CP, Output> {
-    pub(crate) async fn tool_call(&self, content: &Content) -> Result<Parts, ChatError> {
-        let mut frs: Parts = Parts::default();
-        for fc in content.parts.function_calls() {
-            frs.push(PartEnum::from_function_response(
-                self.tools
-                    .clone()
-                    .ok_or(ChatError::InvalidResponse(
-                        "Attempted to call tool but no tool collection has been set.".to_string(),
-                    ))?
-                    .call(fc.clone())
-                    .await
-                    .map_err(|_err| ChatError::InvalidResponse("Tools error".to_string()))?,
-            ));
-        }
-        Ok(frs)
-    }
-
+impl<CP: CompletionProvider, Output> Chat<CP, Output> {
     async fn call_loop(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
         let mut last_metadata: Option<Metadata> = None;
 

@@ -13,7 +13,7 @@ use crate::{
 };
 
 #[async_trait]
-pub trait ChatProvider: Send + Sync {
+pub trait CompletionProvider: Send + Sync {
     async fn complete(
         &self,
         messages: &mut Messages,
@@ -24,7 +24,7 @@ pub trait ChatProvider: Send + Sync {
 }
 
 #[async_trait]
-pub trait ChatStreamProvider {
+pub trait StreamProvider {
     async fn stream(
         &self,
         messages: &mut Messages,
@@ -34,6 +34,6 @@ pub trait ChatStreamProvider {
 }
 
 #[async_trait]
-pub trait ChatEmbeddingProvider {
+pub trait EmbeddingsProvider {
     async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;
 }
