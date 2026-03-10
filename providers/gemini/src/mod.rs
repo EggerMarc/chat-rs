@@ -28,7 +28,7 @@ use crate::types::{
 
 #[derive(Clone, Default)]
 pub struct FunctionCallingConfig {
-    pub mode: Option<String>, // "AUTO", "ANY", "NONE"
+    pub mode: Option<String>,
     pub allowed_function_names: Option<Vec<String>>,
 }
 
@@ -58,29 +58,12 @@ pub struct GeminiBuilder {
 }
 
 impl Default for GeminiBuilder {
-    /// Creates a new GeminiBuilder with default configuration.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let _builder = GeminiBuilder::default();
-    /// ```
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl GeminiBuilder {
-    /// Creates a new GeminiBuilder with default (empty) configuration.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut builder = GeminiBuilder::new();
-    /// builder.with_model("gemini-2.0-flash-exp".to_string())
-    ///        .with_api_key("MY_KEY".to_string());
-    /// let client = builder.build();
-    /// ```
     pub fn new() -> Self {
         Self {
             model_name: None,
@@ -91,58 +74,21 @@ impl GeminiBuilder {
         }
     }
 
-    /// Sets the model name to use when building a GeminiClient.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut b = GeminiBuilder::new();
-    /// b.with_model("gemini-2.0-flash-exp".to_string());
-    /// let client = b.build();
-    /// ```
     pub fn with_model(&mut self, model_name: String) -> &mut Self {
         self.model_name = Some(model_name);
         self
     }
 
-    /// Set the API key that will be used for Gemini requests by this builder.
-    ///
-    /// Returns a mutable reference to the builder for chaining.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut builder = GeminiBuilder::new();
-    /// builder.with_api_key("sk-xxxx".to_string());
-    /// ```
     pub fn with_api_key(&mut self, api_key: String) -> &mut Self {
         self.api_key = Some(api_key);
         self
     }
 
-    /// Adds a CodeExecutionTool to the builder's native tools, enabling code-execution capabilities.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut b = GeminiBuilder::new();
-    /// b.with_code_execution();
-    /// // builder now contains a CodeExecutionTool and can be further configured or built
-    /// ```
     pub fn with_code_execution(&mut self) -> &mut Self {
         self.native_tools.push(Box::new(CodeExecutionTool));
         self
     }
 
-    /// Adds a Google Search native tool to the builder with the default (unset) dynamic threshold.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut builder = GeminiBuilder::new();
-    /// builder.with_model("gemini-2.0-flash-exp".into())
-    ///        .with_google_search();
-    /// ```
     pub fn with_google_search(&mut self) -> &mut Self {
         self.native_tools.push(Box::new(GoogleSearchTool {
             dynamic_threshold: None,
@@ -150,16 +96,6 @@ impl GeminiBuilder {
         self
     }
 
-    /// Adds a Google Search native tool configured with the given dynamic relevance threshold to the builder.
-    ///
-    /// The threshold controls the tool's dynamic scoring behavior (e.g., relevance sensitivity).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut b = GeminiBuilder::new();
-    /// b.with_google_search_threshold(0.7);
-    /// ```
     pub fn with_google_search_threshold(&mut self, threshold: f32) -> &mut Self {
         self.native_tools.push(Box::new(GoogleSearchTool {
             dynamic_threshold: Some(threshold),
@@ -167,22 +103,6 @@ impl GeminiBuilder {
         self
     }
 
-    /// Adds a Google Maps native tool to the builder with optional initial coordinates and an optional map widget.
-    ///
-    /// - `lat_lng`: Optional tuple with latitude and longitude to center the map when the tool is used.
-    /// - `widget`: If `true`, enables an embeddable map widget for the tool; if `false`, the tool provides non-widget responses.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the builder to allow method chaining.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut builder = GeminiBuilder::new();
-    /// builder.with_google_maps(Some((37.7749, -122.4194)), true);
-    /// let client = builder.build();
-    /// ```
     pub fn with_google_maps(&mut self, lat_lng: Option<(f32, f32)>, widget: bool) -> &mut Self {
         self.native_tools.push(Box::new(GoogleMapsTool {
             lat_lng,
@@ -191,20 +111,6 @@ impl GeminiBuilder {
         self
     }
 
-    /// Set the function-calling behavior and optional whitelist of allowed function names for the builder.
-    ///
-    /// `mode` should be one of `"AUTO"`, `"ANY"`, or `"NONE"`, controlling how the model may invoke functions.
-    /// `allowed` can be provided to restrict function calls to a specific list of function names.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut b = GeminiBuilder::new();
-    /// b.with_function_calling_mode("AUTO", Some(vec!["search".into(), "calc".into()]));
-    /// let client = b.build();
-    /// ```
-    ///
-    /// Returns a mutable reference to the modified builder.
     pub fn with_function_calling_mode(
         &mut self,
         mode: &str,
@@ -247,29 +153,6 @@ impl GeminiBuilder {
         self
     }
 
-    /// Builds a `GeminiClient` from this builder, applying sensible defaults where fields are unset.
-    ///
-    /// The returned client is configured with the builder's current `model_name`, `api_key`,
-    /// `native_tools`, and `function_config`. If `model_name` was not set, it defaults to
-    /// "gemini-2.0-flash-exp". If `api_key` was not set, the `GEMINI_API_KEY` environment
-    /// variable is read; the function will panic if that environment variable is missing.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// let mut builder = GeminiBuilder::new();
-    /// // with no model or api key set, build will use defaults and/or environment
-    /// // (this example assumes GEMINI_API_KEY is set in the environment)
-    /// let client = builder.build();
-    /// assert!(client.model_name == "gemini-2.0-flash-exp");
-    ///
-    /// // setting values on the builder is preserved in the produced client
-    /// let mut b2 = GeminiBuilder::new();
-    /// b2.with_model("custom-model".to_string()).with_api_key("sk-test".to_string());
-    /// let c2 = b2.build();
-    /// assert_eq!(c2.model_name, "custom-model");
-    /// assert_eq!(c2.api_key, "sk-test");
-    /// ```
     pub fn build(&mut self) -> GeminiClient {
         GeminiClient {
             model_name: self
@@ -295,20 +178,6 @@ pub struct GeminiClient {
 }
 
 impl GeminiClient {
-    /// Creates a GeminiClient configured with the `GEMINI_API_KEY` taken from the environment.
-    ///
-    /// If the `GEMINI_API_KEY` environment variable is missing or cannot be read, this function
-    /// returns an error.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::env;
-    /// // Set the env var for the example
-    /// env::set_var("GEMINI_API_KEY", "test-key");
-    /// let client = crate::providers::gemini::GeminiClient::new("gemini-2.0-flash-exp").unwrap();
-    /// assert_eq!(client.model_name, "gemini-2.0-flash-exp");
-    /// ```
     pub fn new(model_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let api_key = env::var("GEMINI_API_KEY")?;
 
@@ -324,20 +193,6 @@ impl GeminiClient {
 
 #[async_trait]
 impl CompletionProvider for GeminiClient {
-    /// Send the provided messages to the Gemini model and return the model's parsed response as `Content`.
-    ///
-    /// If an embeddings configuration is set on the client, the request will target Gemini's embedding task and return embedding results; otherwise it will request generated content.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// // Given a configured `GeminiClient` named `client` and a `Messages` value:
-    /// // let content = client.complete(&messages, None, None, None).await.unwrap();
-    /// ```
-    ///
-    /// # Returns
-    ///
-    /// `Ok(ChatResponse)` containing the parsed `Content` and associated metadata on success; `Err(ChatFailure)` if the HTTP request, response parsing, or API call fails.
     async fn complete(
         &self,
         messages: &mut Messages,
@@ -413,39 +268,6 @@ impl CompletionProvider for GeminiClient {
     }
 }
 
-/// Assembles a Gemini Generative Language API request body from messages, tools, and optional configurations.
-///
-/// The produced JSON may include a sanitized `generationConfig` (when `structured_output` is provided),
-/// a `system_instruction` (from system-role messages), `contents` (from non-system messages),
-/// and optional `tools` and `toolConfig` fields built from `custom_tools`, `native_tools`, and `function_config`.
-/// When `embeddings_config` is present the body is constructed for an embeddings request and will contain
-/// `model`, `content` (from the last message's parts), an optional `taskType`, and optional `output_dimensionality`.
-///
-/// # Returns
-///
-/// A `serde_json::Value` representing the assembled request body, or a `ChatError` if schema serialization
-/// or tool/config assembly fails.
-///
-/// # Examples
-///
-/// ```no_run
-/// // Conceptual example (types omitted for brevity):
-/// // let messages: Messages = ...;
-/// // let custom_tools: Option<&ToolCollection> = None;
-/// // let schema: Option<&schemars::Schema> = None;
-/// // let native_tools: Vec<Box<dyn GeminiNativeTool>> = vec![];
-/// // let function_config: Option<&FunctionCallingConfig> = None;
-/// // let embeddings_config: Option<&EmbeddingsConfig> = None;
-/// // let body = build_request_body(
-/// //     &messages,
-/// //     "gemini-2.0",
-/// //     custom_tools,
-/// //     schema,
-/// //     &native_tools,
-/// //     function_config,
-/// //     embeddings_config,
-/// // )?;
-/// ```
 fn build_request_body(
     messages: &Messages,
     model_name: &str,
@@ -540,25 +362,6 @@ fn build_request_body(
     Ok(body)
 }
 
-/// Logs warnings for incompatible feature combinations when building a Gemini request.
-///
-/// Specifically warns if:
-/// - a native Google Search tool is present together with function declarations (`custom_tools`),
-/// - a native Google Search tool is present together with structured output (`structured_output`),
-/// - function declarations are present together with structured output.
-///
-/// # Arguments
-///
-/// * `custom_tools` - Optional collection of user-provided function declarations.
-/// * `structured_output` - Optional JSON Schema used to request structured/parsing output.
-/// * `native_tools` - Slice of native tools; tools that return `true` from `is_search()` are treated as Google Search.
-///
-/// # Examples
-///
-/// ```
-/// // No warnings
-/// validate_combinations(None, None, &[]);
-/// ```
 fn validate_combinations(
     custom_tools: Option<&ToolCollection>,
     structured_output: Option<&schemars::Schema>,
@@ -585,34 +388,6 @@ fn validate_combinations(
     }
 }
 
-/// Builds the JSON `tools` array and a per-tool `toolConfig` object for the Gemini request.
-///
-/// Produces an optional JSON array of tool declarations (combining custom tool declarations and native tool declarations)
-/// and an optional JSON object of per-tool configuration entries (including native tool configs and an optional
-/// `functionCallingConfig` assembled from `function_config`).
-///
-/// # Parameters
-///
-/// - `custom_tools`: Optional collection of custom tools whose JSON declarations will be included under
-///   a `functionDeclarations` entry if present.
-/// - `native_tools`: Slice of native tools; each contributes a tool declaration and may add a key/value entry
-///   to the returned tool configuration.
-/// - `function_config`: Optional function-calling configuration; if it has fields set, they are inserted under
-///   the `functionCallingConfig` key in the tool configuration.
-///
-/// # Returns
-///
-/// A tuple `(tools, tool_config)` where:
-/// - `tools` is `Some(Value::Array(_))` when there is at least one tool declaration, otherwise `None`.
-/// - `tool_config` is `Some(Value::Object(_))` when there is at least one configuration entry, otherwise `None`.
-///
-/// # Examples
-///
-/// ```
-/// // Call with no custom or native tools and no function config:
-/// let res = crate::providers::gemini::build_tools_and_config(None, &[], None).unwrap();
-/// assert_eq!(res, (None, None));
-/// ```
 fn build_tools_and_config(
     custom_tools: Option<&ToolCollection>,
     native_tools: &[Box<dyn GeminiNativeTool>],
@@ -668,41 +443,6 @@ fn build_tools_and_config(
     Ok((final_tools, final_config))
 }
 
-/// Recursively remove keys that Gemini does not accept from a JSON schema value.
-///
-/// This function walks the given `serde_json::Value` in-place and removes the following keys
-/// from any object it encounters: `$schema`, `title`, `$id`, `additionalProperties`, and `definitions`.
-/// Arrays and nested objects are traversed recursively so the sanitization is applied throughout the schema.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::json;
-/// let mut schema = json!({
-///     "$schema": "http://example",
-///     "title": "Example",
-///     "properties": {
-///         "inner": {
-///             "$id": "id",
-///             "definitions": { "x": {} },
-///             "type": "object"
-///         }
-///     },
-///     "additionalProperties": false
-/// });
-///
-/// sanitize_schema_for_gemini(&mut schema);
-///
-/// // Top-level removals
-/// assert!(!schema.as_object().unwrap().contains_key("$schema"));
-/// assert!(!schema.as_object().unwrap().contains_key("title"));
-/// assert!(!schema.as_object().unwrap().contains_key("additionalProperties"));
-///
-/// // Nested removals
-/// let inner = &schema["properties"]["inner"];
-/// assert!(!inner.as_object().unwrap().contains_key("$id"));
-/// assert!(!inner.as_object().unwrap().contains_key("definitions"));
-/// ```
 fn sanitize_schema_for_gemini(schema: &mut Value) {
     if let Value::Object(map) = schema {
         map.remove("$schema");
@@ -720,24 +460,6 @@ fn sanitize_schema_for_gemini(schema: &mut Value) {
     }
 }
 
-/// Build a Gemini-formatted system instruction object from messages.
-///
-/// Extracts all parts from messages whose role is `System`, converts each part to Gemini format,
-/// and returns `Some` JSON object with a `"parts"` array when system parts are present; returns
-/// `None` if there are no system-role parts.
-///
-/// # Examples
-///
-/// ```
-/// // Given `messages` containing system parts:
-/// let maybe_sys = build_system_instruction(&messages);
-/// if let Some(obj) = maybe_sys {
-///     // obj is a JSON object like `{ "parts": [ ... ] }`
-///     assert!(obj.get("parts").is_some());
-/// } else {
-///     // no system parts were present
-/// }
-/// ```
 fn build_system_instruction(messages: &Messages) -> Option<Value> {
     let sys_parts: Vec<Value> = messages
         .0
@@ -753,22 +475,6 @@ fn build_system_instruction(messages: &Messages) -> Option<Value> {
     }
 }
 
-/// Build the array of content objects for a Gemini request from `messages`.
-///
-/// Non-system messages are converted into Gemini content objects. Parts that are function responses
-/// are collected into separate content entries with role `"function"`, while all other parts for a
-/// message are combined into a single content entry with the message's role.
-///
-/// # Examples
-///
-/// ```
-/// // Assuming `Messages`, `Content`, and `PartEnum` are in scope and constructible:
-/// let messages = Messages(vec![
-///     Content { role: RoleEnum::User, parts: Parts(vec![PartEnum::Text("hi".into())]) },
-/// ]);
-/// let body = build_contents(&messages);
-/// assert!(body.is_some());
-/// ```
 fn build_contents(messages: &Messages) -> Option<Value> {
     let mut contents: Vec<Value> = Vec::new();
 
@@ -807,22 +513,6 @@ fn build_contents(messages: &Messages) -> Option<Value> {
     }
 }
 
-/// Convert a `Content` and its serialized parts into a Gemini-formatted content JSON object.
-///
-/// The resulting object contains a `role` field set to `"user"` for `RoleEnum::User`, `"model"` for
-/// `RoleEnum::Model`, and `"user"` for any other roles, and a `parts` field containing the given parts.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::json;
-/// // assume Content and RoleEnum are in scope; create a user content for the example
-/// let content = Content { role: RoleEnum::User, ..Default::default() };
-/// let parts = vec![json!({"text":"hello"})];
-/// let gemini = content_to_gemini_with_parts(&content, parts);
-/// assert_eq!(gemini["role"], "user");
-/// assert!(gemini["parts"].is_array());
-/// ```
 fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
     let role_str = match content.role {
         RoleEnum::User => "user",
@@ -832,26 +522,6 @@ fn content_to_gemini_with_parts(content: &Content, parts: Vec<Value>) -> Value {
     json!({ "role": role_str, "parts": parts })
 }
 
-/// Convert a PartEnum into the JSON object shape expected by the Gemini API.
-///
-/// The returned `serde_json::Value` represents a single Gemini "part":
-/// - `Text` and `Reasoning` produce `{ "text": "..." }`.
-/// - `FunctionCall` produces `{ "functionCall": { "name": <name>, "args": <args> } }`.
-/// - `FunctionResponse` produces `{ "functionResponse": { "name": <name>, "response": <object-or-content> } }`
-///   where non-object responses are wrapped as `{ "content": <value> }`.
-/// - `File::Url` produces `{ "file_data": { "file_uri": <uri>, "mime_type": <opt> } }`.
-/// - `File::Bytes` produces `{ "inline_data": { "mime_type": <mime>, "data": <bytes> } }`.
-/// - All other variants produce `{ "text": "" }`.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::Value;
-/// // Construct a text part; exact constructors depend on the crate's types.
-/// let p = PartEnum::Text(String::from("hello"));
-/// let v: Value = part_to_gemini(&p);
-/// assert_eq!(v["text"], "hello");
-/// ```
 fn part_to_gemini(part: &PartEnum) -> Value {
     match part {
         PartEnum::Text(t) => json!({ "text": t.0}),
@@ -897,32 +567,6 @@ fn part_to_gemini(part: &PartEnum) -> Value {
     }
 }
 
-/// Parse a Gemini API response into a Content value.
-///
-/// When `embedding.values` is present, parses embeddings into parts and returns a model Content.
-/// Otherwise extracts the first candidate's `content`, converts its parts, maps the role and finish reason, and returns the resulting Content.
-/// Returns an error if required fields are missing or if parts/embeddings parsing fails.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::json;
-///
-/// let resp = json!({
-///     "candidates": [
-///         {
-///             "content": {
-///                 "parts": [ { "text": "hello" } ],
-///                 "role": "model"
-///             },
-///             "finishReason": "STOP"
-///         }
-///     ]
-/// });
-///
-/// let content = crate::providers::gemini::parse_gemini_response(&resp).unwrap();
-/// assert_eq!(content.parts.len(), 1);
-/// ```
 fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
     if let Some(value) = json.get("embedding").and_then(|json| json.get("values")) {
         let parts = parse_embeddings(value)?;
@@ -954,24 +598,6 @@ fn parse_gemini_response(json: &Value) -> Result<Content, ChatError> {
     Ok(content)
 }
 
-/// Parses the `"parts"` array of a Gemini content JSON object into the internal `Parts` representation.
-///
-/// Returns `Ok(Parts)` containing parsed `Text` and `FunctionCall` parts found in `content_json`.
-/// Returns `Err(ChatError::InvalidResponse)` if a `functionCall` item is missing its `name` or `args` fields.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::json;
-/// let content = json!({
-///     "parts": [
-///         { "text": "hello" },
-///         { "functionCall": { "name": "doThing", "args": { "x": 1 } } }
-///     ]
-/// });
-/// let parts = parse_parts(&content).unwrap();
-/// assert_eq!(parts.len(), 2);
-/// ```
 fn parse_parts(content_json: &Value) -> Result<Parts, ChatError> {
     let mut parts = Parts::default();
     if let Some(arr) = content_json.get("parts").and_then(|v| v.as_array()) {
@@ -1023,34 +649,6 @@ fn parse_parts(content_json: &Value) -> Result<Parts, ChatError> {
     Ok(parts)
 }
 
-/// Map a Gemini content JSON object's "role" field to the corresponding `RoleEnum`.
-///
-/// `content_json` is expected to be a JSON object that may contain a `"role"` string.
-/// If the `"role"` field is missing or not one of the recognized values, this function
-/// maps it to `RoleEnum::Model`.
-///
-/// # Returns
-///
-/// `RoleEnum` corresponding to the role: `User` for `"user"`, `System` for `"system"`,
-/// `Model` for `"function"` or any other value.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::json;
-///
-/// let user = json!({ "role": "user" });
-/// assert_eq!(parse_role(&user), RoleEnum::User);
-///
-/// let system = json!({ "role": "system" });
-/// assert_eq!(parse_role(&system), RoleEnum::System);
-///
-/// let func = json!({ "role": "function" });
-/// assert_eq!(parse_role(&func), RoleEnum::Model);
-///
-/// let missing = json!({});
-/// assert_eq!(parse_role(&missing), RoleEnum::Model);
-/// ```
 fn parse_role(content_json: &Value) -> RoleEnum {
     match content_json
         .get("role")
@@ -1064,23 +662,6 @@ fn parse_role(content_json: &Value) -> RoleEnum {
     }
 }
 
-/// Map a Gemini candidate's `finishReason` field to a `CompleteReasonEnum`.
-///
-/// Returns `CompleteReasonEnum::Stop` for `"STOP"`,
-/// `CompleteReasonEnum::MaxTokens` for `"MAX_TOKENS"`,
-/// and `CompleteReasonEnum::ContentFilter` for `"SAFETY"`, `"RECITATION"`, or `"OTHER"`.
-/// Any missing or unrecognized value yields `CompleteReasonEnum::None`.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::json;
-/// let c = json!({ "finishReason": "STOP" });
-/// assert_eq!(crate::parse_finish_reason(&c), CompleteReasonEnum::Stop);
-///
-/// let c2 = json!({ "finishReason": "UNKNOWN" });
-/// assert_eq!(crate::parse_finish_reason(&c2), CompleteReasonEnum::None);
-/// ```
 fn parse_finish_reason(candidate: &Value) -> CompleteReasonEnum {
     let finish_reason = candidate
         .get("finishReason")
@@ -1109,31 +690,6 @@ pub fn parse_metadata(body: &Value) -> Metadata {
     }
 }
 
-/// Extracts token usage counts from a Gemini response JSON object.
-///
-/// Reads `usageMetadata.promptTokenCount`, `usageMetadata.candidatesTokenCount`, and
-/// `usageMetadata.totalTokenCount` and returns a `Usage` with `input_tokens`, `output_tokens`,
-/// and `total_tokens`. If any fields are missing, `promptTokenCount` and `candidatesTokenCount`
-/// default to 0 and `totalTokenCount` defaults to `promptTokenCount + candidatesTokenCount`.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::json;
-///
-/// let body = json!({
-///     "usageMetadata": {
-///         "promptTokenCount": 5u64,
-///         "candidatesTokenCount": 7u64,
-///         "totalTokenCount": 12u64
-///     }
-/// });
-///
-/// let usage = crate::providers::gemini::parse_usage(&body);
-/// assert_eq!(usage.input_tokens, 5);
-/// assert_eq!(usage.output_tokens, 7);
-/// assert_eq!(usage.total_tokens, 12);
-/// ```
 pub fn parse_usage(body: &Value) -> Usage {
     let u = body.get("usageMetadata");
 
@@ -1157,30 +713,6 @@ pub fn parse_usage(body: &Value) -> Usage {
     }
 }
 
-/// Parse a JSON value containing embedding vectors into a Parts collection.
-///
-/// Accepts either a single embedding as an array of numbers (e.g. [f1, f2, ...])
-/// or a batched form (an array of embedding arrays). Each numeric value is
-/// converted to `f32` and wrapped in an `Embeddings` part which is pushed into
-/// the returned `Parts`.
-///
-/// Returns an error if the JSON is not an array, if a batched entry is not an
-/// array, or if any element cannot be interpreted as a number.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::json;
-/// // single embedding
-/// let v = json!([0.1, 0.2, 0.3]);
-/// let parts = crate::providers::gemini::parse_embeddings(&v).unwrap();
-/// assert!(!parts.is_empty());
-///
-/// // batched embeddings
-/// let b = json!([[0.1, 0.2], [0.3, 0.4]]);
-/// let parts_batched = crate::providers::gemini::parse_embeddings(&b).unwrap();
-/// assert_eq!(parts_batched.len(), 2);
-/// ```
 pub fn parse_embeddings(value: &Value) -> Result<Parts, ChatError> {
     let mut parts = Parts::default();
 
