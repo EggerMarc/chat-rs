@@ -1,9 +1,8 @@
 use chat_rs::{
-    chat::ChatBuilder,
+    builder::ChatBuilder,
     gemini::{self},
     messages::{self, content},
 };
-use serde::Deserialize;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

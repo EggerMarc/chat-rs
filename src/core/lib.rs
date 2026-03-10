@@ -46,6 +46,13 @@ pub trait ChatStreamProvider {
 
     }
 }
+
+#[async_trait]
+pub trait ChatSessionProvider {
+    async fn session() -> {
+
+    }
+}
 */
 
 #[derive(Debug, Clone, Default)]
