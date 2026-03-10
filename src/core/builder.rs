@@ -5,7 +5,7 @@ use tools_rs::ToolCollection;
 use crate::{
     callback::{CallbackStrategy, RetryStrategy},
     chat::{Chat, Streamed, Structured, Unstructured},
-    lib::{ChatOptions, ChatProvider},
+    lib::{ChatOptions, ChatProvider, ChatStreamProvider},
 };
 
 pub struct ChatBuilder<CP: ChatProvider, Output = Unstructured> {
@@ -80,7 +80,10 @@ impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
         }
     }
 
-    pub fn with_streamed_response(self) -> ChatBuilder<CP, Streamed> {
+    pub fn with_streamed_response(self) -> ChatBuilder<CP, Streamed>
+    where
+        CP: ChatStreamProvider,
+    {
         if self.output_shape.is_some() {
             println!(
                 "Warning: Cannot called streamed responses with structured outputs. Output shape will be set to None"

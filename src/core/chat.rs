@@ -208,7 +208,7 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
     /// let parts = futures::executor::block_on(chat.tool_call(&content)).unwrap();
     /// assert_eq!(parts, Parts::default());
     /// ```
-    async fn tool_call(&self, content: &Content) -> Result<Parts, ChatError> {
+    pub(crate) async fn tool_call(&self, content: &Content) -> Result<Parts, ChatError> {
         let mut frs: Parts = Parts::default();
         for fc in content.parts.function_calls() {
             frs.push(PartEnum::from_function_response(
