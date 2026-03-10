@@ -14,7 +14,7 @@ impl<CP: ChatStreamProvider + ChatProvider> Chat<CP, Streamed> {
         messages: &'a mut Messages,
     ) -> Result<BoxStream<'a, Result<String, ChatFailure>>, ChatFailure> {
         if let Some(strategy) = self.before_strategy.as_mut() {
-            strategy(messages).await;
+            strategy(messages, None).await;
         }
 
         let stream = try_stream! {
@@ -45,7 +45,6 @@ impl<CP: ChatStreamProvider + ChatProvider> Chat<CP, Streamed> {
                 }
 
                 if let Some(response) = final_response {
-                    // Aggregate Metadata
                     if let Some(metadata) = response.metadata.clone() {
                         match &mut last_metadata {
                             Some(existing) => {existing.extend(&metadata);},
@@ -55,17 +54,15 @@ impl<CP: ChatStreamProvider + ChatProvider> Chat<CP, Streamed> {
 
                     messages.push(response.content.clone());
 
-                    if let Ok(frs) = self.tool_call(&response.content).await {
-                        if !frs.is_empty() {
+                    if let Ok(frs) = self.tool_call(&response.content).await && !frs.is_empty(){
                             let mut tool_message = Content::default();
                             tool_message.parts.extend(frs);
                             messages.push(tool_message);
                             continue;
-                        }
                     }
 
                     if let Some(strategy) = self.after_strategy.as_mut() {
-                        strategy(messages).await;
+                        strategy(messages, last_metadata.as_ref()).await;
                     }
 
                     break;

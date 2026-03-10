@@ -1,4 +1,4 @@
-use crate::{lib::ChatFailure, messages::Messages};
+use crate::{lib::ChatFailure, messages::Messages, metadata::Metadata};
 use std::future::Future;
 use std::pin::Pin;
 
@@ -14,18 +14,8 @@ pub struct CallbackRetryContext {
 }
 
 type CallbackFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
-pub type CallbackStrategy = Box<dyn Fn(&mut Messages) -> CallbackFuture + Send + Sync>;
-pub type RetryStrategy =
-    Box<dyn Fn(&mut Messages, CallbackRetryContext) -> CallbackFuture + Send + Sync>;
-pub type StepStrategy =
-    Box<dyn Fn(&mut Messages, CallbackStepContext) -> CallbackFuture + Send + Sync>;
-
-/*
-with_before_step() -> Can hold
-with_after_step()
-
-with_before()
-with_after()
-
-with_retry()
-*/
+pub type CallbackStrategy =
+    Box<dyn Fn(&mut Messages, Option<&Metadata>) -> CallbackFuture + Send + Sync>;
+pub type RetryStrategy = Box<
+    dyn Fn(&mut Messages, Option<&Metadata>, CallbackRetryContext) -> CallbackFuture + Send + Sync,
+>;

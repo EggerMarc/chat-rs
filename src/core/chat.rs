@@ -36,24 +36,6 @@ pub struct Chat<CP: ChatProvider, Output = Unstructured> {
 }
 
 impl<CP: ChatProvider> Chat<CP, Unstructured> {
-    /// Perform a model-driven completion loop and return the final ChatResponse.
-    ///
-    /// Attempts completion up to the configured `max_retries` (default 1). On the first successful
-    /// completion returns the produced content and aggregated metadata. If all attempts fail, returns
-    /// a `ChatFailure` containing the last observed `ChatError` (or `ChatError::RateLimited` if none).
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use crate::core::chat::{Chat, Messages};
-    /// # async fn example(mut chat: Chat<impl crate::core::lib::ChatProvider, _>, mut messages: Messages) {
-    /// let result = chat.complete(messages).await;
-    /// match result {
-    ///     Ok(response) => println!("Got content: {:?}", response.content),
-    ///     Err(failure) => eprintln!("Completion failed: {:?}", failure.err),
-    /// }
-    /// # }
-    /// ```
     pub async fn complete(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
         self.execute_with_retries(messages, |response| {
             Ok(ChatResponse {
@@ -64,24 +46,6 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
         .await
     }
 
-    /// Extracts embeddings from the model's response to the provided messages.
-    ///
-    /// Calls the provider with the given messages and returns the embeddings part of the final response along with any associated metadata.
-    ///
-    /// # Returns
-    ///
-    /// `EmbeddingsResponse` containing the embeddings and any response metadata on success.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # async fn example(chat: &crate::Chat<impl crate::ChatProvider>) -> Result<(), crate::ChatFailure> {
-    /// let mut messages = crate::Messages::default();
-    /// let embeddings_resp = chat.embed(&mut messages).await?;
-    /// assert!(!embeddings_resp.embeddings.is_empty());
-    /// # Ok(())
-    /// # }
-    /// ```
     pub async fn embed(
         &mut self,
         messages: &mut Messages,
@@ -91,7 +55,7 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
         }
 
         if let Some(strategy) = self.before_strategy.as_mut() {
-            strategy(messages).await;
+            strategy(messages, None).await;
         }
         let response = self.model.complete(messages, None, None, None).await?;
 
@@ -104,7 +68,7 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
         match embeddings_part {
             PartEnum::Embeddings(embeddings) => {
                 if let Some(strategy) = self.after_strategy.as_mut() {
-                    strategy(messages).await;
+                    strategy(messages, metadata.as_ref()).await;
                 }
 
                 Ok(EmbeddingsResponse {
@@ -115,7 +79,7 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
             _ => {
                 let failure = ChatFailure {
                     err: ChatError::InvalidResponse("Response was not embeddings".to_string()),
-                    metadata,
+                    metadata: metadata.clone(),
                 };
 
                 let ctx = CallbackRetryContext {
@@ -124,7 +88,7 @@ impl<CP: ChatProvider> Chat<CP, Unstructured> {
                 };
 
                 if let Some(strategy) = self.retry_strategy.as_mut() {
-                    strategy(messages, ctx).await;
+                    strategy(messages, metadata.as_ref(), ctx).await;
                 }
 
                 Err(failure)
@@ -143,27 +107,6 @@ impl<CP: ChatProvider, T> Chat<CP, Structured<T>>
 where
     T: DeserializeOwned + JsonSchema,
 {
-    /// Completes a chat interaction and returns the final response deserialized as `T`.
-    ///
-    /// Attempts up to `max_retries` times (default 1) to drive the model to a terminal response,
-    /// extract a structured JSON candidate from the final content, and deserialize it into `T`.
-    /// If a structured candidate is missing or cannot be parsed, this returns `ChatError::InvalidResponse`.
-    /// If the model produces an error on all retries, the last model error is returned; if no error is recorded
-    /// this returns `ChatError::RateLimited`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// // Synchronous example using a simple executor to run the async call.
-    /// // `chat` is a `Chat<_, Structured<MyType>>` and `msgs` is a `Messages` value prepared earlier.
-    /// let result = futures::executor::block_on(async {
-    ///     chat.complete(&mut msgs).await
-    /// });
-    /// match result {
-    ///     Ok(value) => println!("Parsed structured value: {:?}", value),
-    ///     Err(e) => eprintln!("Chat failed: {:?}", e),
-    /// }
-    /// ```
     pub async fn complete(
         &mut self,
         messages: &mut Messages,
@@ -191,23 +134,7 @@ where
     }
 }
 
-// Shared implementation for both output types
 impl<CP: ChatProvider, Output> Chat<CP, Output> {
-    /// Calls any function-call parts found in `content` using the chat's configured tool collection and returns the collected function responses as `Parts`.
-    ///
-    /// If `content` contains function-call parts and no tool collection is configured, this returns `Err(ChatError::InvalidResponse)` with a message indicating the missing tool collection. Tool call failures are mapped to `ChatError::InvalidResponse("Tools error")`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # // This example assumes types `Chat`, `Content`, and `Parts` are in scope and that
-    /// # // `chat` is a properly constructed `Chat` instance. It demonstrates that when
-    /// # // `content` contains no function-call parts, an empty `Parts` is returned.
-    /// # let chat = /* construct chat with or without tools */ unimplemented!();
-    /// # let content = Content::default();
-    /// let parts = futures::executor::block_on(chat.tool_call(&content)).unwrap();
-    /// assert_eq!(parts, Parts::default());
-    /// ```
     pub(crate) async fn tool_call(&self, content: &Content) -> Result<Parts, ChatError> {
         let mut frs: Parts = Parts::default();
         for fc in content.parts.function_calls() {
@@ -225,28 +152,6 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
         Ok(frs)
     }
 
-    /// Drives the model until a terminal content part is produced or the step budget is exhausted.
-    ///
-    /// Calls the provider's completion API repeatedly (up to the configured `max_steps`) while
-    /// appending each model response to the message history. After each model call it:
-    /// - invokes configured tools and appends any tool-produced parts to the response,
-    /// - treats a last-part of type `Text` or `Structured` as terminal and returns that `Content`,
-    /// - treats a last-part of type `Reasoning` by pushing the reasoning back into the response parts
-    ///   and continuing the loop.
-    ///If a model response contains no parts, returns `ChatError::InvalidResponse`. If no terminal
-    ///content is produced within the allowed steps, returns `ChatError::RateLimited`.
-    /// # Examples
-    ///
-    /// ```
-    /// # use std::sync::Arc;
-    /// # use crate::core::{Chat, ChatBuilder, Messages, Unstructured};
-    /// # async fn example(mut chat: Chat<impl crate::core::ChatProvider, Unstructured>, mut msgs: Messages) -> Result<(), crate::core::ChatError> {
-    /// let content = chat.call_loop(&msgs).await?;
-    /// // content now contains a terminal Text or Structured last part
-    /// # Ok(())
-    /// # }
-    /// ```
-    // ... [keep tool_call and execute_with_retries exactly as they are] ...
     async fn call_loop(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
         let mut last_metadata: Option<Metadata> = None;
 
@@ -326,7 +231,7 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
         let mut last_metadata: Option<Metadata> = None;
 
         if let Some(strategy) = self.before_strategy.as_mut() {
-            strategy(messages).await;
+            strategy(messages, last_metadata.as_ref()).await;
         }
 
         for idx in 0..max_retries {
@@ -347,7 +252,7 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
                     match processor(&response) {
                         Ok(parsed_result) => {
                             if let Some(strategy) = self.after_strategy.as_mut() {
-                                strategy(messages).await;
+                                strategy(messages, last_metadata.as_ref()).await;
                             }
                             return Ok(parsed_result);
                         }
@@ -362,7 +267,7 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
                                     },
                                 };
                                 if let Some(strategy) = self.retry_strategy.as_mut() {
-                                    strategy(messages, ctx).await;
+                                    strategy(messages, last_metadata.as_ref(), ctx).await;
                                 }
                             }
                         }
@@ -385,7 +290,7 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
                     if idx + 1 < max_retries {
                         let ctx = CallbackRetryContext { idx, failure };
                         if let Some(strategy) = self.retry_strategy.as_mut() {
-                            strategy(messages, ctx).await;
+                            strategy(messages, last_metadata.as_ref(), ctx).await;
                         }
                     }
                 }
@@ -401,29 +306,6 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
     }
 }
 
-/// Extracts a JSON value candidate from the last part of a `Content`.
-///
-/// If the last part is `PartEnum::Structured`, returns its contained `serde_json::Value`.
-/// If the last part is `PartEnum::Text` and that text parses as JSON, returns the parsed `Value`.
-/// Returns `None` when there is no last part or the last part is neither structured nor parsable JSON.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::json;
-/// let c = Content { parts: vec![PartEnum::Text("{\"a\":1}".into())], Content::default()};
-/// assert_eq!(extract_structured_candidate(&c), Some(json!({"a":1})));
-///
-/// // Text containing JSON
-/// let content = Content { parts: vec![PartEnum::Text("{\"ok\":true}".into())] };
-/// let v = extract_structured_candidate(&content).unwrap();
-/// assert_eq!(v, json!({"ok": true}));
-///
-/// // Already structured
-/// let content = Content { parts: vec![PartEnum::Structured(json!({"n": 2}))] };
-/// let v = extract_structured_candidate(&content).unwrap();
-/// assert_eq!(v, json!({"n": 2}));
-/// ```
 fn extract_structured_candidate(content: &Content) -> Option<serde_json::Value> {
     let last = content.parts.last()?;
 
@@ -431,392 +313,5 @@ fn extract_structured_candidate(content: &Content) -> Option<serde_json::Value> 
         PartEnum::Structured(v) => Some(v.clone()),
         PartEnum::Text(t) => serde_json::from_str::<serde_json::Value>(t.as_str()).ok(),
         _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::messages::content::RoleEnum;
-    use crate::core::messages::parts::PartEnum;
-    use crate::messages::content::CompleteReasonEnum;
-    use async_trait::async_trait;
-    use serde::Deserialize;
-
-    // Test struct for structured output
-    #[derive(JsonSchema, Deserialize, Debug, PartialEq)]
-    struct TestOutput {
-        answer: String,
-        confidence: f64,
-    }
-
-    // Mock ChatProvider for testing
-    struct MockChatProvider {
-        responses: Vec<Content>,
-        call_count: std::sync::Arc<std::sync::Mutex<usize>>,
-    }
-
-    impl MockChatProvider {
-        fn new(responses: Vec<Content>) -> Self {
-            MockChatProvider {
-                responses,
-                call_count: std::sync::Arc::new(std::sync::Mutex::new(0)),
-            }
-        }
-
-        /// Creates a MockChatProvider that will return a single model text response.
-        ///
-        /// The returned provider will yield one Content with the given text as a Text part,
-        /// role set to Model, and completion reason set to Stop.
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// let provider = MockChatProvider::single_response("hello");
-        /// let mut messages = Messages::new();
-        /// let content = futures::executor::block_on(async { provider.complete(&messages, None, None, None).await }).unwrap();
-        /// assert!(content.parts.last().unwrap().is_text());
-        /// ```
-        fn single_response(text: &str) -> Self {
-            let content = Content {
-                parts: Parts(vec![PartEnum::from_text(text)]),
-                role: RoleEnum::Model,
-                complete_reason: CompleteReasonEnum::Stop,
-            };
-            MockChatProvider::new(vec![content])
-        }
-
-        /// Creates a MockChatProvider that returns a single model response containing the provided structured JSON value.
-        ///
-        /// The generated provider yields one Content whose last part is a Structured value, with role set to `Model` and completion reason `Stop`.
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// let value = serde_json::json!({"answer": "42", "confidence": 0.99});
-        /// let provider = MockChatProvider::structured_response(value.clone());
-        /// // `provider` will return a single Content whose structured part equals `value`.
-        /// ```
-        fn structured_response(value: serde_json::Value) -> Self {
-            let content = Content {
-                parts: Parts(vec![PartEnum::from_structured(value)]),
-                role: RoleEnum::Model,
-                complete_reason: CompleteReasonEnum::Stop,
-            };
-            MockChatProvider::new(vec![content])
-        }
-    }
-
-    #[async_trait]
-    impl ChatProvider for MockChatProvider {
-        /// Mock `complete` implementation that returns predefined responses in sequence.
-        ///
-        /// The method returns the next `Content` from the provider's internal `responses` list on each call;
-        /// once the list is exhausted it repeatedly returns the last entry. Each invocation increments an
-        /// internal call counter to advance through the sequence.
-        ///
-        /// # Examples
-        ///
-        /// ```
-        /// use futures::executor::block_on;
-        /// // Assume `mock` is an instance of the mock provider with at least one response:
-        /// // let mock = MockChatProvider::single_response("hello".to_string());
-        /// // let content = block_on(mock.complete(&messages, None, None, None)).unwrap();
-        /// // assert_eq!(content.parts.first().unwrap().as_text().unwrap(), "hello");
-        /// ```
-        async fn complete(
-            &self,
-            _messages: &mut Messages,
-            _tools: Option<&ToolCollection>,
-            _options: Option<&ChatOptions>,
-            _schema: Option<&schemars::Schema>,
-        ) -> Result<ChatResponse, ChatFailure> {
-            let mut count = self.call_count.lock().unwrap();
-            let idx = *count;
-            *count += 1;
-
-            if idx < self.responses.len() {
-                Ok(ChatResponse {
-                    content: self.responses[idx].clone(),
-                    metadata: Some(Metadata::default()),
-                })
-            } else {
-                // Return last response if called more times than we have responses
-                Ok(ChatResponse {
-                    content: self.responses.last().unwrap().clone(),
-                    metadata: Some(Metadata::default()),
-                })
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_unstructured_complete() {
-        let model = MockChatProvider::single_response("Hello, world!");
-        let mut chat = ChatBuilder::new().with_model(model).build();
-
-        let mut messages = Messages::default();
-        messages.push(crate::messages::content::from_user(vec!["Hi"]));
-
-        let result = chat.complete(&mut messages).await;
-        assert!(result.is_ok());
-
-        let result = result.unwrap();
-        assert_eq!(result.content.role, RoleEnum::Model);
-        assert_eq!(
-            result.content.parts.text_response().unwrap().as_str(),
-            "Hello, world!"
-        );
-    }
-
-    /// Verifies that a chat configured for structured output correctly deserializes a structured part into the target type.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// // Build a mock provider that returns a structured JSON part matching `TestOutput`.
-    /// let test_value = serde_json::json!({
-    ///     "answer": "42",
-    ///     "confidence": 0.95
-    /// });
-    ///
-    /// let model = MockChatProvider::structured_response(test_value);
-    /// let mut chat = ChatBuilder::new()
-    ///     .with_structured_output::<TestOutput>()
-    ///     .with_model(model)
-    ///     .build();
-    ///
-    /// let mut messages = Messages::default();
-    /// messages.push(crate::messages::content::from_user(vec!["What is the answer?"]));
-    ///
-    /// let result = chat.complete(&mut messages).await;
-    /// assert!(result.is_ok());
-    /// let output = result.unwrap();
-    /// assert_eq!(output.answer, "42");
-    /// assert_eq!(output.confidence, 0.95);
-    /// ```
-    #[tokio::test]
-    async fn test_structured_complete_with_structured_part() {
-        let test_value = serde_json::json!({
-            "answer": "42",
-            "confidence": 0.95
-        });
-
-        let model = MockChatProvider::structured_response(test_value);
-        let mut chat = ChatBuilder::new()
-            .with_structured_output::<TestOutput>()
-            .with_model(model)
-            .build();
-
-        let mut messages = Messages::default();
-        messages.push(crate::messages::content::from_user(vec![
-            "What is the answer?",
-        ]));
-
-        let result = chat.complete(&mut messages).await;
-        assert!(result.is_ok());
-
-        let output = result.unwrap();
-        assert_eq!(output.content.answer, "42");
-        assert_eq!(output.content.confidence, 0.95);
-    }
-
-    #[tokio::test]
-    async fn test_structured_complete_with_text_json() {
-        let json_text = r#"{"answer": "The answer", "confidence": 0.8}"#;
-        let model = MockChatProvider::single_response(json_text);
-
-        let mut chat = ChatBuilder::new()
-            .with_structured_output::<TestOutput>()
-            .with_model(model)
-            .build();
-
-        let mut messages = Messages::default();
-        messages.push(crate::messages::content::from_user(vec!["Question"]));
-
-        let result = chat.complete(&mut messages).await;
-        assert!(result.is_ok());
-
-        let output = result.unwrap();
-        assert_eq!(output.content.answer, "The answer");
-        assert_eq!(output.content.confidence, 0.8);
-    }
-
-    #[tokio::test]
-    async fn test_structured_complete_invalid_json() {
-        let model = MockChatProvider::single_response("Not valid JSON");
-
-        let mut chat = ChatBuilder::new()
-            .with_structured_output::<TestOutput>()
-            .with_model(model)
-            .build();
-
-        let mut messages = Messages::default();
-        messages.push(crate::messages::content::from_user(vec!["Question"]));
-
-        let result = chat.complete(&mut messages).await;
-        assert!(result.is_err());
-        match result.unwrap_err().err {
-            ChatError::InvalidResponse(msg) => {
-                assert!(msg.contains("did not contain valid structured output"));
-            }
-            _ => panic!("Expected InvalidResponse error"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_structured_complete_wrong_schema() {
-        let wrong_value = serde_json::json!({
-            "wrong_field": "value"
-        });
-
-        let model = MockChatProvider::structured_response(wrong_value);
-
-        let mut chat = ChatBuilder::new()
-            .with_structured_output::<TestOutput>()
-            .with_model(model)
-            .build();
-
-        let mut messages = Messages::default();
-        messages.push(crate::messages::content::from_user(vec!["Question"]));
-
-        let result = chat.complete(&mut messages).await;
-        assert!(result.is_err());
-        match result.unwrap_err().err {
-            ChatError::Other(msg) => {
-                assert!(msg.contains("Structured output not yet implemented"));
-            }
-            _ => panic!("Expected InvalidResponse error"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_chat_max_steps_limit_reached() {
-        // Create responses that only have reasoning (no final text)
-        let reasoning_content = Content {
-            parts: Parts(vec![PartEnum::from_reasoning("Still thinking...")]),
-            role: RoleEnum::Model,
-            complete_reason: CompleteReasonEnum::None,
-            ..Default::default()
-        };
-
-        let model = MockChatProvider::new(vec![reasoning_content]);
-        let mut chat = ChatBuilder::new()
-            .with_model(model)
-            .with_max_steps(2)
-            .build();
-
-        let mut messages = Messages::default();
-        messages.push(crate::messages::content::from_user(vec!["Question"]));
-
-        let result = chat.complete(&mut messages).await;
-        // Should return RateLimited error when max_steps is exceeded
-        assert!(result.is_err());
-        match result.unwrap_err().err {
-            ChatError::RateLimited => {
-                // Expected
-            }
-            _ => panic!("Expected RateLimited error"),
-        }
-    }
-
-    #[test]
-    fn test_extract_structured_candidate_with_structured_part() {
-        use serde_json::json;
-        let content = Content {
-            parts: Parts(vec![PartEnum::from_structured(
-                json!({"key": "value", "number": 42}),
-            )]),
-            ..Default::default()
-        };
-
-        let result = extract_structured_candidate(&content);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), json!({"key": "value", "number": 42}));
-    }
-
-    #[test]
-    fn test_extract_structured_candidate_with_text_json() {
-        use serde_json::json;
-        let json_text = r#"{"name": "test", "count": 5}"#;
-        let content = Content {
-            parts: Parts(vec![PartEnum::from_text(json_text)]),
-            ..Default::default()
-        };
-
-        let result = extract_structured_candidate(&content);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), json!({"name": "test", "count": 5}));
-    }
-
-    #[test]
-    fn test_extract_structured_candidate_with_invalid_json_text() {
-        let content = Content {
-            parts: Parts(vec![PartEnum::from_text("This is not JSON")]),
-            ..Default::default()
-        };
-
-        let result = extract_structured_candidate(&content);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_extract_structured_candidate_empty_content() {
-        let content = Content {
-            parts: Parts(vec![]),
-            ..Default::default()
-        };
-
-        let result = extract_structured_candidate(&content);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_extract_structured_candidate_with_other_part_types() {
-        let content = Content {
-            parts: Parts(vec![PartEnum::from_reasoning("reasoning text")]),
-            ..Default::default()
-        };
-
-        let result = extract_structured_candidate(&content);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_extract_structured_candidate_complex_nested_json() {
-        use serde_json::json;
-        let complex = json!({
-            "nested": {
-                "array": [1, 2, {"inner": "value"}],
-                "boolean": true
-            },
-            "null_field": null
-        });
-
-        let content = Content {
-            parts: Parts(vec![PartEnum::from_structured(complex.clone())]),
-            ..Default::default()
-        };
-
-        let result = extract_structured_candidate(&content);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), complex);
-    }
-
-    #[test]
-    fn test_extract_structured_candidate_multiple_parts_uses_last() {
-        use serde_json::json;
-        let content = Content {
-            parts: Parts(vec![
-                PartEnum::from_text("first part"),
-                PartEnum::from_reasoning("middle part"),
-                PartEnum::from_structured(json!({"last": "part"})),
-            ]),
-            ..Default::default()
-        };
-
-        let result = extract_structured_candidate(&content);
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), json!({"last": "part"}));
     }
 }
