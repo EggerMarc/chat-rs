@@ -8,7 +8,6 @@ use crate::{
     lib::{ChatOptions, ChatProvider},
 };
 
-#[derive(Default)]
 pub struct ChatBuilder<CP: ChatProvider, Output = Unstructured> {
     model: Option<CP>,
     output_shape: Option<schemars::Schema>,
@@ -147,7 +146,7 @@ impl<CP: ChatProvider, Output> ChatBuilder<CP, Output> {
     ///
     /// ```no_run
     /// let builder = ChatBuilder::new().with_model(my_model);
-    /// let chat = builder.build();
+    /// let //chat = builder.build();
     /// ```
     pub fn build(self) -> Chat<CP, Output> {
         Chat {
