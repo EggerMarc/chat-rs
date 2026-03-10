@@ -1,4 +1,5 @@
 use schemars::JsonSchema;
+
 use serde::de::DeserializeOwned;
 use tools_rs::ToolCollection;
 
@@ -244,23 +245,22 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
     /// # Ok(())
     /// # }
     /// ```
-    async fn call_loop(&mut self, messages: &Messages) -> Result<ChatResponse, ChatFailure> {
-        let mut inner_messages = messages.clone();
+    // ... [keep tool_call and execute_with_retries exactly as they are] ...
+    async fn call_loop(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
         let mut last_metadata: Option<Metadata> = None;
+
         for _ in 0..self.max_steps.unwrap_or(1) {
-            let mut response = self
+            let response = self
                 .model
                 .complete(
-                    &mut inner_messages,
+                    messages,
                     self.tools.as_ref(),
                     self.model_options.as_ref(),
                     self.output_shape.as_ref(),
                 )
                 .await?;
 
-            let response_metadata = response.metadata.clone();
-
-            if let Some(metadata) = response_metadata {
+            if let Some(metadata) = response.metadata.clone() {
                 match &mut last_metadata {
                     Some(existing) => {
                         existing.extend(&metadata);
@@ -271,31 +271,27 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
                 }
             }
 
+            messages.push(response.content.clone());
+
             if let Ok(frs) = self.tool_call(&response.content).await
                 && !frs.is_empty()
             {
-                response.content.parts.extend(frs);
+                let mut tool_message = Content::default();
+                tool_message.parts.extend(frs);
+                messages.push(tool_message);
+                continue;
             }
 
             match response.content.parts.last() {
                 Some(res) => match res {
-                    PartEnum::Text(_text) => {
+                    PartEnum::Text(_) | PartEnum::Structured(_) => {
                         return Ok(ChatResponse {
                             metadata: last_metadata,
                             content: response.content,
                         });
                     }
-                    PartEnum::Reasoning(reasoning) => {
-                        response
-                            .content
-                            .parts
-                            .push(PartEnum::from_reasoning(reasoning.to_owned()));
-                    }
-                    PartEnum::Structured(_structured) => {
-                        return Ok(ChatResponse {
-                            metadata: last_metadata,
-                            content: response.content,
-                        });
+                    PartEnum::Reasoning(_) => {
+                        continue;
                     }
                     _ => {}
                 },
@@ -308,9 +304,8 @@ impl<CP: ChatProvider, Output> Chat<CP, Output> {
                     });
                 }
             };
-
-            inner_messages.push(response.content.clone());
         }
+
         Err(ChatFailure {
             err: ChatError::RateLimited,
             metadata: last_metadata,
