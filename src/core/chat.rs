@@ -6,14 +6,15 @@ use tools_rs::ToolCollection;
 use crate::{
     callback::{CallbackRetryContext, CallbackStrategy, RetryStrategy},
     core::{
-        lib::{ChatError, ChatOptions, ChatProvider},
+        lib::{ChatOptions, ChatProvider},
         messages::{
             Messages,
             content::Content,
             parts::{PartEnum, Parts},
         },
     },
-    lib::{ChatFailure, ChatResponse, EmbeddingsResponse},
+    error::{ChatError, ChatFailure},
+    lib::{ChatResponse, EmbeddingsResponse},
     metadata::Metadata,
 };
 

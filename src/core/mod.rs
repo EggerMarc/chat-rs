@@ -1,7 +1,9 @@
 pub mod builder;
 pub mod callback;
 pub mod chat;
+pub mod error;
 pub mod lib;
 pub mod messages;
 pub mod metadata;
 pub mod stream;
+pub mod traits;
