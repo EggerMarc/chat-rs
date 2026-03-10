@@ -3,9 +3,15 @@ use serde::de::DeserializeOwned;
 use tools_rs::ToolCollection;
 
 use crate::{
-    callback::{CallbackStrategy, RetryStrategy},
-    chat::{Chat, Streamed, Structured, Unstructured},
-    lib::{ChatOptions, ChatProvider, ChatStreamProvider},
+    chat::{
+        complete::Chat,
+        state::{Embedded, Streamed, Structured, Unstructured},
+    },
+    traits::{ChatProvider, ChatStreamProvider},
+    types::{
+        callback::{CallbackStrategy, RetryStrategy},
+        options::ChatOptions,
+    },
 };
 
 pub struct ChatBuilder<CP: ChatProvider, Output = Unstructured> {
@@ -55,7 +61,7 @@ impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
     {
         if self.output_shape.is_some() {
             println!(
-                "Warning: Cannot called streamed responses with structured outputs. Output shape will be set to None"
+                "Warning: Cannot call streamed responses with structured outputs. Output shape will be set to None"
             );
         }
 
@@ -70,6 +76,23 @@ impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
             tools: self.tools,
             model_options: self.model_options,
             _output: std::marker::PhantomData,
+        }
+    }
+
+    pub fn with_embeddings(self) -> ChatBuilder<CP, Embedded> {
+        if self.output_shape.is_some() {
+            println!(
+                "Warning: Cannot call embedding responses with structured outputs. Output shape will be set to None"
+            );
+        }
+
+        ChatBuilder {
+            model: self.model,
+            max_retries: self.max_retries,
+            retry_strategy: self.retry_strategy,
+            before_strategy: self.retry_strategy,
+            after_strategy: self.after_strategy,
+            ..Default::default()
         }
     }
 }

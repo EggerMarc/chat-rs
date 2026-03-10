@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::core::messages::parts::{PartEnum, Parts};
+use crate::types::messages::parts::{PartEnum, Parts};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct Content {

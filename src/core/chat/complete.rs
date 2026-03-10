@@ -4,23 +4,22 @@ use serde::de::DeserializeOwned;
 use tools_rs::ToolCollection;
 
 use crate::{
-    callback::{CallbackRetryContext, CallbackStrategy, RetryStrategy},
-    core::{
-        lib::{ChatOptions, ChatProvider},
+    chat::state::{Structured, Unstructured},
+    error::ChatError,
+    traits::ChatProvider,
+    types::{
+        callback::{CallbackRetryContext, CallbackStrategy, RetryStrategy},
+        failure::ChatFailure,
         messages::{
             Messages,
             content::Content,
             parts::{PartEnum, Parts},
         },
+        metadata::Metadata,
+        options::ChatOptions,
+        response::{ChatResponse, EmbeddingsResponse},
     },
-    error::{ChatError, ChatFailure},
-    lib::{ChatResponse, EmbeddingsResponse},
-    metadata::Metadata,
 };
-
-pub struct Unstructured;
-pub struct Structured<T>(std::marker::PhantomData<T>);
-pub struct Streamed;
 
 #[derive(Default)]
 pub struct Chat<CP: ChatProvider, Output = Unstructured> {

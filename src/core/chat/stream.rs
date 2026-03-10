@@ -2,11 +2,14 @@ use async_stream::try_stream;
 use futures::{StreamExt, stream::BoxStream};
 
 use crate::{
-    chat::{Chat, Streamed},
-    error::ChatFailure,
-    messages::{Messages, content::Content},
-    metadata::Metadata,
-    traits::{ChatProvider, ChatResponse, ChatStreamProvider, StreamEvent},
+    chat::{complete::Chat, state::Streamed},
+    traits::{ChatProvider, ChatStreamProvider},
+    types::{
+        failure::ChatFailure,
+        messages::{Messages, content::Content},
+        metadata::Metadata,
+        response::{ChatResponse, StreamEvent},
+    },
 };
 
 impl<CP: ChatStreamProvider + ChatProvider> Chat<CP, Streamed> {

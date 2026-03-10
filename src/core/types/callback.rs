@@ -1,6 +1,9 @@
-use crate::{lib::ChatFailure, messages::Messages, metadata::Metadata};
 use std::future::Future;
 use std::pin::Pin;
+
+use crate::types::failure::ChatFailure;
+use crate::types::messages::Messages;
+use crate::types::metadata::Metadata;
 
 #[derive(Clone)]
 pub struct CallbackStepContext {

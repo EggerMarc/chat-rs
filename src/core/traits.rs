@@ -3,29 +3,14 @@ use futures::stream::BoxStream;
 use tools_rs::ToolCollection;
 
 use crate::{
-    error::{ChatError, ChatFailure},
-    lib::ChatOptions,
-    messages::{Messages, content::Content, embeddings::Embeddings},
-    metadata::Metadata,
+    error::ChatError,
+    types::{
+        failure::ChatFailure,
+        messages::Messages,
+        options::ChatOptions,
+        response::{ChatResponse, EmbeddingsResponse, StreamEvent},
+    },
 };
-
-#[derive(Clone, Debug)]
-pub struct ChatResponse {
-    pub metadata: Option<Metadata>,
-    pub content: Content,
-}
-
-#[derive(Clone, Debug)]
-pub struct EmbeddingsResponse {
-    pub metadata: Option<Metadata>,
-    pub embeddings: Embeddings,
-}
-
-#[derive(Debug, Clone)]
-pub enum StreamEvent {
-    TextChunk(String),
-    Done(ChatResponse),
-}
 
 #[async_trait]
 pub trait ChatProvider: Send + Sync {
@@ -46,4 +31,9 @@ pub trait ChatStreamProvider {
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError>;
+}
+
+#[async_trait]
+pub trait ChatEmbeddingProvider {
+    async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;
 }
