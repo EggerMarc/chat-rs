@@ -90,9 +90,13 @@ impl<CP: ChatProvider> ChatBuilder<CP, Unstructured> {
             model: self.model,
             max_retries: self.max_retries,
             retry_strategy: self.retry_strategy,
-            before_strategy: self.retry_strategy,
+            before_strategy: self.before_strategy,
             after_strategy: self.after_strategy,
-            ..Default::default()
+            output_shape: None,
+            tools: None,
+            max_steps: None,
+            model_options: self.model_options,
+            _output: std::marker::PhantomData,
         }
     }
 }

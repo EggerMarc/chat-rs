@@ -1,4 +1,3 @@
-use crate::metadata::Metadata;
 use thiserror::Error;
 
 #[derive(Clone, Debug, Error)]
@@ -18,4 +17,3 @@ pub enum ChatError {
     #[error("unknown error: {0}")]
     Other(String),
 }
-

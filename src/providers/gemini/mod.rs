@@ -9,22 +9,22 @@ use serde_json::{Map, Value, json};
 use std::env;
 use tools_rs::{FunctionCall, ToolCollection};
 
-use crate::core::lib::ChatOptions;
-use crate::core::{
-    lib::{ChatError, ChatProvider},
-    messages::{Messages, content::Content, text::Text},
-};
+use crate::error::ChatError;
 use crate::gemini::code_execution::CodeExecutionTool;
 use crate::gemini::google_maps::GoogleMapsTool;
 use crate::gemini::google_search::GoogleSearchTool;
 use crate::gemini::lib::GeminiNativeTool;
-use crate::lib::{ChatFailure, ChatResponse};
-use crate::messages::content::{CompleteReasonEnum, RoleEnum};
-use crate::messages::embeddings::Embeddings;
-use crate::messages::file::File;
-use crate::messages::parts::{self, PartEnum, Parts};
-use crate::metadata::Metadata;
-use crate::metadata::usage::Usage;
+use crate::traits::ChatProvider;
+use crate::types::messages::content::{CompleteReasonEnum, Content, RoleEnum};
+use crate::types::messages::embeddings::Embeddings;
+use crate::types::messages::file::File;
+use crate::types::messages::parts::{PartEnum, Parts};
+use crate::types::messages::text::Text;
+use crate::types::metadata::Metadata;
+use crate::types::metadata::usage::Usage;
+use crate::types::{
+    failure::ChatFailure, messages::Messages, options::ChatOptions, response::ChatResponse,
+};
 
 #[derive(Clone, Default)]
 pub struct FunctionCallingConfig {
@@ -1205,7 +1205,7 @@ pub fn parse_embeddings(value: &Value) -> Result<Parts, ChatError> {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
-            parts.push(parts::PartEnum::from_embeddings(Embeddings::from(vector)));
+            parts.push(PartEnum::from_embeddings(Embeddings::from(vector)));
         }
     } else {
         let vector: Vec<f32> = array
@@ -1219,7 +1219,7 @@ pub fn parse_embeddings(value: &Value) -> Result<Parts, ChatError> {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        parts.push(parts::PartEnum::from_embeddings(Embeddings::from(vector)));
+        parts.push(PartEnum::from_embeddings(Embeddings::from(vector)));
     }
     Ok(parts)
 }
