@@ -1,6 +1,6 @@
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
-use crate::gemini::lib::GeminiNativeTool;
+use crate::tools::GeminiNativeTool;
 
 #[derive(Clone)]
 pub struct GoogleMapsTool {

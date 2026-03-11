@@ -1,5 +1,12 @@
 use reqwest::Client;
 
+use crate::{tools::GeminiNativeTool, FunctionCallingConfig, GeminiBuilder};
+
+pub(crate) struct FunctionCallingConfig {
+    pub(crate) mode: String,
+    pub(crate) config: String,
+}
+
 pub struct GeminiClient {
     pub(crate) model_name: String,
     pub(crate) api_key: String,

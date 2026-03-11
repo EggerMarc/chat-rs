@@ -12,9 +12,9 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tools-rs.workspace = true
-
 async-stream = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
+url.workspace = true
 
 [features]
 default = []

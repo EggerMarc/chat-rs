@@ -102,6 +102,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tools-rs",
+ "url",
 ]
 
 [[package]]
@@ -109,8 +110,10 @@ name = "chat-gemini"
 version = "0.0.6"
 dependencies = [
  "async-trait",
+ "base64",
  "chat-core",
  "reqwest",
+ "schemars",
  "serde",
  "serde_json",
  "tools-rs",
@@ -1493,6 +1496,7 @@ dependencies = [
  "idna",
  "percent-encoding",
  "serde",
+ "serde_derive",
 ]
 
 [[package]]

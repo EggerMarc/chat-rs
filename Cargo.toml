@@ -15,7 +15,6 @@ rust-version = "1.80"
 [workspace.dependencies]
 async-stream        = "0.3.6"
 async-trait         = "0.1.89"
-base64              = "0.22.1"
 chrono              = "0.4.41"
 futures             = "0.3.32"
 infer               = "0.19.0"
