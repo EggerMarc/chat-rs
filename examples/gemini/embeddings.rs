@@ -1,4 +1,4 @@
-use chat_rs::{builder::ChatBuilder, gemini, messages, messages::content};
+use chat_rs::{ChatBuilder, gemini, types::messages, types::messages::content};
 
 /// Interactive example that reads user lines, sends them to the Gemini embeddings model, and prints the resulting embeddings.
 ///
@@ -18,7 +18,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_embeddings(Some(126))
         .build();
 
-    let chat = ChatBuilder::new().with_model(client).build();
+    let mut chat = ChatBuilder::new()
+        .with_model(client)
+        .with_embeddings()
+        .build();
     let mut messages = messages::Messages::default();
 
     loop {

@@ -1,7 +1,7 @@
 use chat_rs::{
-    builder::ChatBuilder,
+    ChatBuilder,
     gemini::{self},
-    messages::{self, content},
+    types::messages::{self, content},
 };
 use schemars::JsonSchema;
 use serde::Deserialize;

@@ -1,0 +1,22 @@
+[package]
+name = "chat-core"
+version = "0.0.1"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tools-rs.workspace = true
+async-stream = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+url.workspace = true
+infer.workspace = true 
+
+[features]
+default = []
+stream = ["dep:async-stream", "dep:futures"]

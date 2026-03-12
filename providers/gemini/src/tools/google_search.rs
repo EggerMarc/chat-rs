@@ -1,6 +1,6 @@
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
-use crate::gemini::lib::GeminiNativeTool;
+use crate::tools::GeminiNativeTool;
 
 #[derive(Clone)]
 pub struct GoogleSearchTool {
@@ -84,21 +84,22 @@ impl GeminiNativeTool for GoogleSearchTool {
     }
 
     /// Create a boxed clone of the tool as a `Box<dyn GeminiNativeTool>`.
-    
+
     ///
-    
+
     /// # Examples
-    
+
     ///
-    
+
     /// ```
-    
+
     /// let orig = GoogleSearchTool { dynamic_threshold: Some(0.5) };
-    
+
     /// let boxed: Box<dyn GeminiNativeTool> = orig.clone_box();
-    
+
     /// ```
     fn clone_box(&self) -> Box<dyn GeminiNativeTool> {
         Box::new(self.clone())
     }
 }
+
