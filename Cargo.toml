@@ -48,7 +48,7 @@ path = "src/lib.rs"
 
 [dependencies]
 chat-core   = { path = "core", version = "0.0.1"}
-chat-gemini = { path = "providers/gemini", optional = true }
+chat-gemini = { path = "providers/gemini", optional = true, version = "0.0.1"}
 tokio.workspace = true
 schemars.workspace = true
 serde.workspace = true
