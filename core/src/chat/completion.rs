@@ -41,11 +41,10 @@ where
                     "Response did not contain valid structured output".into(),
                 )
             })?;
-
             serde_json::from_value::<T>(value.clone())
                 .map(|content| StructuredResponse {
                     content,
-                    metadata: None,
+                    metadata: response.metadata.clone(),
                 })
                 .map_err(|err| {
                     ChatError::InvalidResponse(format!(
