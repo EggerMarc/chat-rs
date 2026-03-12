@@ -4,6 +4,7 @@ use chat_core::{
         messages::{
             content::{CompleteReasonEnum, Content, RoleEnum},
             parts::{PartEnum, Parts},
+            reasoning::Reasoning,
             text::Text,
         },
         metadata::{Metadata, usage::Usage},
@@ -20,8 +21,6 @@ pub struct GeminiCompletionResponse {
     pub candidates: Option<Vec<GeminiCandidate>>,
     pub usage_metadata: Option<GeminiUsage>,
     pub model_version: Option<String>,
-    pub thought: Option<bool>,
-    pub thought_signature: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,12 +42,13 @@ pub struct GeminiContentResponse {
 pub struct GeminiPartResponse {
     pub text: Option<String>,
     pub function_call: Option<GeminiFunctionCallResponse>,
+    pub thought_signature: Option<String>,
+    pub thought: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GeminiFunctionCallResponse {
-    pub thought_signature: Option<String>,
     pub name: String,
     pub args: Option<Value>,
 }
@@ -76,16 +76,26 @@ impl GeminiCompletionResponse {
         let mut core_parts = Parts::default();
         if let Some(parts) = gemini_content.parts {
             for part in parts {
+                let thought_signature = part.thought_signature.clone();
+
                 if let Some(text) = part.text {
-                    core_parts.push(PartEnum::Text(Text::new(&text)));
+                    if let Some(thought) = part.thought
+                        && thought
+                    {
+                        core_parts.push(PartEnum::Reasoning(Reasoning {
+                            text,
+                            signature: thought_signature.clone(),
+                        }));
+                    } else {
+                        core_parts.push(PartEnum::Text(Text::new(&text)));
+                    }
                 }
                 if let Some(fc) = part.function_call {
-                    let call_id = fc.thought_signature;
                     let args = fc.args.unwrap_or_else(|| Value::Object(Default::default()));
                     core_parts.push(PartEnum::from_function_call(FunctionCall {
                         name: fc.name,
                         arguments: args,
-                        id: call_id.map(Into::into),
+                        id: thought_signature.map(Into::into),
                     }));
                 }
             }

@@ -66,6 +66,9 @@ pub struct GeminiPart {
     pub inline_data: Option<GeminiInlineData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_data: Option<GeminiFileData>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
+    pub thought: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -154,14 +157,21 @@ impl GeminiRequest {
             for core_part in &content.parts.0 {
                 let mut gemini_part = GeminiPart::default();
                 match core_part {
-                    PartEnum::Text(t) => gemini_part.text = Some(t.0.clone()),
-                    PartEnum::Reasoning(r) => gemini_part.text = Some(r.0.clone()),
+                    PartEnum::Text(t) => {
+                        gemini_part.text = Some(t.0.clone());
+                    }
+                    PartEnum::Reasoning(r) => {
+                        gemini_part.text = Some(r.text.clone());
+                        gemini_part.thought = true;
+                        gemini_part.thought_signature = r.signature.clone(); // Restored natively!
+                    }
                     PartEnum::FunctionCall(fc) => {
                         gemini_part.function_call = Some(GeminiFunctionCall {
                             name: fc.name.clone(),
                             args: fc.arguments.clone(),
                             id: fc.id.clone().map(Into::into),
                         });
+                        gemini_part.thought_signature = fc.id.clone().map(Into::into);
                     }
                     PartEnum::FunctionResponse(fr) => {
                         gemini_part.function_response = Some(GeminiFunctionResponse {
@@ -351,7 +361,7 @@ impl GeminiEmbeddingRequest {
                     ..Default::default()
                 }),
                 PartEnum::Reasoning(r) => parts.push(GeminiPart {
-                    text: Some(r.0.clone()),
+                    text: Some(r.text.clone()),
                     ..Default::default()
                 }),
                 _ => {

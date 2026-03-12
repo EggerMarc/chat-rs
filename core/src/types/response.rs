@@ -1,5 +1,8 @@
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
+use std::fmt;
+#[cfg(feature = "stream")]
+use tools_rs::{FunctionCall, FunctionResponse};
 
 use crate::types::{
     messages::{content::Content, embeddings::Embeddings},
@@ -28,5 +31,25 @@ pub struct EmbeddingsResponse {
 #[derive(Debug, Clone)]
 pub enum StreamEvent {
     TextChunk(String),
+    ReasoningChunk(String),
+    ToolCall(FunctionCall),
+    ToolResult(FunctionResponse),
     Done(ChatResponse),
+}
+
+#[cfg(feature = "stream")]
+impl fmt::Display for StreamEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StreamEvent::TextChunk(text) => write!(f, "{}", text),
+            StreamEvent::ReasoningChunk(text) => write!(f, "{}", text),
+            StreamEvent::ToolCall(call) => {
+                write!(f, "\n[System: Calling tool '{}'...]\n", call.name)
+            }
+            StreamEvent::ToolResult(res) => {
+                writeln!(f, "[System: Tool '{}' executed successfully]\n", res.name)
+            }
+            StreamEvent::Done(_) => write!(f, ""),
+        }
+    }
 }
