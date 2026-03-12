@@ -1,24 +1,21 @@
 [package]
-name = "chat-gemini"
+name = "chat-claude"
 version = "0.0.1"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 publish = false
 
-
 [dependencies]
-chat-core = { path = "../../core" }
+chat-core = { path = "../../core", version="0.0.6" }
 async-trait.workspace = true
-reqwest = { workspace = true, features = ["json", "stream"] }
+reqwest = { workspace = true, features = ["json"] } 
 serde.workspace = true
 serde_json.workspace = true
 tools-rs.workspace = true
-async-stream = { workspace = true, optional = true }
-futures = { workspace = true, optional = true }
 schemars.workspace = true
 base64              = "0.22.1"
 
 [features]
 default = []
-stream = ["chat-core/stream", "dep:async-stream", "dep:futures"]
+stream = ["chat-core/stream"]

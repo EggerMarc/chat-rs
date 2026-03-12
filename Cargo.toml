@@ -61,6 +61,7 @@ tools-rs.workspace = true
 tools_core.workspace = true 
 tools_macros.workspace = true 
 tokio.workspace = true
+futures = { workspace = true, optional = true }
 
 [features]
 default = []
@@ -113,3 +114,7 @@ name = "retry"
 path = "./examples/retry.rs"
 required-features = ["gemini"]
 
+[[example]]
+name = "gemini-stream"
+path = "./examples/gemini/stream.rs"
+required-features = ["gemini", "stream"]
