@@ -119,7 +119,7 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
         }
 
         Err(ChatFailure {
-            err: ChatError::RateLimited,
+            err: ChatError::MaxStepsExceeded,
             metadata: last_metadata,
         })
     }
