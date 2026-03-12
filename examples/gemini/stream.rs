@@ -19,7 +19,8 @@ async fn get_user_metadata(name: String) -> String {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = GeminiBuilder::new()
-        .with_model("gemini-2.5-flash".to_string())
+        .with_model("gemini-3.1-pro-preview".to_string())
+        .with_api_key("AIzaSyCgSVuLL90e9v264Rfv0-0ImOX58D2oy2Q".to_string())
         .build();
 
     let tools = collect_tools();

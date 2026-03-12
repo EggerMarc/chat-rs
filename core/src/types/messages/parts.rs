@@ -5,6 +5,7 @@ use tools_rs::{CallId, FunctionCall, FunctionResponse};
 
 use crate::types::messages::embeddings::Embeddings;
 use crate::types::messages::file::File;
+use crate::types::messages::reasoning::Reasoning;
 use crate::types::messages::text::Text;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
@@ -138,7 +139,7 @@ impl Parts {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", content = "value")]
 pub enum PartEnum {
-    Reasoning(Text),
+    Reasoning(Reasoning),
     Text(Text),
     FunctionCall(FunctionCall),
     FunctionResponse(FunctionResponse),
@@ -188,9 +189,9 @@ impl PartEnum {
     /// let text = part.reasoning().unwrap();
     /// assert_eq!(text, Text::new("because it's correct"));
     /// ```
-    pub fn reasoning(&self) -> Option<Text> {
+    pub fn reasoning(&self) -> Option<Reasoning> {
         match self {
-            PartEnum::Reasoning(text) => Some(text.clone()),
+            PartEnum::Reasoning(reasoning) => Some(reasoning.clone()),
             _ => None,
         }
     }
@@ -271,7 +272,7 @@ impl PartEnum {
     /// }
     /// ```
     pub fn from_reasoning(s: impl Into<String>) -> PartEnum {
-        PartEnum::Reasoning(Text::new(s))
+        PartEnum::Reasoning(Reasoning::new(s))
     }
 
     pub fn from_text(s: impl Into<String>) -> PartEnum {

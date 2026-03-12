@@ -1402,9 +1402,9 @@ dependencies = [
 
 [[package]]
 name = "tools-rs"
-version = "0.1.5"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15ccc804c668b8d23cd0cc1c23f29912ef359ee868570805c311d0acbf70bbdb"
+checksum = "70a299a6dfe7af587a0aff5ded7fe922d1eee72a0c781a0ed58a78924b799ca4"
 dependencies = [
  "inventory",
  "serde",
@@ -1416,9 +1416,9 @@ dependencies = [
 
 [[package]]
 name = "tools_core"
-version = "0.1.4"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2ca51f00845cacbbd432cdd5e094e3039d962978ac87e40228bb5530c42ba26"
+checksum = "50097b8738b628474380c32016b87ad05036cc3b95348802c0c371ed9dcdb9cb"
 dependencies = [
  "futures",
  "inventory",

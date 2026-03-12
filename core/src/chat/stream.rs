@@ -2,18 +2,17 @@ use async_stream::try_stream;
 use futures::{StreamExt, stream::BoxStream};
 
 use crate::{
-    chat::{Chat, state::Streamed},
+    chat::{Chat, state::Unstructured},
     error::ChatFailure,
     traits::StreamProvider,
     types::{
-        messages::Messages,
-        messages::content::Content,
+        messages::{Messages, content::Content},
         metadata::Metadata,
         response::{ChatResponse, StreamEvent},
     },
 };
 
-impl<CP: StreamProvider> Chat<CP, Streamed> {
+impl<CP: StreamProvider> Chat<CP, Unstructured> {
     pub async fn stream<'a>(
         &'a mut self,
         messages: &'a mut Messages,

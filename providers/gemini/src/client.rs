@@ -3,7 +3,6 @@ use reqwest::Client;
 use crate::{
     api::types::request::{GeminiEmbeddingsConfig, GeminiFunctionCallingConfig},
     tools::GeminiNativeTool,
-    GeminiBuilder, WithModel,
 };
 
 pub struct GeminiClient {

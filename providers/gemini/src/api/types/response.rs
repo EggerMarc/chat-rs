@@ -20,6 +20,8 @@ pub struct GeminiCompletionResponse {
     pub candidates: Option<Vec<GeminiCandidate>>,
     pub usage_metadata: Option<GeminiUsage>,
     pub model_version: Option<String>,
+    pub thought: Option<bool>,
+    pub thought_signature: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,6 +48,7 @@ pub struct GeminiPartResponse {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GeminiFunctionCallResponse {
+    pub thought_signature: Option<String>,
     pub name: String,
     pub args: Option<Value>,
 }
@@ -77,10 +80,13 @@ impl GeminiCompletionResponse {
                     core_parts.push(PartEnum::Text(Text::new(&text)));
                 }
                 if let Some(fc) = part.function_call {
+                    let call_id = fc.thought_signature;
                     let args = fc.args.unwrap_or_else(|| Value::Object(Default::default()));
-                    core_parts.push(PartEnum::from_function_call(FunctionCall::new(
-                        fc.name, args,
-                    )));
+                    core_parts.push(PartEnum::from_function_call(FunctionCall {
+                        name: fc.name,
+                        arguments: args,
+                        id: call_id.map(Into::into),
+                    }));
                 }
             }
         }

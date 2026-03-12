@@ -40,6 +40,10 @@ pub struct GeminiRequest {
     pub tools: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_config: Option<GeminiToolConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,6 +73,8 @@ pub struct GeminiPart {
 pub struct GeminiFunctionCall {
     pub name: String,
     pub args: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -154,6 +160,7 @@ impl GeminiRequest {
                         gemini_part.function_call = Some(GeminiFunctionCall {
                             name: fc.name.clone(),
                             args: fc.arguments.clone(),
+                            id: fc.id.clone().map(Into::into),
                         });
                     }
                     PartEnum::FunctionResponse(fr) => {
