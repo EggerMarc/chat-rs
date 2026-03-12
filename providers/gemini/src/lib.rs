@@ -26,6 +26,7 @@ pub struct GeminiBuilder<M = WithoutModel, C = BaseConfig> {
     native_tools: Vec<Box<dyn GeminiNativeTool>>,
     function_config: Option<GeminiFunctionCallingConfig>,
     embeddings_config: Option<GeminiEmbeddingsConfig>,
+    include_thoughts: bool,
     _m: PhantomData<M>,
     _c: PhantomData<C>,
 }
@@ -44,6 +45,7 @@ impl GeminiBuilder<WithoutModel, BaseConfig> {
             native_tools: Vec::new(),
             function_config: None,
             embeddings_config: None,
+            include_thoughts: false,
             _m: PhantomData,
             _c: PhantomData,
         }
@@ -65,6 +67,7 @@ impl<C> GeminiBuilder<WithoutModel, C> {
             native_tools: self.native_tools,
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
+            include_thoughts: self.include_thoughts,
             _m: PhantomData,
             _c: PhantomData,
         }
@@ -79,6 +82,7 @@ impl<M> GeminiBuilder<M, BaseConfig> {
             native_tools: self.native_tools,
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
+            include_thoughts: self.include_thoughts,
             _m: PhantomData,
             _c: PhantomData,
         }
@@ -90,6 +94,11 @@ impl<M> GeminiBuilder<M, BaseConfig> {
 
     pub fn with_google_search(self) -> GeminiBuilder<M, CompletionConfig> {
         self.into_completion().with_google_search()
+    }
+
+    pub fn with_thoughts(mut self, include: bool) -> Self {
+        self.include_thoughts = include;
+        self
     }
 
     pub fn with_google_maps(
@@ -155,6 +164,7 @@ impl<M> GeminiBuilder<M, BaseConfig> {
             native_tools: vec![],
             function_config: None,
             embeddings_config: self.embeddings_config,
+            include_thoughts: false,
             _m: PhantomData,
             _c: PhantomData,
         }
@@ -192,6 +202,7 @@ impl<C> GeminiBuilder<WithModel, C> {
             native_tools: self.native_tools,
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
+            include_thoughts: self.include_thoughts,
         }
     }
 }

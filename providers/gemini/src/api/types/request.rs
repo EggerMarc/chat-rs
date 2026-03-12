@@ -46,6 +46,12 @@ pub struct GeminiRequest {
     pub thought_signature: Option<String>,
 }
 
+#[derive(Debug, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct GeminiThinkingConfig {
+    pub include_thoughts: bool,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GeminiContent {
@@ -118,6 +124,8 @@ pub struct GeminiGenerationConfig {
     pub response_schema: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_sequences: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_config: Option<GeminiThinkingConfig>,
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -145,6 +153,7 @@ impl GeminiRequest {
         function_config: Option<&GeminiFunctionCallingConfig>,
         options: Option<&ChatOptions>,
         output_shape: Option<&schemars::Schema>,
+        include_thoughts: bool,
     ) -> Result<Self, ChatError> {
         let mut req = Self::default();
 
@@ -247,6 +256,13 @@ impl GeminiRequest {
         }
 
         let mut gen_config = GeminiGenerationConfig::default();
+
+        if include_thoughts {
+            gen_config.thinking_config = Some(GeminiThinkingConfig {
+                include_thoughts: true,
+            });
+        }
+
         if let Some(opts) = options {
             gen_config.temperature = opts.temperature;
             gen_config.top_p = opts.top_p;
@@ -270,12 +286,11 @@ impl GeminiRequest {
             gen_config.response_schema = Some(clean_schema);
         }
 
-        if serde_json::to_value(&gen_config)
+        if !serde_json::to_value(&gen_config)
             .unwrap()
             .as_object()
             .unwrap()
-            .len()
-            > 0
+            .is_empty()
         {
             req.generation_config = Some(gen_config);
         }

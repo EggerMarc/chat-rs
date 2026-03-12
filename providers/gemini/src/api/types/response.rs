@@ -65,46 +65,46 @@ impl GeminiCompletionResponse {
     pub fn into_core_chat_response(self) -> Result<ChatResponse, ChatError> {
         let candidate = self
             .candidates
-            .and_then(|c| c.into_iter().next())
+            .and_then(|mut c| c.pop())
             .ok_or_else(|| ChatError::InvalidResponse("No candidates returned".into()))?;
 
-        let gemini_content = candidate
-            .content
-            .ok_or_else(|| ChatError::InvalidResponse("Candidate had no content".into()))?;
-
-        // Extract reusable parts
         let mut core_parts = Parts::default();
-        if let Some(parts) = gemini_content.parts {
-            for part in parts {
-                let thought_signature = part.thought_signature.clone();
+        let mut role = RoleEnum::Model;
 
-                if let Some(text) = part.text {
-                    if let Some(thought) = part.thought
-                        && thought
-                    {
-                        core_parts.push(PartEnum::Reasoning(Reasoning {
-                            text,
-                            signature: thought_signature.clone(),
-                        }));
-                    } else {
-                        core_parts.push(PartEnum::Text(Text::new(&text)));
+        // 1. SAFELY handle content being completely absent (e.g., in metadata chunks)
+        if let Some(gemini_content) = candidate.content {
+            role = match gemini_content.role.as_deref() {
+                Some("user") => RoleEnum::User,
+                _ => RoleEnum::Model,
+            };
+
+            if let Some(parts) = gemini_content.parts {
+                for part in parts {
+                    let thought_signature = part.thought_signature.clone();
+
+                    if let Some(text) = part.text {
+                        // 2. Stable Rust compatible boolean check
+                        if part.thought.unwrap_or(false) {
+                            core_parts.push(PartEnum::Reasoning(Reasoning {
+                                text,
+                                signature: thought_signature.clone(),
+                            }));
+                        } else {
+                            core_parts.push(PartEnum::Text(Text::new(&text)));
+                        }
                     }
-                }
-                if let Some(fc) = part.function_call {
-                    let args = fc.args.unwrap_or_else(|| Value::Object(Default::default()));
-                    core_parts.push(PartEnum::from_function_call(FunctionCall {
-                        name: fc.name,
-                        arguments: args,
-                        id: thought_signature.map(Into::into),
-                    }));
+
+                    if let Some(fc) = part.function_call {
+                        let args = fc.args.unwrap_or_else(|| Value::Object(Default::default()));
+                        core_parts.push(PartEnum::from_function_call(FunctionCall {
+                            name: fc.name,
+                            arguments: args,
+                            id: thought_signature.map(Into::into),
+                        }));
+                    }
                 }
             }
         }
-
-        let role = match gemini_content.role.as_deref() {
-            Some("user") => RoleEnum::User,
-            _ => RoleEnum::Model,
-        };
 
         let complete_reason = match candidate.finish_reason.as_deref() {
             Some("STOP") => CompleteReasonEnum::Stop,

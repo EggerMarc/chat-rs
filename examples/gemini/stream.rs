@@ -21,6 +21,7 @@ async fn get_user_metadata(name: String) -> String {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = GeminiBuilder::new()
         .with_model("gemini-3.1-pro-preview".to_string())
+        .with_thoughts(true)
         .build();
 
     let tools = collect_tools();

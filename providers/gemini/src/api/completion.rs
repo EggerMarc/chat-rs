@@ -30,6 +30,7 @@ impl CompletionProvider for GeminiClient {
             self.function_config.as_ref(),
             options,
             structured_output,
+            self.include_thoughts,
         )
         .map_err(ChatFailure::from_err)?;
 

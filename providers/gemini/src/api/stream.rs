@@ -43,7 +43,10 @@ impl StreamProvider for GeminiClient {
             self.function_config.as_ref(),
             options,
             None, // Structured output is unsupported in streaming
+            self.include_thoughts,
         )?;
+
+        //println!("SENDING REQUEST: {:#?}", request_body);
 
         let res = self
             .http_client
@@ -58,10 +61,10 @@ impl StreamProvider for GeminiClient {
         let res = handle_gemini_error(res)
             .await
             .map_err(|failure| failure.err)?;
-
         let stream = try_stream! {
             let mut byte_stream = res.bytes_stream();
-            let mut string_buffer = String::new();
+            let mut sse_buffer = String::new();        // Buffers raw bytes from network
+            let mut current_event_data = String::new(); // Buffers data lines for a single JSON payload
 
             let mut final_parts = Parts::default();
             let mut final_reason = CompleteReasonEnum::None;
@@ -70,90 +73,93 @@ impl StreamProvider for GeminiClient {
             // Read raw bytes as they arrive
             while let Some(chunk_res) = byte_stream.next().await {
                 let chunk = chunk_res.map_err(|e| ChatError::Network(e.to_string()))?;
-                string_buffer.push_str(&String::from_utf8_lossy(&chunk));
+                sse_buffer.push_str(&String::from_utf8_lossy(&chunk));
 
-                // Process complete lines separated by \n
-                while let Some(newline_pos) = string_buffer.find('\n') {
-                    let line = string_buffer[..newline_pos].trim().to_string();
-                    string_buffer.drain(..newline_pos + 1);
+                // Process lines
+                while let Some(newline_pos) = sse_buffer.find('\n') {
+                    let line = sse_buffer[..newline_pos].trim_end().to_string(); // trim_end keeps spaces but removes \r
+                    sse_buffer.drain(..newline_pos + 1);
 
-                    if line.is_empty() || !line.starts_with("data: ") {
-                        continue;
-                    }
+                    // An empty line means the SSE event is complete! Time to parse the JSON.
+                    if line.is_empty() {
+                        if !current_event_data.is_empty() {
+                            let json_str = current_event_data.trim();
 
-                    let json_str = line.strip_prefix("data: ").unwrap().trim();
-                    if json_str == "[DONE]" {
-                        continue;
-                    }
+                            if json_str != "[DONE]" {
+                                match serde_json::from_str::<GeminiCompletionResponse>(json_str) {
+                                    Ok(gemini_chunk) => {
+                                        if let Ok(core_resp) = gemini_chunk.into_core_chat_response() {
 
-                    // Explicitly catch JSON parsing errors
-                    match serde_json::from_str::<GeminiCompletionResponse>(json_str) {
-                        Ok(gemini_chunk) => {
-                            if let Ok(core_resp) = gemini_chunk.into_core_chat_response() {
-
-                                if core_resp.content.complete_reason != CompleteReasonEnum::None {
-                                    final_reason = core_resp.content.complete_reason;
-                                }
-                                if core_resp.metadata.is_some() {
-                                    final_metadata = core_resp.metadata;
-                                }
-
-                                // Intelligently merge the parts into our final history
-                                for part in core_resp.content.parts.0 {
-                                    match part {
-                                        PartEnum::Reasoning(mut new_r) => {
-                                            yield StreamEvent::ReasoningChunk(new_r.text.clone());
-
-                                            if let Some(PartEnum::Reasoning(last_r)) = final_parts.0.last_mut() {
-                                                last_r.text.push_str(&new_r.text);
-                                                if last_r.signature.is_none() && new_r.signature.is_some() {
-                                                    last_r.signature = new_r.signature;
-                                                }
-                                            } else {
-                                                final_parts.push(PartEnum::Reasoning(new_r));
+                                            if core_resp.content.complete_reason != CompleteReasonEnum::None {
+                                                final_reason = core_resp.content.complete_reason;
                                             }
-                                        }
-                                        PartEnum::Text(new_t) => {
-                                            yield StreamEvent::TextChunk(new_t.0.clone());
-
-                                            if let Some(PartEnum::Text(last_t)) = final_parts.0.last_mut() {
-                                                last_t.0.push_str(&new_t.0);
-                                            } else {
-                                                final_parts.push(PartEnum::Text(new_t));
+                                            if core_resp.metadata.is_some() {
+                                                final_metadata = core_resp.metadata;
                                             }
-                                        }
-                                        PartEnum::FunctionCall(new_fc) => {
-                                            // Deduplicate: Google sends partial arguments across chunks
-                                            if let Some(PartEnum::FunctionCall(last_fc)) = final_parts.0.last_mut() {
-                                                if last_fc.name == new_fc.name {
-                                                    last_fc.arguments = new_fc.arguments.clone();
-                                                    if last_fc.id.is_none() && new_fc.id.is_some() {
-                                                        last_fc.id = new_fc.id.clone();
+
+                                            for part in core_resp.content.parts.0 {
+                                                match part {
+                                                    PartEnum::Reasoning(new_r) => {
+                                                        yield StreamEvent::ReasoningChunk(new_r.text.clone());
+                                                        if let Some(PartEnum::Reasoning(last_r)) = final_parts.0.last_mut() {
+                                                            last_r.text.push_str(&new_r.text);
+                                                            if last_r.signature.is_none() && new_r.signature.is_some() {
+                                                                last_r.signature = new_r.signature;
+                                                            }
+                                                        } else {
+                                                            final_parts.push(PartEnum::Reasoning(new_r));
+                                                        }
                                                     }
-                                                } else {
-                                                    final_parts.push(PartEnum::FunctionCall(new_fc.clone()));
-                                                    yield StreamEvent::ToolCall(new_fc);
+                                                    PartEnum::Text(new_t) => {
+                                                        yield StreamEvent::TextChunk(new_t.0.clone());
+                                                        if let Some(PartEnum::Text(last_t)) = final_parts.0.last_mut() {
+                                                            last_t.0.push_str(&new_t.0);
+                                                        } else {
+                                                            final_parts.push(PartEnum::Text(new_t));
+                                                        }
+                                                    }
+                                                    PartEnum::FunctionCall(new_fc) => {
+                                                        if let Some(PartEnum::FunctionCall(last_fc)) = final_parts.0.last_mut() {
+                                                            if last_fc.name == new_fc.name {
+                                                                last_fc.arguments = new_fc.arguments.clone();
+                                                                if last_fc.id.is_none() && new_fc.id.is_some() {
+                                                                    last_fc.id = new_fc.id.clone();
+                                                                }
+                                                            } else {
+                                                                final_parts.push(PartEnum::FunctionCall(new_fc.clone()));
+                                                                yield StreamEvent::ToolCall(new_fc);
+                                                            }
+                                                        } else {
+                                                            final_parts.push(PartEnum::FunctionCall(new_fc.clone()));
+                                                            yield StreamEvent::ToolCall(new_fc);
+                                                        }
+                                                    }
+                                                    _ => {}
                                                 }
-                                            } else {
-                                                // First time seeing this tool
-                                                final_parts.push(PartEnum::FunctionCall(new_fc.clone()));
-                                                yield StreamEvent::ToolCall(new_fc);
                                             }
                                         }
-                                        _ => {} // Catch-all for unrecognized parts
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Failed to parse SSE JSON chunk: {}\nPayload: {}", e, json_str);
                                     }
                                 }
                             }
+                            current_event_data.clear();
                         }
-                        Err(e) => {
-                            // Safe fallback: Prevents the stream from silently breaking
-                            eprintln!("Failed to parse SSE JSON chunk: {}\nRaw String: {}", e, json_str);
-                        }
+                        continue;
+                    }
+
+                    // Accumulate data lines for the current event
+                    if line.starts_with("data: ") {
+                        current_event_data.push_str(&line["data: ".len()..]);
+                        current_event_data.push('\n'); // Preserve multiline JSON structure
+                    } else if line.starts_with("data:") {
+                        current_event_data.push_str(&line["data:".len()..]);
+                        current_event_data.push('\n');
                     }
                 }
             }
 
-            // The stream has finished. Yield the perfectly assembled ChatResponse!
             let final_response = ChatResponse {
                 content: Content {
                     role: RoleEnum::Model,

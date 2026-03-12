@@ -12,4 +12,5 @@ pub struct GeminiClient {
     pub(crate) native_tools: Vec<Box<dyn GeminiNativeTool>>,
     pub(crate) function_config: Option<GeminiFunctionCallingConfig>,
     pub(crate) embeddings_config: Option<GeminiEmbeddingsConfig>,
+    pub(crate) include_thoughts: bool,
 }
