@@ -1,6 +1,7 @@
 [package]
 name = "chat-gemini"
 version = "0.0.1"
+description = "Provider implementation of Gemini for chat-rs"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -8,7 +9,8 @@ publish = false
 
 
 [dependencies]
-chat-core = { path = "../../core" }
+chat-core = { path = "../../core", version = "0.0.1"}
+
 async-trait.workspace = true
 reqwest = { workspace = true, features = ["json", "stream"] }
 serde.workspace = true
