@@ -1,8 +1,9 @@
-use chat_rs::{builder::ChatBuilder, gemini, messages, messages::content};
+use chat_gemini::GeminiBuilder;
+use chat_rs::{ChatBuilder, Messages, types::messages::content};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = gemini::GeminiBuilder::new()
+    let client = GeminiBuilder::new()
         .with_model("gemini-embedding-001".to_string())
         .with_embeddings(Some(126))
         .build();
@@ -12,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_retries(2)
         .build();
 
-    let mut messages = messages::Messages::default();
+    let mut messages = Messages::default();
 
     let mut flag = 0;
     let parts_to_classify = 10;

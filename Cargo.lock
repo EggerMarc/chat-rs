@@ -108,27 +108,43 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "chat-rs"
+name = "chat-core"
 version = "0.0.6"
 dependencies = [
  "async-stream",
  "async-trait",
- "base64",
  "futures",
  "infer",
- "inventory",
- "once_cell",
- "regex",
- "reqwest",
  "schemars",
  "serde",
  "serde_json",
  "thiserror",
- "tokio",
  "tools-rs",
- "tools_core",
- "tools_macros",
  "url",
+]
+
+[[package]]
+name = "chat-gemini"
+version = "0.0.6"
+dependencies = [
+ "async-trait",
+ "base64",
+ "chat-core",
+ "reqwest",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tools-rs",
+]
+
+[[package]]
+name = "chat-rs"
+version = "0.0.6"
+dependencies = [
+ "chat-core",
+ "chat-gemini",
+ "once_cell",
+ "regex",
 ]
 
 [[package]]

@@ -1,21 +1,11 @@
+pub(crate) mod code_execution;
+pub(crate) mod google_maps;
+pub(crate) mod google_search;
+
 use serde_json::Value;
 
 pub trait GeminiNativeTool: Send + Sync {
     fn tool_key(&self) -> &'static str;
-    /// Indicates whether the tool should be treated as a search tool.
-    ///
-    /// By default this returns `false`; implementors may override to mark a tool as a search tool.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// struct MyTool;
-    ///
-    /// impl crate::GeminiNativeTool for MyTool {}
-    ///
-    /// let t = MyTool;
-    /// assert!(!t.is_search());
-    /// ```
     fn is_search(&self) -> bool {
         false
     }
