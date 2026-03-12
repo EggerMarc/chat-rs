@@ -7,6 +7,8 @@ use crate::{
     traits::StreamProvider,
     types::{
         messages::Messages,
+        messages::content::Content,
+        metadata::Metadata,
         response::{ChatResponse, StreamEvent},
     },
 };

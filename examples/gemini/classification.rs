@@ -1,8 +1,4 @@
-use chat_rs::{
-    builder::ChatBuilder,
-    gemini,
-    types::{messages, messages::content},
-};
+use chat_rs::{ChatBuilder, Messages, types::messages::content};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -16,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_retries(2)
         .build();
 
-    let mut messages = messages::Messages::default();
+    let mut messages = Messages::default();
 
     let mut flag = 0;
     let parts_to_classify = 10;

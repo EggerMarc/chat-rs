@@ -1,5 +1,9 @@
+#[cfg(feature = "stream")]
+use crate::error::ChatError;
+#[cfg(feature = "stream")]
+use crate::types::response::StreamEvent;
 use crate::{
-    error::{ChatFailure},
+    error::ChatFailure,
     types::{
         messages::Messages,
         options::ChatOptions,
@@ -9,9 +13,8 @@ use crate::{
 use async_trait::async_trait;
 #[cfg(feature = "stream")]
 use futures::stream::BoxStream;
+
 use tools_rs::ToolCollection;
-#[cfg(feature = "stream")]
-use crate::types::response::StreamEvent
 
 #[async_trait]
 pub trait CompletionProvider: Send + Sync {
@@ -24,7 +27,7 @@ pub trait CompletionProvider: Send + Sync {
     ) -> Result<ChatResponse, ChatFailure>;
 }
 
-#[cfg(feature="stream")]
+#[cfg(feature = "stream")]
 #[async_trait]
 pub trait StreamProvider: Send + Sync {
     async fn stream(

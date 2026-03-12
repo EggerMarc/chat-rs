@@ -1,9 +1,9 @@
+use crate::CompletionConfig;
 use crate::api::types::request::GeminiRequest;
 use crate::api::types::response::GeminiResponse;
 use crate::client::GeminiClient;
-use crate::CompletionConfig;
+use chat_core::error::ChatFailure;
 use chat_core::traits::CompletionProvider;
-use chat_core::types::failure::ChatFailure;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
 use chat_core::types::response::ChatResponse;

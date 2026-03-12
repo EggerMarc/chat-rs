@@ -8,10 +8,10 @@ use crate::api::types::request::{
     EmbeddingsTask, GeminiEmbeddingsConfig, GeminiFunctionCallingConfig,
 };
 use crate::client::GeminiClient;
+use crate::tools::GeminiNativeTool;
 use crate::tools::code_execution::CodeExecutionTool;
 use crate::tools::google_maps::GoogleMapsTool;
 use crate::tools::google_search::GoogleSearchTool;
-use crate::tools::GeminiNativeTool;
 
 pub struct WithoutModel;
 pub struct WithModel;
@@ -178,4 +178,3 @@ impl<C> GeminiBuilder<WithModel, C> {
         }
     }
 }
-

@@ -12,6 +12,7 @@ pub use chat_core::{
     chat::state::{Streamed, Structured, Unstructured},
     error::{ChatError, ChatFailure},
     traits::{CompletionProvider, EmbeddingsProvider},
+    types,
     types::{
         callback::{CallbackRetryContext, CallbackStrategy, RetryStrategy},
         messages::{
@@ -46,6 +47,7 @@ pub mod openai {
 pub mod prelude {
     pub use crate::ChatOptions;
     pub use crate::Messages;
+    pub use crate::types;
     pub use crate::{ChatError, ChatFailure};
     pub use crate::{CompletionProvider, EmbeddingsProvider};
 
