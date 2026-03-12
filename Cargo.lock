@@ -143,9 +143,15 @@ version = "0.0.6"
 dependencies = [
  "chat-core",
  "chat-gemini",
+ "inventory",
  "once_cell",
  "regex",
+ "serde",
+ "serde_json",
  "tokio",
+ "tools-rs",
+ "tools_core",
+ "tools_macros",
 ]
 
 [[package]]

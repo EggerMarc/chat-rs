@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use chat_core::{
     error::ChatError,
     types::{
@@ -183,7 +181,18 @@ impl GeminiRequest {
                             });
                         }
                     },
-                    _ => {}
+                    PartEnum::Structured(json_val) => {
+                        gemini_part.text = Some(json_val.to_string());
+                    }
+                    PartEnum::Embeddings(_) => {
+                        println!("Skipping Embeddings part in Gemini completion request.");
+                        continue;
+                    } /*
+                                          part => {
+                                              println!("Skipping unknown PartEnum variant. {:#?}", part);
+                                              continue;
+                                          }
+                      */
                 }
                 parts.push(gemini_part);
             }

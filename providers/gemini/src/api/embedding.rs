@@ -1,3 +1,4 @@
+use crate::api::types::error::handle_gemini_error;
 use crate::api::types::request::{GeminiEmbeddingRequest, GeminiRequest};
 use crate::api::types::response::GeminiEmbeddingResponse;
 use crate::client::GeminiClient;
@@ -26,6 +27,8 @@ impl EmbeddingsProvider for GeminiClient {
             .send()
             .await
             .map_err(|e| ChatFailure::from_err(ChatError::Network(e.to_string())))?;
+
+        let res = handle_gemini_error(res).await?;
 
         let gemini_data: GeminiEmbeddingResponse = res
             .json()

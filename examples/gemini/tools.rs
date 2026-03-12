@@ -1,8 +1,4 @@
-use chat_rs::{
-    builder::ChatBuilder,
-    gemini::{self},
-    messages::{self, content},
-};
+use chat_rs::{ChatBuilder, gemini, types::messages, types::messages::content};
 use tools_rs::{collect_tools, tool};
 
 #[tool]

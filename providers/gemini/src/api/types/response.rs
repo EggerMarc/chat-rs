@@ -62,7 +62,7 @@ impl GeminiCompletionResponse {
     pub fn into_core_chat_response(self) -> Result<ChatResponse, ChatError> {
         let candidate = self
             .candidates
-            .and_then(|mut c| c.pop())
+            .and_then(|c| c.into_iter().next())
             .ok_or_else(|| ChatError::InvalidResponse("No candidates returned".into()))?;
 
         let gemini_content = candidate
