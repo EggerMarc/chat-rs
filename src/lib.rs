@@ -9,7 +9,7 @@
 pub use chat_core::{
     builder::ChatBuilder,
     chat::Chat,
-    chat::state::{Streamed, Structured, Unstructured},
+    chat::state::{Structured, Unstructured},
     error::{ChatError, ChatFailure},
     traits::{CompletionProvider, EmbeddingsProvider},
     types,
@@ -50,9 +50,4 @@ pub mod prelude {
     pub use crate::types;
     pub use crate::{ChatError, ChatFailure};
     pub use crate::{CompletionProvider, EmbeddingsProvider};
-
-    #[cfg(feature = "stream")]
-    pub use crate::StreamProvider;
-    #[cfg(feature = "gemini")]
-    pub use crate::gemini::{GeminiBuilder, GeminiClient};
 }

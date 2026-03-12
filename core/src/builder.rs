@@ -7,12 +7,15 @@ use crate::{
         Chat,
         state::{Embedded, Streamed, Structured, Unstructured},
     },
-    traits::{CompletionProvider, StreamProvider},
+    traits::CompletionProvider,
     types::{
         callback::{CallbackStrategy, RetryStrategy},
         options::ChatOptions,
     },
 };
+
+#[cfg(feature = "stream")]
+use crate::traits::StreamProvider;
 
 pub struct ChatBuilder<CP: CompletionProvider, Output = Unstructured> {
     model: Option<CP>,
@@ -55,6 +58,7 @@ impl<CP: CompletionProvider> ChatBuilder<CP, Unstructured> {
         }
     }
 
+    #[cfg(feature = "stream")]
     pub fn with_streamed_response(self) -> ChatBuilder<CP, Streamed>
     where
         CP: StreamProvider,
