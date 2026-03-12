@@ -1,4 +1,4 @@
-mod completion;
+pub(crate) mod completion;
 mod embedding;
 pub mod request;
 pub mod response;

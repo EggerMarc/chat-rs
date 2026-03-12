@@ -13,6 +13,28 @@ use tools_rs::ToolCollection;
 use crate::tools::GeminiNativeTool;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 
+#[derive(Clone, Default)]
+pub(crate) struct GeminiFunctionCallingConfig {
+    pub mode: Option<String>,
+    pub allowed_function_names: Option<Vec<String>>,
+}
+
+#[derive(Default, Clone)]
+pub enum EmbeddingsTask {
+    SemanticSimilarity,
+    Classification,
+    Clustering,
+    RetrievalDocument,
+    RetrievalQuery,
+    #[default]
+    Embed,
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct GeminiEmbeddingsConfig {
+    pub dimensions: Option<usize>,
+    pub task: EmbeddingsTask,
+}
 #[derive(Debug, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GeminiRequest {

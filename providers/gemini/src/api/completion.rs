@@ -1,8 +1,7 @@
-use crate::api::request::GeminiRequest;
-use crate::api::response::GeminiResponse;
 use crate::api::types::request::GeminiRequest;
 use crate::api::types::response::GeminiResponse;
 use crate::client::GeminiClient;
+use crate::CompletionConfig;
 use chat_core::traits::CompletionProvider;
 use chat_core::types::failure::ChatFailure;
 use chat_core::types::messages::Messages;
@@ -11,12 +10,13 @@ use chat_core::types::response::ChatResponse;
 use tools_rs::ToolCollection;
 
 #[async_trait::async_trait]
-impl CompletionProvider for GeminiClient {
+impl CompletionProvider for GeminiClient<_, CompletionConfig> {
     async fn complete(
         &self,
         messages: &mut Messages,
         tools: Option<&ToolCollection>,
         options: Option<ChatOptions>,
+        structured_output: Option<schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
@@ -29,6 +29,7 @@ impl CompletionProvider for GeminiClient {
             &self.native_tools,
             self.function_config,
             options.as_ref(),
+            structured_output,
         );
 
         let res = self
