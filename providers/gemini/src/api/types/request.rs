@@ -91,7 +91,7 @@ pub struct GeminiFileData {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GeminiInlineData {
-    pub file: String,
+    pub data: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
 }
@@ -173,7 +173,7 @@ impl GeminiRequest {
                             let encoded_data = STANDARD.encode(&raw_data.bytes);
                             gemini_part.inline_data = Some(GeminiInlineData {
                                 mime_type: Some(raw_data.mimetype.to_string()),
-                                file: encoded_data,
+                                data: encoded_data,
                             });
                         }
                         File::Url(url_data) => {

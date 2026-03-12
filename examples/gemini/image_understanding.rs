@@ -1,7 +1,6 @@
 use chat_rs::{
-    builder::ChatBuilder,
-    gemini,
-    messages::{self, content, parts::PartEnum},
+    ChatBuilder, gemini,
+    types::messages::{self, content, parts::PartEnum},
 };
 
 use std::env;
