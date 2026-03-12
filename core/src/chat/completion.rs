@@ -1,13 +1,13 @@
 use schemars::JsonSchema;
 
 use crate::chat::Chat;
+use crate::types::response::StructuredResponse;
 use crate::{
     chat::state::{Structured, Unstructured},
-    error::ChatError,
+    error::{ChatError, ChatFailure},
     traits::CompletionProvider,
     types::{
         callback::CallbackRetryContext,
-        failure::ChatFailure,
         messages::{Messages, content::Content, parts::PartEnum},
         metadata::Metadata,
         response::ChatResponse,
@@ -25,12 +25,6 @@ impl<CP: CompletionProvider> Chat<CP, Unstructured> {
         })
         .await
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct StructuredResponse<T: DeserializeOwned + JsonSchema> {
-    pub content: T,
-    pub metadata: Option<Metadata>,
 }
 
 impl<CP: CompletionProvider, T> Chat<CP, Structured<T>>

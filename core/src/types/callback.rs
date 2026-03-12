@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::types::failure::ChatFailure;
+use crate::error::ChatFailure;
 use crate::types::messages::Messages;
 use crate::types::metadata::Metadata;
 

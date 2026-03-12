@@ -1,10 +1,10 @@
 use crate::{
     chat::{Chat, state::Embedded},
-    error::ChatError,
+    error::{ChatError, ChatFailure},
     traits::EmbeddingsProvider,
     types::{
-        callback::CallbackRetryContext, failure::ChatFailure, messages::Messages,
-        metadata::Metadata, response::EmbeddingsResponse,
+        callback::CallbackRetryContext, messages::Messages, metadata::Metadata,
+        response::EmbeddingsResponse,
     },
 };
 

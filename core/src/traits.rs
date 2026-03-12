@@ -3,9 +3,8 @@ use futures::stream::BoxStream;
 use tools_rs::ToolCollection;
 
 use crate::{
-    error::ChatError,
+    error::{ChatError, ChatFailure},
     types::{
-        failure::ChatFailure,
         messages::Messages,
         options::ChatOptions,
         response::{ChatResponse, EmbeddingsResponse, StreamEvent},

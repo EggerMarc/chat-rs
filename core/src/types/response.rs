@@ -1,3 +1,6 @@
+use schemars::JsonSchema;
+use serde::de::DeserializeOwned;
+
 use crate::types::{
     messages::{content::Content, embeddings::Embeddings},
     metadata::Metadata,
@@ -7,6 +10,12 @@ use crate::types::{
 pub struct ChatResponse {
     pub metadata: Option<Metadata>,
     pub content: Content,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructuredResponse<T: DeserializeOwned + JsonSchema> {
+    pub content: T,
+    pub metadata: Option<Metadata>,
 }
 
 #[derive(Clone, Debug)]

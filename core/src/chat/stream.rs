@@ -3,11 +3,10 @@ use futures::{StreamExt, stream::BoxStream};
 
 use crate::{
     chat::{Chat, state::Streamed},
+    error::ChatFailure,
     traits::StreamProvider,
     types::{
-        failure::ChatFailure,
-        messages::{Messages, content::Content},
-        metadata::Metadata,
+        messages::Messages,
         response::{ChatResponse, StreamEvent},
     },
 };

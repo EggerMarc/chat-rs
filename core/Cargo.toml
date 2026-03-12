@@ -15,6 +15,7 @@ tools-rs.workspace = true
 async-stream = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 url.workspace = true
+infer.workspace = true 
 
 [features]
 default = []
