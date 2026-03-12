@@ -1,23 +1,18 @@
+use std::ops::Deref;
+
 use chat_core::{
     error::ChatError,
     types::{
-        messages::{content::RoleEnum, file::File, parts::PartEnum, Messages},
+        messages::{Messages, content::RoleEnum, file::File, parts::PartEnum},
         options::ChatOptions,
     },
 };
-use schemars::Schema;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tools_rs::ToolCollection;
 
 use crate::tools::GeminiNativeTool;
-use base64::{engine::general_purpose::STANDARD, Engine as _};
-
-#[derive(Clone, Default)]
-pub(crate) struct GeminiFunctionCallingConfig {
-    pub mode: Option<String>,
-    pub allowed_function_names: Option<Vec<String>>,
-}
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 
 #[derive(Default, Clone)]
 pub enum EmbeddingsTask {
@@ -139,14 +134,13 @@ impl GeminiRequest {
     pub fn from_core(
         messages: &Messages,
         custom_tools: Option<&ToolCollection>,
-        native_tools: &[Box<dyn GeminiNativeTool>],
+        native_tools: Option<&[Box<dyn GeminiNativeTool>]>,
         function_config: Option<&GeminiFunctionCallingConfig>,
         options: Option<&ChatOptions>,
-        output_shape: Option<&Schema>,
+        output_shape: Option<&schemars::Schema>,
     ) -> Result<Self, ChatError> {
         let mut req = Self::default();
 
-        // 1. MAP MESSAGES & SYSTEM PROMPT
         let mut gemini_contents = Vec::new();
         let mut system_parts = Vec::new();
 
@@ -178,7 +172,7 @@ impl GeminiRequest {
                         File::Bytes(raw_data) => {
                             let encoded_data = STANDARD.encode(&raw_data.bytes);
                             gemini_part.inline_data = Some(GeminiInlineData {
-                                mime_type: raw_data.mimetype.to_string(),
+                                mime_type: Some(raw_data.mimetype.to_string()),
                                 file: encoded_data,
                             });
                         }
@@ -231,7 +225,15 @@ impl GeminiRequest {
             gen_config.temperature = opts.temperature;
             gen_config.top_p = opts.top_p;
             gen_config.max_output_tokens = opts.max_tokens;
-            gen_config.stop_sequences = opts.stop_sequences.clone();
+            gen_config.stop_sequences = opts
+                .metadata
+                .get("stop_sequences")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect::<Vec<String>>()
+                });
         }
 
         if let Some(schema) = output_shape {
@@ -259,11 +261,12 @@ impl GeminiRequest {
             let decls = ct.json().map_err(|e| ChatError::Other(e.to_string()))?;
             tools_list.push(json!({ "functionDeclarations": decls }));
         }
-
-        for tool in native_tools {
-            tools_list.push(tool.to_tool_declaration());
-            if let Some((k, v)) = tool.to_tool_config() {
-                tool_config_extras.insert(k, v);
+        if let Some(tools) = native_tools {
+            for tool in tools {
+                tools_list.push(tool.to_tool_declaration());
+                if let Some((k, v)) = tool.to_tool_config() {
+                    tool_config_extras.insert(k, v);
+                }
             }
         }
 
@@ -280,7 +283,7 @@ impl GeminiRequest {
         if let Some(fc) = function_config {
             has_config = true;
             req_tool_config.function_calling_config = Some(GeminiFunctionCallingConfig {
-                mode: fc.mode.clone().unwrap_or_else(|| "AUTO".to_string()),
+                mode: fc.mode.clone(),
                 allowed_function_names: fc.allowed_function_names.clone(),
             });
         }
