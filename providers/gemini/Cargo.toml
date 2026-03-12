@@ -1,13 +1,13 @@
 [package]
 name = "chat-gemini"
-version = "0.0.6"
+version = "0.0.1"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+publish = false
 
 [dependencies]
-chat-core = { path = "../../core" }
-
+chat-core = { path = "../../core", version="0.0.6" }
 async-trait.workspace = true
 reqwest = { workspace = true, features = ["json"] } 
 serde.workspace = true

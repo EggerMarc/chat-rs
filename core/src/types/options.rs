@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct ChatOptions {
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,

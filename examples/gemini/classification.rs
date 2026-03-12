@@ -1,9 +1,8 @@
-use chat_gemini::GeminiBuilder;
-use chat_rs::{ChatBuilder, Messages, types::messages::content};
+use chat_rs::{ChatBuilder, Messages, gemini, types::messages::content};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = GeminiBuilder::new()
+    let client = gemini::GeminiBuilder::new()
         .with_model("gemini-embedding-001".to_string())
         .with_embeddings(Some(126))
         .build();

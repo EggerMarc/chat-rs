@@ -1,4 +1,4 @@
-use chat_rs::{builder::ChatBuilder, gemini, types::messages, types::messages::content};
+use chat_rs::{ChatBuilder, gemini, types::messages, types::messages::content};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,6 +27,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
         messages.push(response.content.clone());
         println!("Model:\t{:?}", response.content.parts);
-        //println!("Metadata:\t{:?}", response.metadata);
+        println!("Metadata:\t{:?}", response.metadata);
     }
 }

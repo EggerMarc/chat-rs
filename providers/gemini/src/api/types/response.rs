@@ -14,10 +14,6 @@ use serde::Deserialize;
 use serde_json::Value;
 use tools_rs::FunctionCall;
 
-// ==============================================================================
-// 1. COMPLETION & STREAMING RESPONSE (They share the exact same schema!)
-// ==============================================================================
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GeminiCompletionResponse {

@@ -52,6 +52,7 @@ chat-gemini = { path = "providers/gemini", optional = true }
 [dev-dependencies]
 regex     = "1"
 once_cell = "1"
+tokio     = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [features]
 default = []

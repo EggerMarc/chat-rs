@@ -1,8 +1,4 @@
-use chat_rs::{
-    builder::ChatBuilder,
-    gemini::{self},
-    messages::{self, content},
-};
+use chat_rs::{ChatBuilder, gemini, types::messages::content};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

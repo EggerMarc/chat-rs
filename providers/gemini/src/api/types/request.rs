@@ -296,7 +296,95 @@ impl GeminiRequest {
     }
 }
 
-/// Recursively removes JSON Schema fields that Gemini rejects
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeminiEmbeddingRequest {
+    //pub model: String,
+    pub content: GeminiContent,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_type: Option<&'static str>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_dimensionality: Option<usize>,
+}
+
+impl GeminiEmbeddingRequest {
+    pub fn from_core(
+        //model_name: &str,
+        messages: &Messages,
+        config: Option<&GeminiEmbeddingsConfig>,
+    ) -> Result<Self, ChatError> {
+        /*
+                let formatted_model = if model_name.starts_with("models/") {
+                    model_name.to_string()
+                } else {
+                    format!("models/{}", model_name)
+                };
+        */
+
+        let last_content = messages
+            .0
+            .last()
+            .ok_or_else(|| ChatError::InvalidResponse("Sent empty content to embed".to_string()))?;
+
+        let mut parts = Vec::new();
+        for part in &last_content.parts.0 {
+            match part {
+                PartEnum::Text(t) => parts.push(GeminiPart {
+                    text: Some(t.0.clone()),
+                    ..Default::default()
+                }),
+                PartEnum::Reasoning(r) => parts.push(GeminiPart {
+                    text: Some(r.0.clone()),
+                    ..Default::default()
+                }),
+                _ => {
+                    return Err(ChatError::InvalidResponse(
+                        "Embeddings require text-like parts".to_string(),
+                    ));
+                }
+            }
+        }
+
+        if parts.is_empty() {
+            return Err(ChatError::InvalidResponse(
+                "Sent empty content to embed".to_string(),
+            ));
+        }
+
+        let content = GeminiContent {
+            role: "user".to_string(),
+            parts,
+        };
+
+        let mut req = Self {
+            content,
+            task_type: None,
+            output_dimensionality: None,
+        };
+
+        if let Some(cfg) = config {
+            req.task_type = cfg.task.as_str();
+            req.output_dimensionality = cfg.dimensions;
+        }
+
+        Ok(req)
+    }
+}
+
+impl EmbeddingsTask {
+    pub fn as_str(&self) -> Option<&'static str> {
+        match self {
+            EmbeddingsTask::SemanticSimilarity => Some("SEMANTIC_SIMILARITY"),
+            EmbeddingsTask::Classification => Some("CLASSIFICATION"),
+            EmbeddingsTask::Clustering => Some("CLUSTERING"),
+            EmbeddingsTask::RetrievalDocument => Some("RETRIEVAL_DOCUMENT"),
+            EmbeddingsTask::RetrievalQuery => Some("RETRIEVAL_QUERY"),
+            EmbeddingsTask::Embed => None, // "TASK_TYPE_UNSPECIFIED"
+        }
+    }
+}
+
 fn sanitize_schema_for_gemini(schema: &mut Value) {
     if let Value::Object(map) = schema {
         map.remove("$schema");

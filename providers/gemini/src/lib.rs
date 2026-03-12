@@ -91,6 +91,23 @@ impl<M> GeminiBuilder<M, BaseConfig> {
     pub fn with_google_search(self) -> GeminiBuilder<M, CompletionConfig> {
         self.into_completion().with_google_search()
     }
+
+    pub fn with_google_maps(
+        self,
+        lat_lng: Option<(f32, f32)>,
+        widget: bool,
+    ) -> GeminiBuilder<M, CompletionConfig> {
+        self.into_completion().with_google_maps(lat_lng, widget)
+    }
+
+    pub fn with_function_calling_mode(
+        self,
+        mode: &str,
+        allowed: Option<Vec<String>>,
+    ) -> GeminiBuilder<M, CompletionConfig> {
+        self.into_completion()
+            .with_function_calling_mode(mode, allowed)
+    }
 }
 
 impl<M> GeminiBuilder<M, CompletionConfig> {
@@ -135,8 +152,8 @@ impl<M> GeminiBuilder<M, BaseConfig> {
         GeminiBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            native_tools: self.native_tools,
-            function_config: self.function_config,
+            native_tools: vec![],
+            function_config: None,
             embeddings_config: self.embeddings_config,
             _m: PhantomData,
             _c: PhantomData,
