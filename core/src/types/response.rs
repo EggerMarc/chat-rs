@@ -24,6 +24,7 @@ pub struct EmbeddingsResponse {
     pub embeddings: Embeddings,
 }
 
+#[cfg(feature = "stream")]
 #[derive(Debug, Clone)]
 pub enum StreamEvent {
     TextChunk(String),

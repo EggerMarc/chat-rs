@@ -8,16 +8,16 @@
 
 pub use chat_core::{
     builder::ChatBuilder,
-    chat::state::{Streamed, Structured, Unstructured},
     chat::Chat,
+    chat::state::{Streamed, Structured, Unstructured},
     error::{ChatError, ChatFailure},
     traits::{CompletionProvider, EmbeddingsProvider},
     types::{
         callback::{CallbackRetryContext, CallbackStrategy, RetryStrategy},
         messages::{
+            Messages,
             content::Content,
             parts::{PartEnum, Parts},
-            Messages,
         },
         metadata::Metadata,
         options::ChatOptions,
@@ -26,7 +26,7 @@ pub use chat_core::{
 };
 
 #[cfg(feature = "stream")]
-pub use chat_core::{traits::StreamProvider, types::response::StreamEvent, Streamed};
+pub use chat_core::{chat::state::Streamed, traits::StreamProvider, types::response::StreamEvent};
 
 #[cfg(feature = "gemini")]
 pub mod gemini {
@@ -49,8 +49,8 @@ pub mod prelude {
     pub use crate::{ChatError, ChatFailure};
     pub use crate::{CompletionProvider, EmbeddingsProvider};
 
-    #[cfg(feature = "gemini")]
-    pub use crate::gemini::{GeminiBuilder, GeminiClient};
     #[cfg(feature = "stream")]
     pub use crate::StreamProvider;
+    #[cfg(feature = "gemini")]
+    pub use crate::gemini::{GeminiBuilder, GeminiClient};
 }

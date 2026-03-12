@@ -16,6 +16,7 @@ use crate::{
 pub mod completion;
 pub mod embed;
 pub mod state;
+#[cfg(feature = "stream")]
 pub mod stream;
 
 #[derive(Default)]
