@@ -411,3 +411,52 @@ impl Display for PartEnum {
         }
     }
 }
+
+#[cfg(feature = "stream")]
+impl Parts {
+    pub fn merge_chunk(&mut self, part: PartEnum) -> Option<crate::types::response::StreamEvent> {
+        use crate::types::response::StreamEvent;
+
+        match part {
+            PartEnum::Reasoning(new_r) => {
+                let event = StreamEvent::ReasoningChunk(new_r.text.clone());
+                if let Some(PartEnum::Reasoning(last_r)) = self.0.last_mut() {
+                    last_r.text.push_str(&new_r.text);
+                    if last_r.signature.is_none() && new_r.signature.is_some() {
+                        last_r.signature = new_r.signature;
+                    }
+                } else {
+                    self.push(PartEnum::Reasoning(new_r));
+                }
+                Some(event)
+            }
+            PartEnum::Text(new_t) => {
+                let event = StreamEvent::TextChunk(new_t.0.clone());
+                if let Some(PartEnum::Text(last_t)) = self.0.last_mut() {
+                    last_t.0.push_str(&new_t.0);
+                } else {
+                    self.push(PartEnum::Text(new_t));
+                }
+                Some(event)
+            }
+            PartEnum::FunctionCall(new_fc) => {
+                if let Some(PartEnum::FunctionCall(last_fc)) = self.0.last_mut() {
+                    if last_fc.name == new_fc.name {
+                        last_fc.arguments = new_fc.arguments.clone();
+                        if last_fc.id.is_none() && new_fc.id.is_some() {
+                            last_fc.id = new_fc.id.clone();
+                        }
+                        None
+                    } else {
+                        self.push(PartEnum::FunctionCall(new_fc.clone()));
+                        Some(StreamEvent::ToolCall(new_fc))
+                    }
+                } else {
+                    self.push(PartEnum::FunctionCall(new_fc.clone()));
+                    Some(StreamEvent::ToolCall(new_fc))
+                }
+            }
+            _ => None,
+        }
+    }
+}

@@ -1,11 +1,10 @@
 use chat_rs::{
-    ChatBuilder,
-    StreamEvent, // <-- Import StreamEvent!
+    ChatBuilder, StreamEvent,
     gemini::GeminiBuilder,
     types::messages::{self, content},
 };
-use futures::StreamExt; // Required to use .next() on the stream
-use std::io::Write; // Required to flush stdout instantly
+use futures::StreamExt;
+use std::io::Write;
 use tools_rs::{collect_tools, tool};
 
 #[tool]
@@ -49,16 +48,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let user_message = content::from_user(vec![user_input.trim()]);
         messages.push(user_message);
 
-        print!("Model:\t");
         std::io::stdout().flush()?;
 
         let mut stream = chat.stream(&mut messages).await.map_err(|err| err.err)?;
 
-        // Consume the stream chunk-by-chunk
         while let Some(chunk_res) = stream.next().await {
             match chunk_res {
                 Ok(event) => match event {
-                    // Normal text prints as standard output
                     StreamEvent::TextChunk(text) => {
                         print!("{}", text);
                     }
@@ -75,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     StreamEvent::ToolResult(tool_result) => {
                         print!(
-                            "\x1b[33m[Tool {} returned {} bytes]\x1b[0m\nModel:\t",
+                            "\x1b[33m[Tool {} returned {} bytes]\x1b[0m\n\t",
                             tool_result.name,
                             tool_result.result.to_string().len()
                         );
@@ -89,7 +85,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     break;
                 }
             }
-            // Ensure the console updates instantly!
             std::io::stdout().flush()?;
         }
 

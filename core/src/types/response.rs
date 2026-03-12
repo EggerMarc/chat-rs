@@ -53,3 +53,44 @@ impl fmt::Display for StreamEvent {
         }
     }
 }
+
+#[cfg(feature = "stream")]
+#[derive(Default)]
+pub struct SseParser {
+    buffer: String,
+    current_event: String,
+}
+
+#[cfg(feature = "stream")]
+impl SseParser {
+    pub fn push(&mut self, chunk: &[u8]) {
+        self.buffer.push_str(&String::from_utf8_lossy(chunk));
+    }
+
+    pub fn next_event(&mut self) -> Option<String> {
+        while let Some(newline_pos) = self.buffer.find('\n') {
+            let line = self.buffer[..newline_pos].trim_end().to_string();
+            self.buffer.drain(..newline_pos + 1);
+
+            if line.is_empty() {
+                if !self.current_event.is_empty() {
+                    let json = self.current_event.trim().to_string();
+                    self.current_event.clear();
+                    if json != "[DONE]" {
+                        return Some(json);
+                    }
+                }
+                continue;
+            }
+
+            if let Some(data) = line.strip_prefix("data: ") {
+                self.current_event.push_str(data);
+                self.current_event.push('\n');
+            } else if let Some(data) = line.strip_prefix("data:") {
+                self.current_event.push_str(data);
+                self.current_event.push('\n');
+            }
+        }
+        None
+    }
+}
