@@ -1,19 +1,12 @@
-use chat_rs::{ChatBuilder, gemini, types::messages, types::messages::content};
+use chat_rs::{
+    ChatBuilder,
+    gemini::GeminiBuilder,
+    types::messages::{self, content},
+};
 
-/// Interactive example that reads user lines, sends them to the Gemini embeddings model, and prints the resulting embeddings.
-///
-/// The program constructs a Gemini embedding client configured for `gemini-embedding-001`, wraps it in a chat client,
-/// then repeatedly reads a line from stdin, appends it as a user message, requests embeddings, and prints them.
-///
-/// # Examples
-///
-/// ```ignore
-/// // Run the example binary and type lines into stdin; each line will produce an embeddings vector printed to stdout.
-/// // cargo run --example embeddings
-/// ```
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = gemini::GeminiBuilder::new()
+    let client = GeminiBuilder::new()
         .with_model("gemini-embedding-001".to_string())
         .with_embeddings(Some(126))
         .build();
@@ -33,6 +26,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let response = chat.embed(&mut messages).await.map_err(|err| err.err)?;
         println!("Model:\t{:?}", response.embeddings);
-        //println!("Metadata:\t{:?}", response.metadata);
     }
 }

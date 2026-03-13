@@ -26,8 +26,8 @@ serde               = { version = "1.0.228", features = ["derive"] }
 serde_json          = "1.0.145"
 thiserror           = "2.0.17"
 tokio               = { version = "1.48.0", features = ["macros", "rt-multi-thread", "time", "sync"] }
-tools-rs            = "0.1.5"
-tools_core          = "0.1.4"
+tools-rs            = "0.1.7"
+tools_core          = "0.1.6"
 tools_macros        = "0.1.1"
 url                 = { version = "2.5.8", features = ["serde"] }
 
@@ -59,9 +59,19 @@ tools_core.workspace = true
 serde_json.workspace = true
 url.workspace = true
 
+
+
 [dev-dependencies]
-regex     = "1"
-once_cell = "1"
+regex        = "1"
+once_cell    = "1"
+serde.workspace = true
+serde_json.workspace = true
+inventory.workspace    = true
+tools-rs.workspace = true
+tools_core.workspace = true 
+tools_macros.workspace = true 
+tokio.workspace = true
+futures.workspace = true 
 
 [features]
 default = []
@@ -114,3 +124,7 @@ name = "retry"
 path = "./examples/retry.rs"
 required-features = ["gemini"]
 
+[[example]]
+name = "gemini-stream"
+path = "./examples/gemini/stream.rs"
+required-features = ["gemini", "stream"]

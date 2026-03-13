@@ -18,6 +18,7 @@ impl<CP: EmbeddingsProvider> Chat<CP, Embedded> {
         }
         let max_retries = self.max_retries.unwrap_or(1);
         let mut last_metadata: Option<Metadata> = None;
+        let mut last_err: Option<ChatError> = None;
 
         for idx in 0..max_retries {
             match self.model.embed(messages).await {
@@ -25,6 +26,7 @@ impl<CP: EmbeddingsProvider> Chat<CP, Embedded> {
                     return Ok(res);
                 }
                 Err(failure) => {
+                    last_err = Some(failure.err.clone());
                     if let Some(metadata) = failure.metadata.as_ref() {
                         match &mut last_metadata {
                             Some(existing) => {
@@ -48,7 +50,7 @@ impl<CP: EmbeddingsProvider> Chat<CP, Embedded> {
         }
 
         Err(ChatFailure {
-            err: ChatError::RateLimited,
+            err: last_err.unwrap_or(ChatError::RateLimited),
             metadata: last_metadata,
         })
     }

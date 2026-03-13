@@ -4,6 +4,7 @@ use chat_core::{
         messages::{
             content::{CompleteReasonEnum, Content, RoleEnum},
             parts::{PartEnum, Parts},
+            reasoning::Reasoning,
             text::Text,
         },
         metadata::{Metadata, usage::Usage},
@@ -13,10 +14,6 @@ use chat_core::{
 use serde::Deserialize;
 use serde_json::Value;
 use tools_rs::FunctionCall;
-
-// ==============================================================================
-// 1. COMPLETION & STREAMING RESPONSE (They share the exact same schema!)
-// ==============================================================================
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,6 +42,8 @@ pub struct GeminiContentResponse {
 pub struct GeminiPartResponse {
     pub text: Option<String>,
     pub function_call: Option<GeminiFunctionCallResponse>,
+    pub thought_signature: Option<String>,
+    pub thought: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -69,30 +68,42 @@ impl GeminiCompletionResponse {
             .and_then(|mut c| c.pop())
             .ok_or_else(|| ChatError::InvalidResponse("No candidates returned".into()))?;
 
-        let gemini_content = candidate
-            .content
-            .ok_or_else(|| ChatError::InvalidResponse("Candidate had no content".into()))?;
-
-        // Extract reusable parts
         let mut core_parts = Parts::default();
-        if let Some(parts) = gemini_content.parts {
-            for part in parts {
-                if let Some(text) = part.text {
-                    core_parts.push(PartEnum::Text(Text::new(&text)));
-                }
-                if let Some(fc) = part.function_call {
-                    let args = fc.args.unwrap_or_else(|| Value::Object(Default::default()));
-                    core_parts.push(PartEnum::from_function_call(FunctionCall::new(
-                        fc.name, args,
-                    )));
+        let mut role = RoleEnum::Model;
+
+        if let Some(gemini_content) = candidate.content {
+            role = match gemini_content.role.as_deref() {
+                Some("user") => RoleEnum::User,
+                _ => RoleEnum::Model,
+            };
+
+            if let Some(parts) = gemini_content.parts {
+                for part in parts {
+                    let thought_signature = part.thought_signature.clone();
+
+                    if let Some(text) = part.text {
+                        // 2. Stable Rust compatible boolean check
+                        if part.thought.unwrap_or(false) {
+                            core_parts.push(PartEnum::Reasoning(Reasoning {
+                                text,
+                                signature: thought_signature.clone(),
+                            }));
+                        } else {
+                            core_parts.push(PartEnum::Text(Text::new(&text)));
+                        }
+                    }
+
+                    if let Some(fc) = part.function_call {
+                        let args = fc.args.unwrap_or_else(|| Value::Object(Default::default()));
+                        core_parts.push(PartEnum::from_function_call(FunctionCall {
+                            name: fc.name,
+                            arguments: args,
+                            id: thought_signature.map(Into::into),
+                        }));
+                    }
                 }
             }
         }
-
-        let role = match gemini_content.role.as_deref() {
-            Some("user") => RoleEnum::User,
-            _ => RoleEnum::Model,
-        };
 
         let complete_reason = match candidate.finish_reason.as_deref() {
             Some("STOP") => CompleteReasonEnum::Stop,
@@ -124,10 +135,6 @@ impl GeminiCompletionResponse {
         })
     }
 }
-
-// ==============================================================================
-// 2. EMBEDDINGS RESPONSE (Completely different API endpoint!)
-// ==============================================================================
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

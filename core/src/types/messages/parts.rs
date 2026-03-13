@@ -5,6 +5,7 @@ use tools_rs::{CallId, FunctionCall, FunctionResponse};
 
 use crate::types::messages::embeddings::Embeddings;
 use crate::types::messages::file::File;
+use crate::types::messages::reasoning::Reasoning;
 use crate::types::messages::text::Text;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
@@ -138,7 +139,7 @@ impl Parts {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", content = "value")]
 pub enum PartEnum {
-    Reasoning(Text),
+    Reasoning(Reasoning),
     Text(Text),
     FunctionCall(FunctionCall),
     FunctionResponse(FunctionResponse),
@@ -188,9 +189,9 @@ impl PartEnum {
     /// let text = part.reasoning().unwrap();
     /// assert_eq!(text, Text::new("because it's correct"));
     /// ```
-    pub fn reasoning(&self) -> Option<Text> {
+    pub fn reasoning(&self) -> Option<Reasoning> {
         match self {
-            PartEnum::Reasoning(text) => Some(text.clone()),
+            PartEnum::Reasoning(reasoning) => Some(reasoning.clone()),
             _ => None,
         }
     }
@@ -271,7 +272,7 @@ impl PartEnum {
     /// }
     /// ```
     pub fn from_reasoning(s: impl Into<String>) -> PartEnum {
-        PartEnum::Reasoning(Text::new(s))
+        PartEnum::Reasoning(Reasoning::new(s))
     }
 
     pub fn from_text(s: impl Into<String>) -> PartEnum {
@@ -407,6 +408,60 @@ impl Display for PartEnum {
                     ),
                 }
             }
+        }
+    }
+}
+
+#[cfg(feature = "stream")]
+impl Parts {
+    pub fn merge_chunk(&mut self, part: PartEnum) -> Option<crate::types::response::StreamEvent> {
+        use crate::types::response::StreamEvent;
+
+        match part {
+            PartEnum::Reasoning(new_r) => {
+                let event = StreamEvent::ReasoningChunk(new_r.text.clone());
+                if let Some(PartEnum::Reasoning(last_r)) = self.0.last_mut() {
+                    last_r.text.push_str(&new_r.text);
+                    if last_r.signature.is_none() && new_r.signature.is_some() {
+                        last_r.signature = new_r.signature;
+                    }
+                } else {
+                    self.push(PartEnum::Reasoning(new_r));
+                }
+                Some(event)
+            }
+            PartEnum::Text(new_t) => {
+                let event = StreamEvent::TextChunk(new_t.0.clone());
+                if let Some(PartEnum::Text(last_t)) = self.0.last_mut() {
+                    last_t.0.push_str(&new_t.0);
+                } else {
+                    self.push(PartEnum::Text(new_t));
+                }
+                Some(event)
+            }
+            PartEnum::FunctionCall(new_fc) => {
+                if let Some(PartEnum::FunctionCall(last_fc)) = self.0.last_mut() {
+                    let same_call = last_fc.name == new_fc.name
+                        && match (&last_fc.id, &new_fc.id) {
+                            (Some(last_id), Some(new_id)) => last_id == new_id,
+                            _ => true,
+                        };
+                    if same_call {
+                        last_fc.arguments = new_fc.arguments.clone();
+                        if last_fc.id.is_none() && new_fc.id.is_some() {
+                            last_fc.id = new_fc.id.clone();
+                        }
+                        None
+                    } else {
+                        self.push(PartEnum::FunctionCall(new_fc.clone()));
+                        Some(StreamEvent::ToolCall(new_fc))
+                    }
+                } else {
+                    self.push(PartEnum::FunctionCall(new_fc.clone()));
+                    Some(StreamEvent::ToolCall(new_fc))
+                }
+            }
+            _ => None,
         }
     }
 }

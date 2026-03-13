@@ -12,6 +12,9 @@ pub enum ChatError {
     #[error("rate limited")]
     RateLimited,
 
+    #[error("exceeded maximum steps")]
+    MaxStepsExceeded,
+
     #[error("invalid response: {0}")]
     InvalidResponse(String),
 
