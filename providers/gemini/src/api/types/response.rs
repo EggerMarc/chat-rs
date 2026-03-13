@@ -71,7 +71,6 @@ impl GeminiCompletionResponse {
         let mut core_parts = Parts::default();
         let mut role = RoleEnum::Model;
 
-        // 1. SAFELY handle content being completely absent (e.g., in metadata chunks)
         if let Some(gemini_content) = candidate.content {
             role = match gemini_content.role.as_deref() {
                 Some("user") => RoleEnum::User,
@@ -136,10 +135,6 @@ impl GeminiCompletionResponse {
         })
     }
 }
-
-// ==============================================================================
-// 2. EMBEDDINGS RESPONSE (Completely different API endpoint!)
-// ==============================================================================
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

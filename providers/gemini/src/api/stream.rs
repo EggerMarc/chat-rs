@@ -1,5 +1,3 @@
-// providers/gemini/src/stream.rs
-
 use async_stream::try_stream;
 use futures::{StreamExt, stream::BoxStream};
 use tools_rs::ToolCollection;
@@ -14,7 +12,7 @@ use chat_core::{
             parts::Parts,
         },
         options::ChatOptions,
-        response::{ChatResponse, SseParser, StreamEvent}, // <-- Import the new helper!
+        response::{ChatResponse, SseParser, StreamEvent},
     },
 };
 
@@ -82,24 +80,20 @@ fn parse_gemini_sse_stream(
             sse_parser.push(&chunk);
 
             while let Some(json_str) = sse_parser.next_event() {
-                match serde_json::from_str::<GeminiCompletionResponse>(&json_str) {
-                    Ok(gemini_chunk) => {
-                        if let Ok(core_resp) = gemini_chunk.into_core_chat_response() {
-                            if core_resp.content.complete_reason != CompleteReasonEnum::None {
-                                final_reason = core_resp.content.complete_reason;
-                            }
-                            if core_resp.metadata.is_some() {
-                                final_metadata = core_resp.metadata;
-                            }
-                            for part in core_resp.content.parts.0 {
-                                if let Some(event) = final_parts.merge_chunk(part) {
-                                    yield event;
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to parse SSE JSON chunk: {}\nPayload: {}", e, json_str);
+                let gemini_chunk = serde_json::from_str::<GeminiCompletionResponse>(&json_str)
+                    .map_err(|e| {
+                        ChatError::InvalidResponse(format!("Failed to parse Gemini SSE chunk: {e}"))
+                    })?;
+                let core_resp = gemini_chunk.into_core_chat_response()?;
+                if core_resp.content.complete_reason != CompleteReasonEnum::None {
+                    final_reason = core_resp.content.complete_reason;
+                }
+                if core_resp.metadata.is_some() {
+                    final_metadata = core_resp.metadata;
+                }
+                for part in core_resp.content.parts.0 {
+                    if let Some(event) = final_parts.merge_chunk(part) {
+                        yield event;
                     }
                 }
             }

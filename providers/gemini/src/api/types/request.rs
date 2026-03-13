@@ -172,7 +172,7 @@ impl GeminiRequest {
                     PartEnum::Reasoning(r) => {
                         gemini_part.text = Some(r.text.clone());
                         gemini_part.thought = true;
-                        gemini_part.thought_signature = r.signature.clone(); // Restored natively!
+                        gemini_part.thought_signature = r.signature.clone();
                     }
                     PartEnum::FunctionCall(fc) => {
                         gemini_part.function_call = Some(GeminiFunctionCall {
@@ -213,12 +213,7 @@ impl GeminiRequest {
                     PartEnum::Embeddings(_) => {
                         println!("Skipping Embeddings part in Gemini completion request.");
                         continue;
-                    } /*
-                                          part => {
-                                              println!("Skipping unknown PartEnum variant. {:#?}", part);
-                                              continue;
-                                          }
-                      */
+                    }
                 }
                 parts.push(gemini_part);
             }
@@ -340,7 +335,6 @@ impl GeminiRequest {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GeminiEmbeddingRequest {
-    //pub model: String,
     pub content: GeminiContent,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_type: Option<&'static str>,
@@ -351,18 +345,9 @@ pub struct GeminiEmbeddingRequest {
 
 impl GeminiEmbeddingRequest {
     pub fn from_core(
-        //model_name: &str,
         messages: &Messages,
         config: Option<&GeminiEmbeddingsConfig>,
     ) -> Result<Self, ChatError> {
-        /*
-                let formatted_model = if model_name.starts_with("models/") {
-                    model_name.to_string()
-                } else {
-                    format!("models/{}", model_name)
-                };
-        */
-
         let last_content = messages
             .0
             .last()
