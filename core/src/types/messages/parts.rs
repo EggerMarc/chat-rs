@@ -441,7 +441,12 @@ impl Parts {
             }
             PartEnum::FunctionCall(new_fc) => {
                 if let Some(PartEnum::FunctionCall(last_fc)) = self.0.last_mut() {
-                    if last_fc.name == new_fc.name {
+                    let same_call = last_fc.name == new_fc.name
+                        && match (&last_fc.id, &new_fc.id) {
+                            (Some(last_id), Some(new_id)) => last_id == new_id,
+                            _ => true,
+                        };
+                    if same_call {
                         last_fc.arguments = new_fc.arguments.clone();
                         if last_fc.id.is_none() && new_fc.id.is_some() {
                             last_fc.id = new_fc.id.clone();
