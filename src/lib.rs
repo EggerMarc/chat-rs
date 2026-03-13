@@ -50,4 +50,13 @@ pub mod prelude {
     pub use crate::types;
     pub use crate::{ChatError, ChatFailure};
     pub use crate::{CompletionProvider, EmbeddingsProvider};
+
+    #[cfg(feature = "gemini")]
+    pub use crate::gemini::*;
+
+    #[cfg(feature = "claude")]
+    pub use crate::claude::*;
+
+    #[cfg(feature = "openai")]
+    pub use crate::openai::*;
 }

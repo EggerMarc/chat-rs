@@ -1,3 +1,4 @@
+use crate::api::types::error::handle_gemini_error;
 use crate::api::types::request::GeminiRequest;
 use crate::api::types::response::GeminiCompletionResponse;
 use crate::client::GeminiClient;
@@ -29,6 +30,7 @@ impl CompletionProvider for GeminiClient {
             self.function_config.as_ref(),
             options,
             structured_output,
+            self.include_thoughts,
         )
         .map_err(ChatFailure::from_err)?;
 
@@ -40,6 +42,8 @@ impl CompletionProvider for GeminiClient {
             .send()
             .await
             .map_err(|e| ChatFailure::from_err(ChatError::Network(e.to_string())))?;
+
+        let res = handle_gemini_error(res).await?;
 
         let gemini_data: GeminiCompletionResponse = res
             .json()

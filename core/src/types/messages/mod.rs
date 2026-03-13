@@ -2,6 +2,7 @@ pub mod content;
 pub mod embeddings;
 pub mod file;
 pub mod parts;
+pub mod reasoning;
 pub mod text;
 
 use content::Content;
