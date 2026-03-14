@@ -33,12 +33,11 @@ impl CompletionProvider for OpenAIClient {
         let res = self
             .http_client
             .post(&url)
-            .header("Authorization", format!("Bearer {:?}", self.api_key))
+            .header("Authorization", format!("Bearer {}", &self.api_key))
             .json(&request_body)
             .send()
             .await
             .map_err(|e| ChatFailure::from_err(ChatError::Network(e.to_string())))?;
-
         let res = res
             .error_for_status()
             .map_err(|e| ChatFailure::from_err(ChatError::Provider(e.to_string())))?;
