@@ -55,13 +55,13 @@ impl OpenAIRequest {
         messages: &Messages,
         custom_tools: Option<&ToolCollection>,
         native_tools: &[Box<dyn OpenAINativeTool>],
-        reasoning_effort: Option<&String>,
+        reasoning_effort: Option<String>,
         options: Option<&ChatOptions>,
         output_shape: Option<&Schema>,
     ) -> Result<Self, ChatError> {
         let mut req = Self {
             model: model_name.to_string(),
-            reasoning_effort: reasoning_effort.cloned(),
+            reasoning_effort,
             ..Default::default()
         };
 
@@ -84,9 +84,19 @@ impl OpenAIRequest {
 
         let mut tools_list = Vec::new();
         if let Some(ct) = custom_tools {
-            let decls = ct.json().map_err(|e| ChatError::Other(e.to_string()))?;
-            for decl in decls {
-                tools_list.push(json!({ "type": "function", "function": decl }));
+            // 1. Bind the owned Value to a variable so it lives long enough
+            let decls_value = ct.json().map_err(|e| ChatError::Other(e.to_string()))?;
+
+            // 2. Destructure the Value directly into its inner Vec (no lifetimes to worry about!)
+            if let serde_json::Value::Array(declarations) = decls_value {
+                for declaration in declarations {
+                    // Ownership of `declaration` is moved directly into the new JSON object
+                    tools_list.push(json!({ "type": "function", "function": declaration }));
+                }
+            } else {
+                return Err(ChatError::Other(
+                    "Expected tools-rs to output a JSON array".to_string(),
+                ));
             }
         }
         for tool in native_tools {
@@ -151,7 +161,7 @@ impl OpenAIRequest {
                 if !tool_calls.is_empty() {
                     msg.tool_calls = Some(tool_calls.into_iter().map(|fc| {
                         json!({
-                            "id": fc.id.as_deref().unwrap_or("call_unknown"),
+                            "id": fc.id.clone().map(Into::into).unwrap_or("call_unknown".to_string()),
                             "type": "function",
                             "function": {
                                 "name": fc.name,
@@ -173,7 +183,12 @@ impl OpenAIRequest {
                 oai_messages.push(OpenAIMessage {
                     role: "tool".to_string(),
                     content: Some(Value::String(content_str)),
-                    tool_call_id: Some(fr.id.clone().unwrap_or_else(|| "call_unknown".to_string())),
+                    tool_call_id: Some(
+                        fr.id
+                            .clone()
+                            .map(Into::into)
+                            .unwrap_or("call_unknown".to_string()),
+                    ),
                     name: Some(fr.name.clone()),
                     ..Default::default()
                 });

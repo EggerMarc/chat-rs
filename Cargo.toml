@@ -130,3 +130,8 @@ required-features = ["gemini"]
 name = "gemini-stream"
 path = "./examples/gemini/stream.rs"
 required-features = ["gemini", "stream"]
+
+[[example]]
+name = "openai-completion"
+path = "./examples/openai/completions.rs"
+required-features = ["openai"]

@@ -17,13 +17,14 @@ impl CompletionProvider for OpenAIClient {
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
-        // Dynamically build the URL using the base_url
         let url = format!("{}/chat/completions", self.base_url);
 
         let request_body = OpenAIRequest::from_core(
             &self.model_name,
             messages,
             tools,
+            self.native_tools.as_slice(),
+            self.reasoning_effort.clone(),
             options,
             structured_output,
         )
@@ -32,7 +33,7 @@ impl CompletionProvider for OpenAIClient {
         let res = self
             .http_client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {:?}", self.api_key))
             .json(&request_body)
             .send()
             .await

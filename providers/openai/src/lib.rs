@@ -47,9 +47,9 @@ impl OpenAIBuilder<WithoutModel, BaseEndpoint> {
 }
 
 impl<U> OpenAIBuilder<WithoutModel, U> {
-    pub fn with_model(self, model_name: String) -> OpenAIBuilder<WithModel, U> {
+    pub fn with_model(self, model_name: impl Into<String>) -> OpenAIBuilder<WithModel, U> {
         OpenAIBuilder {
-            model_name: Some(model_name),
+            model_name: Some(model_name.into()),
             api_key: self.api_key,
             base_url: self.base_url,
             native_tools: self.native_tools,
@@ -130,7 +130,7 @@ impl<U> OpenAIBuilder<WithModel, U> {
         let api_key = self
             .api_key
             .or_else(|| env::var("OPENAI_API_KEY").ok())
-            .unwrap_or_else(|| "dummy".to_string());
+            .expect("No api key found");
 
         OpenAIClient {
             model_name: self.model_name.unwrap(),
