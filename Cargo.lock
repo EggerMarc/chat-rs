@@ -182,11 +182,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat-openai"
+version = "0.0.1"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "base64",
+ "chat-core",
+ "futures",
+ "reqwest",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tools-rs",
+]
+
+[[package]]
 name = "chat-rs"
 version = "0.0.8"
 dependencies = [
  "chat-core",
  "chat-gemini",
+ "chat-openai",
  "futures",
  "inventory",
  "once_cell",

@@ -11,6 +11,7 @@ pub use chat_core::{
     chat::Chat,
     chat::state::{Structured, Unstructured},
     error::{ChatError, ChatFailure},
+    macros,
     traits::{CompletionProvider, EmbeddingsProvider},
     types,
     types::{
