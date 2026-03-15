@@ -223,7 +223,7 @@ impl OpenAIRequest {
                 if !tool_calls.is_empty() {
                     msg.tool_calls = Some(tool_calls.into_iter().map(|fc| {
                         json!({
-                            "id": fc.id.clone().map(Into::into).unwrap_or("call_unknown".to_string()),
+                            "id": fc.id.clone().map(std::string::String::from),
                             "type": "function",
                             "function": {
                                 "name": fc.name,
