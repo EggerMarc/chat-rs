@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 use crate::tools::OpenAINativeTool;
 
 #[derive(Serialize, Clone)]
+#[serde(rename_all = "lowercase")]
 pub enum SearchContextSizeEnum {
     Low,
     High,
