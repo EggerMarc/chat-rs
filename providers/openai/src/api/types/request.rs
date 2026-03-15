@@ -3,7 +3,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chat_core::{
     error::ChatError,
     types::{
-        messages::{Messages, content::RoleEnum, file::File, parts::PartEnum},
+        messages::{Messages, file::File, parts::PartEnum},
         options::ChatOptions,
     },
 };
@@ -11,6 +11,8 @@ use schemars::Schema;
 use serde::Serialize;
 use serde_json::{Value, json};
 use tools_rs::ToolCollection;
+
+use super::parts::{OpenAIContent, OpenAIWireMessage};
 
 #[derive(Debug, Serialize)]
 pub struct OpenAIEmbeddingRequest {
@@ -64,7 +66,7 @@ impl OpenAIEmbeddingRequest {
 #[derive(Debug, Serialize, Default)]
 pub struct OpenAIRequest {
     pub model: String,
-    pub messages: Vec<OpenAIMessage>,
+    pub messages: Vec<OpenAIWireMessage>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
@@ -93,19 +95,6 @@ pub struct OpenAIReasoning {
     /// Controls whether reasoning tokens are returned in the response.
     /// Must be set to "auto", "concise", or "detailed" to see reasoning_content.
     pub summary: String,
-}
-
-#[derive(Debug, Serialize, Default)]
-pub struct OpenAIMessage {
-    pub role: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_calls: Option<Vec<Value>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_call_id: Option<String>,
 }
 
 impl OpenAIRequest {
@@ -146,13 +135,10 @@ impl OpenAIRequest {
 
         let mut tools_list = Vec::new();
         if let Some(ct) = custom_tools {
-            // 1. Bind the owned Value to a variable so it lives long enough
             let decls_value = ct.json().map_err(|e| ChatError::Other(e.to_string()))?;
 
-            // 2. Destructure the Value directly into its inner Vec (no lifetimes to worry about!)
             if let serde_json::Value::Array(declarations) = decls_value {
                 for declaration in declarations {
-                    // Ownership of `declaration` is moved directly into the new JSON object
                     tools_list.push(json!({ "type": "function", "function": declaration }));
                 }
             } else {
@@ -168,96 +154,14 @@ impl OpenAIRequest {
             req.tools = Some(tools_list);
         }
 
+        // Convert each core Content into OpenAIContent, then serialize to wire messages.
         let mut oai_messages = Vec::new();
         for content in &messages.0 {
-            let role_str = match content.role {
-                RoleEnum::System => "system",
-                RoleEnum::User => "user",
-                RoleEnum::Model => "assistant",
-            };
-
-            let mut text_parts = Vec::new();
-            let mut vision_parts = Vec::new();
-            let mut tool_calls = Vec::new();
-            let mut tool_responses = Vec::new();
-
-            for part in &content.parts.0 {
-                match part {
-                    PartEnum::Text(t) => text_parts.push(t.0.clone()),
-                    PartEnum::Reasoning(r) => text_parts.push(r.text.clone()),
-                    PartEnum::FunctionCall(fc) => tool_calls.push(fc),
-                    PartEnum::FunctionResponse(fr) => tool_responses.push(fr),
-                    PartEnum::File(File::Url(u)) => {
-                        vision_parts.push(json!({
-                            "type": "image_url",
-                            "image_url": { "url": u.url.to_string() }
-                        }));
-                    }
-                    PartEnum::File(File::Bytes(b)) => {
-                        let b64 = STANDARD.encode(&b.bytes);
-                        let uri = format!("data:{};base64,{}", b.mimetype, b64);
-                        vision_parts.push(json!({
-                            "type": "image_url",
-                            "image_url": { "url": uri }
-                        }));
-                    }
-                    _ => {}
-                }
-            }
-
-            if !text_parts.is_empty() || !vision_parts.is_empty() || !tool_calls.is_empty() {
-                let mut msg = OpenAIMessage {
-                    role: role_str.to_string(),
-                    ..Default::default()
-                };
-
-                if !vision_parts.is_empty() {
-                    for text in text_parts {
-                        vision_parts.insert(0, json!({ "type": "text", "text": text }));
-                    }
-                    msg.content = Some(Value::Array(vision_parts));
-                } else if !text_parts.is_empty() {
-                    msg.content = Some(Value::String(text_parts.join("\n")));
-                }
-
-                if !tool_calls.is_empty() {
-                    msg.tool_calls = Some(tool_calls.into_iter().map(|fc| {
-                        json!({
-                            "id": fc.id.clone().map(std::string::String::from),
-                            "type": "function",
-                            "function": {
-                                "name": fc.name,
-                                "arguments": serde_json::to_string(&fc.arguments).unwrap_or_default()
-                            }
-                        })
-                    }).collect());
-                }
-                oai_messages.push(msg);
-            }
-
-            for fr in tool_responses {
-                let content_str = if fr.result.is_string() {
-                    fr.result.as_str().unwrap().to_string()
-                } else {
-                    fr.result.to_string()
-                };
-
-                oai_messages.push(OpenAIMessage {
-                    role: "tool".to_string(),
-                    content: Some(Value::String(content_str)),
-                    tool_call_id: Some(
-                        fr.id
-                            .clone()
-                            .map(Into::into)
-                            .unwrap_or("call_unknown".to_string()),
-                    ),
-                    name: Some(fr.name.clone()),
-                    ..Default::default()
-                });
-            }
+            let oai_content = OpenAIContent::from(content);
+            oai_messages.extend(oai_content.to_wire_messages());
         }
-
         req.messages = oai_messages;
+
         Ok(req)
     }
 }

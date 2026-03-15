@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+
 use async_stream::try_stream;
 use futures::{StreamExt, stream::BoxStream};
-use tools_rs::ToolCollection;
+use serde_json::Value;
+use tools_rs::{FunctionCall, ToolCollection};
 
 use chat_core::{
     error::ChatError,
@@ -18,7 +21,12 @@ use chat_core::{
 };
 
 use crate::{
-    api::types::{error::handle_openai_error, request::OpenAIRequest, response::OpenAIResponse},
+    api::types::{
+        error::handle_openai_error,
+        parts::{OpenAIContent, OpenAIPartEnum},
+        request::OpenAIRequest,
+        response::OpenAIResponse,
+    },
     client::OpenAIClient,
 };
 
@@ -71,6 +79,8 @@ fn parse_openai_sse_stream(
         let mut final_parts = Parts::default();
         let mut final_reason = CompleteReasonEnum::None;
         let mut final_metadata = None;
+        // Maps OpenAI tool-call index -> position in final_parts.0
+        let mut tool_index_map: HashMap<usize, usize> = HashMap::new();
 
         while let Some(chunk_res) = byte_stream.next().await {
             let chunk = chunk_res.map_err(|e| ChatError::Network(e.to_string()))?;
@@ -90,7 +100,7 @@ fn parse_openai_sse_stream(
                         ChatError::InvalidResponse(format!("Failed to parse OpenAI SSE chunk: {e}"))
                     })?;
 
-                let choice = match oai_resp.choices.pop() {
+                let mut choice = match oai_resp.choices.pop() {
                     Some(c) => c,
                     None => continue,
                 };
@@ -99,7 +109,7 @@ fn parse_openai_sse_stream(
                     let reason = match choice.finish_reason.as_deref() {
                         Some("stop") => CompleteReasonEnum::Stop,
                         Some("length") => CompleteReasonEnum::MaxTokens,
-                        Some("tool_calls") => CompleteReasonEnum::Stop,
+                        Some("tool_calls") => CompleteReasonEnum::ToolCall,
                         Some(other) => CompleteReasonEnum::Other(other.to_string()),
                         None => CompleteReasonEnum::None,
                     };
@@ -122,10 +132,53 @@ fn parse_openai_sse_stream(
                     });
                 }
 
-                let chunk_parts = choice.message.into_core_parts(true)?;
-                for part in chunk_parts.0 {
-                    if let Some(event) = final_parts.merge_chunk(part) {
-                        yield event;
+                // Extract tool calls before converting so we can
+                // route them by OpenAI's stable `index` field.
+                let tool_calls = choice.message.tool_calls.take();
+
+                // Parse the response message into typed OpenAI parts
+                let oai_content = OpenAIContent::from_response_message(choice.message, true)?;
+
+                // Merge non-tool-call parts into final_parts via core merge_chunk
+                for part in oai_content.parts {
+                    match part {
+                        OpenAIPartEnum::FunctionCall(_) => {
+                            // Tool calls handled separately below with index routing
+                        }
+                        other => {
+                            let core_part = PartEnum::from(other);
+                            if let Some(event) = final_parts.merge_chunk(core_part) {
+                                yield event;
+                            }
+                        }
+                    }
+                }
+
+                // Handle tool calls with index-aware merging so that
+                // interleaved chunks (A -> B -> A-cont) are routed correctly.
+                if let Some(tcs) = tool_calls {
+                    for tc in tcs {
+                        let func = match tc.function {
+                            Some(f) => f,
+                            None => continue,
+                        };
+                        let name = func.name.unwrap_or_default();
+                        let args_str = func.arguments.unwrap_or_default();
+                        let arguments = Value::String(args_str);
+                        let fc = FunctionCall {
+                            id: tc.id.map(Into::into),
+                            name,
+                            arguments,
+                        };
+
+                        if let Some(event) = merge_tool_call_chunk(
+                            &mut final_parts,
+                            &mut tool_index_map,
+                            fc,
+                            tc.index,
+                        ) {
+                            yield event;
+                        }
                     }
                 }
             }
@@ -154,4 +207,42 @@ fn parse_openai_sse_stream(
     };
 
     Box::pin(stream)
+}
+
+/// Merge an OpenAI tool-call chunk into `parts` using index-based routing.
+///
+/// When `index` is `Some`, the chunk is routed to the `FunctionCall` at the
+/// position recorded in `tool_index_map` (or a new entry is created).  When
+/// `index` is `None`, the chunk falls through to adjacency-based
+/// `Parts::merge_chunk`.
+fn merge_tool_call_chunk(
+    parts: &mut Parts,
+    tool_index_map: &mut HashMap<usize, usize>,
+    fc: FunctionCall,
+    index: Option<usize>,
+) -> Option<StreamEvent> {
+    if let Some(idx) = index {
+        if let Some(&pos) = tool_index_map.get(&idx) {
+            if let Some(PartEnum::FunctionCall(existing)) = parts.0.get_mut(pos) {
+                match (&mut existing.arguments, &fc.arguments) {
+                    (Value::String(e), Value::String(n)) => e.push_str(n),
+                    _ => existing.arguments = fc.arguments,
+                }
+                if existing.id.is_none() && fc.id.is_some() {
+                    existing.id = fc.id;
+                }
+                if existing.name.is_empty() && !fc.name.is_empty() {
+                    existing.name = fc.name;
+                }
+            }
+            None
+        } else {
+            let pos = parts.0.len();
+            tool_index_map.insert(idx, pos);
+            parts.push(PartEnum::FunctionCall(fc.clone()));
+            Some(StreamEvent::ToolCall(fc))
+        }
+    } else {
+        parts.merge_chunk(PartEnum::FunctionCall(fc))
+    }
 }

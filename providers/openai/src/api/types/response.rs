@@ -2,21 +2,17 @@ use chat_core::{
     error::ChatError,
     types::{
         messages::{
-            content::{CompleteReasonEnum, Content, RoleEnum},
+            content::{CompleteReasonEnum, Content},
             embeddings::Embeddings,
-            file::{File, UrlData},
-            parts::{PartEnum, Parts},
-            reasoning::Reasoning,
-            text::Text,
         },
         metadata::{Metadata, usage::Usage},
         response::{ChatResponse, EmbeddingsResponse},
     },
 };
 use serde::Deserialize;
-use serde_json::Value;
-use std::str::FromStr;
-use tools_rs::FunctionCall;
+
+use super::parts::{OpenAIContent, OpenAIResponseMessage};
+
 // ---------------------------------------------------------------------------
 // Shared response types (used for both streaming and non-streaming)
 // ---------------------------------------------------------------------------
@@ -34,56 +30,8 @@ pub struct OpenAIChoice {
     /// Non-streaming responses use `message`, streaming uses `delta`.
     /// `#[serde(alias)]` lets us deserialize both into the same field.
     #[serde(alias = "delta")]
-    pub message: OpenAIMessage,
+    pub message: OpenAIResponseMessage,
     pub finish_reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct OpenAIMessage {
-    pub role: Option<String>,
-    pub content: Option<OpenAIResponseContent>,
-    pub reasoning_content: Option<String>,
-    pub tool_calls: Option<Vec<OpenAIToolCall>>,
-}
-
-/// OpenAI can return `content` as either a plain string or an array of typed
-/// content blocks (for multimodal responses). This enum handles both via
-/// `#[serde(untagged)]`.
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub enum OpenAIResponseContent {
-    Text(String),
-    Parts(Vec<OpenAIContentPart>),
-}
-
-/// A single typed content block within an OpenAI response content array.
-#[derive(Debug, Deserialize)]
-#[serde(tag = "type")]
-pub enum OpenAIContentPart {
-    #[serde(rename = "text")]
-    Text { text: String },
-    #[serde(rename = "image_url")]
-    ImageUrl { image_url: OpenAIImageUrl },
-}
-
-#[derive(Debug, Deserialize)]
-pub struct OpenAIImageUrl {
-    pub url: String,
-}
-
-/// Tool calls — all fields optional to support streaming continuation chunks
-/// where only `arguments` fragments arrive without `id` or `name`.
-#[derive(Debug, Deserialize)]
-pub struct OpenAIToolCall {
-    pub index: Option<usize>,
-    pub id: Option<String>,
-    pub function: Option<OpenAIToolCallFunction>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct OpenAIToolCallFunction {
-    pub name: Option<String>,
-    pub arguments: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -104,9 +52,9 @@ impl OpenAIResponse {
             .pop()
             .ok_or_else(|| ChatError::InvalidResponse("No choices returned by OpenAI".into()))?;
 
-        let core_parts = choice.message.into_core_parts(false)?;
+        let mut oai_content = OpenAIContent::from_response_message(choice.message, false)?;
 
-        let complete_reason = match choice.finish_reason.as_deref() {
+        oai_content.complete_reason = match choice.finish_reason.as_deref() {
             Some("stop") => CompleteReasonEnum::Stop,
             Some("length") => CompleteReasonEnum::MaxTokens,
             Some("tool_calls") => CompleteReasonEnum::ToolCall,
@@ -129,86 +77,9 @@ impl OpenAIResponse {
         };
 
         Ok(ChatResponse {
-            content: Content {
-                parts: core_parts,
-                role: RoleEnum::Model,
-                complete_reason,
-            },
+            content: Content::from(oai_content),
             metadata: Some(metadata),
         })
-    }
-}
-
-impl OpenAIMessage {
-    /// Convert this message into core `Parts`.
-    ///
-    /// When `streaming` is true, tool-call arguments are kept as
-    /// `Value::String` so `merge_chunk` can concatenate fragments.
-    /// When false, arguments are parsed into proper JSON.
-    pub fn into_core_parts(self, streaming: bool) -> Result<Parts, ChatError> {
-        let mut parts = Parts::default();
-
-        // Reasoning first (mirrors Gemini's thought-before-text ordering)
-        if let Some(reasoning) = self.reasoning_content {
-            parts.push(PartEnum::Reasoning(Reasoning::new(reasoning)));
-        }
-
-        if let Some(content) = self.content {
-            match content {
-                OpenAIResponseContent::Text(text) => {
-                    parts.push(PartEnum::Text(Text::new(&text)));
-                }
-                OpenAIResponseContent::Parts(content_parts) => {
-                    for part in content_parts {
-                        parts.push(part.into_core()?);
-                    }
-                }
-            }
-        }
-
-        if let Some(tool_calls) = self.tool_calls {
-            for tc in tool_calls {
-                if let Some(func) = tc.function {
-                    let name = func.name.ok_or_else(|| {
-                        ChatError::InvalidResponse("Missing tool call function name".into())
-                    })?;
-                    let args_str = func.arguments.ok_or_else(|| {
-                        ChatError::InvalidResponse("Missing tool call arguments".into())
-                    })?;
-
-                    let arguments = if streaming {
-                        Value::String(args_str)
-                    } else {
-                        serde_json::from_str(&args_str).map_err(|e| {
-                            ChatError::InvalidResponse(format!(
-                                "Invalid tool-call arguments JSON: {e}"
-                            ))
-                        })?
-                    };
-
-                    parts.push(PartEnum::FunctionCall(FunctionCall {
-                        id: tc.id.map(Into::into),
-                        name,
-                        arguments,
-                    }));
-                }
-            }
-        }
-
-        Ok(parts)
-    }
-}
-
-impl OpenAIContentPart {
-    pub fn into_core(self) -> Result<PartEnum, ChatError> {
-        match self {
-            Self::Text { text } => Ok(PartEnum::Text(Text::new(&text))),
-            Self::ImageUrl { image_url } => {
-                let url_data = UrlData::from_str(&image_url.url)
-                    .map_err(|e| ChatError::InvalidResponse(format!("Invalid image URL: {e}")))?;
-                Ok(PartEnum::File(File::Url(url_data)))
-            }
-        }
     }
 }
 
