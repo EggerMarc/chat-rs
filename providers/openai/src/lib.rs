@@ -74,8 +74,6 @@ impl<M, U, C> OpenAIBuilder<M, U, C> {
     }
 }
 
-// --- Endpoint transitions (available from BaseConfig and CompletionConfig, not EmbeddingConfig) ---
-
 impl<M, C> OpenAIBuilder<M, BaseEndpoint, C> {
     pub fn with_custom_url(self, base_url: String) -> OpenAIBuilder<M, CustomEndpoint, C> {
         OpenAIBuilder {
@@ -90,8 +88,6 @@ impl<M, C> OpenAIBuilder<M, BaseEndpoint, C> {
         }
     }
 }
-
-// --- BaseConfig: can transition to CompletionConfig or EmbeddingConfig ---
 
 impl<M> OpenAIBuilder<M, BaseEndpoint, BaseConfig> {
     fn into_completion(self) -> OpenAIBuilder<M, BaseEndpoint, CompletionConfig> {
@@ -155,8 +151,6 @@ impl<M> OpenAIBuilder<M, CustomEndpoint, BaseConfig> {
     }
 }
 
-// --- CompletionConfig: completion-specific methods ---
-
 impl<M> OpenAIBuilder<M, BaseEndpoint, CompletionConfig> {
     pub fn with_reasoning_effort(mut self, effort: &str) -> Self {
         self.reasoning_effort = Some(effort.to_string());
@@ -201,8 +195,6 @@ impl<M> OpenAIBuilder<M, CustomEndpoint, CompletionConfig> {
     }
 }
 
-// --- EmbeddingConfig: embedding-specific methods ---
-
 impl<M, U> OpenAIBuilder<M, U, BaseConfig> {
     fn into_embedding(self) -> OpenAIBuilder<M, U, EmbeddingConfig> {
         OpenAIBuilder {
@@ -221,8 +213,6 @@ impl<M, U> OpenAIBuilder<M, U, BaseConfig> {
         self.into_embedding()
     }
 }
-
-// --- Build ---
 
 impl<U, C> OpenAIBuilder<WithModel, U, C> {
     pub fn build(self) -> OpenAIClient {

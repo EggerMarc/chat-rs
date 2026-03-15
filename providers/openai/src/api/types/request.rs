@@ -75,9 +75,8 @@ pub struct OpenAIRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop: Option<Vec<String>>,
 
-    // NEW: The reasoning effort from our builder!
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning_effort: Option<String>,
+    pub reasoning: Option<OpenAIReasoning>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Value>>,
@@ -86,6 +85,14 @@ pub struct OpenAIRequest {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OpenAIReasoning {
+    pub effort: String,
+    /// Controls whether reasoning tokens are returned in the response.
+    /// Must be set to "auto", "concise", or "detailed" to see reasoning_content.
+    pub summary: String,
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -113,7 +120,10 @@ impl OpenAIRequest {
     ) -> Result<Self, ChatError> {
         let mut req = Self {
             model: model_name.to_string(),
-            reasoning_effort,
+            reasoning: reasoning_effort.map(|effort| OpenAIReasoning {
+                effort,
+                summary: "auto".to_string(),
+            }),
             ..Default::default()
         };
 

@@ -441,13 +441,26 @@ impl Parts {
             }
             PartEnum::FunctionCall(new_fc) => {
                 if let Some(PartEnum::FunctionCall(last_fc)) = self.0.last_mut() {
-                    let same_call = last_fc.name == new_fc.name
-                        && match (&last_fc.id, &new_fc.id) {
-                            (Some(last_id), Some(new_id)) => last_id == new_id,
-                            _ => true,
-                        };
+                    // A continuation chunk has an empty name and no id — it
+                    // carries only an argument fragment for the previous call.
+                    let is_continuation = new_fc.name.is_empty() && new_fc.id.is_none();
+                    let same_call = is_continuation
+                        || (last_fc.name == new_fc.name
+                            && match (&last_fc.id, &new_fc.id) {
+                                (Some(last_id), Some(new_id)) => last_id == new_id,
+                                _ => true,
+                            });
                     if same_call {
-                        last_fc.arguments = new_fc.arguments.clone();
+                        // Concatenate argument string fragments rather than
+                        // replacing, since streaming delivers them in pieces.
+                        match (&mut last_fc.arguments, &new_fc.arguments) {
+                            (serde_json::Value::String(existing), serde_json::Value::String(new_str)) => {
+                                existing.push_str(new_str);
+                            }
+                            _ => {
+                                last_fc.arguments = new_fc.arguments.clone();
+                            }
+                        }
                         if last_fc.id.is_none() && new_fc.id.is_some() {
                             last_fc.id = new_fc.id.clone();
                         }

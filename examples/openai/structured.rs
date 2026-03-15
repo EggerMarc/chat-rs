@@ -24,6 +24,8 @@ struct User {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+
     let client = OpenAIBuilder::new()
         .with_model("gpt-4o-mini")
         .build();

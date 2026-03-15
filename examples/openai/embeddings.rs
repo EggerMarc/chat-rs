@@ -6,6 +6,8 @@ use chat_rs::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+
     let client = OpenAIBuilder::new()
         .with_model("text-embedding-3-small")
         .with_embeddings()

@@ -20,12 +20,11 @@ pub async fn handle_openai_error(res: Response) -> Result<Response, ChatFailure>
     if status.is_success() {
         return Ok(res);
     }
+    let err_text = res.text().await.unwrap_or_default();
 
     if status.as_u16() == 429 {
         return Err(ChatFailure::from_err(ChatError::RateLimited));
     }
-
-    let err_text = res.text().await.unwrap_or_default();
 
     if let Ok(openai_err) = serde_json::from_str::<OpenAIErrorResponse>(&err_text) {
         let error_msg = format!(

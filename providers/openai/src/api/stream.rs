@@ -9,19 +9,16 @@ use chat_core::{
         messages::{
             Messages,
             content::{CompleteReasonEnum, Content, RoleEnum},
-            parts::Parts,
+            parts::{PartEnum, Parts},
         },
+        metadata::usage::Usage,
         options::ChatOptions,
         response::{ChatResponse, SseParser, StreamEvent},
     },
 };
 
 use crate::{
-    api::types::{
-        error::handle_openai_error,
-        request::OpenAIRequest,
-        response::OpenAIStreamChunk,
-    },
+    api::types::{error::handle_openai_error, request::OpenAIRequest, response::OpenAIResponse},
     client::OpenAIClient,
 };
 
@@ -47,7 +44,6 @@ impl StreamProvider for OpenAIClient {
 
         // Enable streaming
         request_body.stream = Some(true);
-
         let res = self
             .http_client
             .post(&url)
@@ -87,21 +83,60 @@ fn parse_openai_sse_stream(
                     continue;
                 }
 
-                let oai_chunk = serde_json::from_str::<OpenAIStreamChunk>(&json_str)
+                // Reuse the same OpenAIResponse type — streaming chunks have
+                // "delta" instead of "message", handled by #[serde(alias)].
+                let mut oai_resp = serde_json::from_str::<OpenAIResponse>(&json_str)
                     .map_err(|e| {
                         ChatError::InvalidResponse(format!("Failed to parse OpenAI SSE chunk: {e}"))
                     })?;
-                let core_resp = oai_chunk.into_core_chat_response()?;
-                if core_resp.content.complete_reason != CompleteReasonEnum::None {
-                    final_reason = core_resp.content.complete_reason;
+
+                let choice = match oai_resp.choices.pop() {
+                    Some(c) => c,
+                    None => continue,
+                };
+
+                if choice.finish_reason.as_deref().is_some() {
+                    let reason = match choice.finish_reason.as_deref() {
+                        Some("stop") => CompleteReasonEnum::Stop,
+                        Some("length") => CompleteReasonEnum::MaxTokens,
+                        Some("tool_calls") => CompleteReasonEnum::Stop,
+                        Some(other) => CompleteReasonEnum::Other(other.to_string()),
+                        None => CompleteReasonEnum::None,
+                    };
+                    final_reason = reason;
                 }
-                if core_resp.metadata.is_some() {
-                    final_metadata = core_resp.metadata;
+
+                if oai_resp.usage.is_some() || oai_resp.id.is_some() || oai_resp.model.is_some() {
+                    final_metadata = Some(chat_core::types::metadata::Metadata {
+                        id: oai_resp.id,
+                        model_slug: oai_resp.model,
+                        usage: oai_resp
+                            .usage
+                            .map(|u| Usage{
+                                input_tokens: u.prompt_tokens.unwrap_or(0),
+                                output_tokens: u.completion_tokens.unwrap_or(0),
+                                total_tokens: u.total_tokens.unwrap_or(0),
+                            })
+                            .unwrap_or_default(),
+                        ..Default::default()
+                    });
                 }
-                for part in core_resp.content.parts.0 {
+
+                let chunk_parts = choice.message.into_core_parts(true)?;
+                for part in chunk_parts.0 {
                     if let Some(event) = final_parts.merge_chunk(part) {
                         yield event;
                     }
+                }
+            }
+        }
+
+        // After streaming, parse accumulated argument string fragments
+        // into proper JSON values for each FunctionCall.
+        for part in &mut final_parts.0 {
+            if let PartEnum::FunctionCall(fc) = part {
+                if let serde_json::Value::String(ref s) = fc.arguments {
+                    fc.arguments = serde_json::from_str(s).unwrap_or_else(|_| serde_json::json!({}));
                 }
             }
         }
