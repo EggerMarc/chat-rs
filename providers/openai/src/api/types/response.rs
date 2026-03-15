@@ -109,7 +109,7 @@ impl OpenAIResponse {
         let complete_reason = match choice.finish_reason.as_deref() {
             Some("stop") => CompleteReasonEnum::Stop,
             Some("length") => CompleteReasonEnum::MaxTokens,
-            Some("tool_calls") => CompleteReasonEnum::Stop,
+            Some("tool_calls") => CompleteReasonEnum::ToolCall,
             Some(other) => CompleteReasonEnum::Other(other.to_string()),
             None => CompleteReasonEnum::None,
         };
@@ -197,9 +197,8 @@ impl OpenAIContentPart {
         match self {
             Self::Text { text } => Ok(PartEnum::Text(Text::new(&text))),
             Self::ImageUrl { image_url } => {
-                let url_data = UrlData::from_str(&image_url.url).map_err(|e| {
-                    ChatError::InvalidResponse(format!("Invalid image URL: {e}"))
-                })?;
+                let url_data = UrlData::from_str(&image_url.url)
+                    .map_err(|e| ChatError::InvalidResponse(format!("Invalid image URL: {e}")))?;
                 Ok(PartEnum::File(File::Url(url_data)))
             }
         }
