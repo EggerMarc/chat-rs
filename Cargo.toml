@@ -3,7 +3,8 @@
 resolver = "2"
 members = [
     "core",
-    "providers/gemini"
+    "providers/gemini",
+    "providers/openai"
 ]
 
 [workspace.package]
@@ -134,4 +135,19 @@ required-features = ["gemini", "stream"]
 [[example]]
 name = "openai-completion"
 path = "./examples/openai/completions.rs"
+required-features = ["openai"]
+
+[[example]]
+name = "openai-stream"
+path = "./examples/openai/stream.rs"
+required-features = ["openai", "stream"]
+
+[[example]]
+name = "openai-embeddings"
+path = "./examples/openai/embeddings.rs"
+required-features = ["openai"]
+
+[[example]]
+name = "openai-structured"
+path = "./examples/openai/structured.rs"
 required-features = ["openai"]
