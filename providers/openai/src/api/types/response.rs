@@ -14,9 +14,9 @@ use chat_core::{
     },
 };
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::Value;
+use std::str::FromStr;
 use tools_rs::FunctionCall;
-
 // ---------------------------------------------------------------------------
 // Shared response types (used for both streaming and non-streaming)
 // ---------------------------------------------------------------------------
@@ -169,14 +169,21 @@ impl OpenAIMessage {
         if let Some(tool_calls) = self.tool_calls {
             for tc in tool_calls {
                 if let Some(func) = tc.function {
-                    let name = func.name.unwrap_or_default();
-                    let args_str = func.arguments.unwrap_or_default();
+                    let name = func.name.ok_or_else(|| {
+                        ChatError::InvalidResponse("Missing tool call function name".into())
+                    })?;
+                    let args_str = func.arguments.ok_or_else(|| {
+                        ChatError::InvalidResponse("Missing tool call arguments".into())
+                    })?;
 
                     let arguments = if streaming {
-                        // Keep as string for merge_chunk concatenation
                         Value::String(args_str)
                     } else {
-                        serde_json::from_str(&args_str).unwrap_or_else(|_| json!({}))
+                        serde_json::from_str(&args_str).map_err(|e| {
+                            ChatError::InvalidResponse(format!(
+                                "Invalid tool-call arguments JSON: {e}"
+                            ))
+                        })?
                     };
 
                     parts.push(PartEnum::FunctionCall(FunctionCall {
@@ -204,8 +211,6 @@ impl OpenAIContentPart {
         }
     }
 }
-
-use std::str::FromStr;
 
 // ---------------------------------------------------------------------------
 // Embedding response types
