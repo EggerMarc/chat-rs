@@ -17,7 +17,7 @@ impl CompletionProvider for OpenAIClient {
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
-        let url = format!("{}/chat/completions", self.base_url);
+        let url = format!("{}/chat/responses", self.base_url);
 
         let request_body = OpenAIRequest::from_core(
             &self.model_name,

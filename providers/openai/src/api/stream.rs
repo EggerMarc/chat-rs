@@ -38,7 +38,7 @@ impl StreamProvider for OpenAIClient {
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
-        let url = format!("{}/chat/completions", self.base_url);
+        let url = format!("{}/chat/responses", self.base_url);
 
         let mut request_body = OpenAIRequest::from_core(
             &self.model_name,
@@ -187,10 +187,8 @@ fn parse_openai_sse_stream(
         // After streaming, parse accumulated argument string fragments
         // into proper JSON values for each FunctionCall.
         for part in &mut final_parts.0 {
-            if let PartEnum::FunctionCall(fc) = part {
-                if let serde_json::Value::String(ref s) = fc.arguments {
+            if let PartEnum::FunctionCall(fc) = part && let serde_json::Value::String(ref s) = fc.arguments {
                     fc.arguments = serde_json::from_str(s).unwrap_or_else(|_| serde_json::json!({}));
-                }
             }
         }
 

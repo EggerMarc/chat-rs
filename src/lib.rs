@@ -61,4 +61,3 @@ pub mod prelude {
     #[cfg(feature = "openai")]
     pub use crate::openai;
 }
-
