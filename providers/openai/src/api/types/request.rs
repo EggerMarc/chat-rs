@@ -12,6 +12,55 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tools_rs::ToolCollection;
 
+#[derive(Debug, Serialize)]
+pub struct OpenAIEmbeddingRequest {
+    pub model: String,
+    pub input: Value,
+}
+
+impl OpenAIEmbeddingRequest {
+    pub fn from_core(model_name: &str, messages: &Messages) -> Result<Self, ChatError> {
+        let last_content = messages
+            .0
+            .last()
+            .ok_or_else(|| ChatError::InvalidResponse("Sent empty content to embed".to_string()))?;
+
+        let mut parts = Vec::new();
+        for part in &last_content.parts.0 {
+            match part {
+                PartEnum::Text(t) => parts.push(json!(t.0)),
+                PartEnum::Reasoning(r) => parts.push(json!(r.text)),
+                PartEnum::File(File::Bytes(b)) => {
+                    let b64 = STANDARD.encode(&b.bytes);
+                    let uri = format!("data:{};base64,{}", b.mimetype, b64);
+                    parts.push(json!(uri));
+                }
+                PartEnum::File(File::Url(u)) => {
+                    parts.push(json!(u.url.to_string()));
+                }
+                _ => {}
+            }
+        }
+
+        if parts.is_empty() {
+            return Err(ChatError::InvalidResponse(
+                "Sent empty content to embed".to_string(),
+            ));
+        }
+
+        let input = if parts.len() == 1 {
+            parts.pop().unwrap()
+        } else {
+            Value::Array(parts)
+        };
+
+        Ok(Self {
+            model: model_name.to_string(),
+            input,
+        })
+    }
+}
+
 #[derive(Debug, Serialize, Default)]
 pub struct OpenAIRequest {
     pub model: String,
@@ -34,6 +83,9 @@ pub struct OpenAIRequest {
     pub tools: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub response_format: Option<Value>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Default)]

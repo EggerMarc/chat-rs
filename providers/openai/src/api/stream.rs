@@ -18,52 +18,54 @@ use chat_core::{
 
 use crate::{
     api::types::{
-        error::handle_gemini_error, request::GeminiRequest, response::GeminiCompletionResponse,
+        error::handle_openai_error,
+        request::OpenAIRequest,
+        response::OpenAIStreamChunk,
     },
-    client::GeminiClient,
+    client::OpenAIClient,
 };
 
 #[async_trait::async_trait]
-impl StreamProvider for GeminiClient {
+impl StreamProvider for OpenAIClient {
     async fn stream(
         &self,
         messages: &mut Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:streamGenerateContent?alt=sse",
-            self.model_name
-        );
+        let url = format!("{}/chat/completions", self.base_url);
 
-        let request_body = GeminiRequest::from_core(
+        let mut request_body = OpenAIRequest::from_core(
+            &self.model_name,
             messages,
             tools,
-            Some(self.native_tools.as_slice()),
-            self.function_config.as_ref(),
+            self.native_tools.as_slice(),
+            self.reasoning_effort.clone(),
             options,
             None,
-            self.include_thoughts,
         )?;
+
+        // Enable streaming
+        request_body.stream = Some(true);
 
         let res = self
             .http_client
             .post(&url)
-            .header("x-goog-api-key", &self.api_key)
+            .header("Authorization", format!("Bearer {}", &self.api_key))
             .json(&request_body)
             .send()
             .await
             .map_err(|e| ChatError::Network(e.to_string()))?;
 
-        let res = handle_gemini_error(res)
+        let res = handle_openai_error(res)
             .await
             .map_err(|failure| failure.err)?;
 
-        Ok(parse_gemini_sse_stream(res))
+        Ok(parse_openai_sse_stream(res))
     }
 }
 
-fn parse_gemini_sse_stream(
+fn parse_openai_sse_stream(
     res: reqwest::Response,
 ) -> BoxStream<'static, Result<StreamEvent, ChatError>> {
     let stream = try_stream! {
@@ -80,11 +82,16 @@ fn parse_gemini_sse_stream(
             sse_parser.push(&chunk);
 
             while let Some(json_str) = sse_parser.next_event() {
-                let gemini_chunk = serde_json::from_str::<GeminiCompletionResponse>(&json_str)
+                // OpenAI signals end-of-stream with [DONE]
+                if json_str.trim() == "[DONE]" {
+                    continue;
+                }
+
+                let oai_chunk = serde_json::from_str::<OpenAIStreamChunk>(&json_str)
                     .map_err(|e| {
-                        ChatError::InvalidResponse(format!("Failed to parse Gemini SSE chunk: {e}"))
+                        ChatError::InvalidResponse(format!("Failed to parse OpenAI SSE chunk: {e}"))
                     })?;
-                let core_resp = gemini_chunk.into_core_chat_response()?;
+                let core_resp = oai_chunk.into_core_chat_response()?;
                 if core_resp.content.complete_reason != CompleteReasonEnum::None {
                     final_reason = core_resp.content.complete_reason;
                 }

@@ -1,6 +1,6 @@
 pub(crate) mod completion;
-//mod embedding;
+mod embedding;
 
-//#[cfg(feature = "stream")]
-//mod stream;
+#[cfg(feature = "stream")]
+mod stream;
 pub(crate) mod types;
