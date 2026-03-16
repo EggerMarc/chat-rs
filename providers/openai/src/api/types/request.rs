@@ -3,7 +3,12 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chat_core::{
     error::ChatError,
     types::{
-        messages::{Messages, file::File, parts::PartEnum},
+        messages::{
+            Messages,
+            content::{Content, RoleEnum},
+            file::File,
+            parts::PartEnum,
+        },
         options::ChatOptions,
     },
 };
@@ -11,8 +16,6 @@ use schemars::Schema;
 use serde::Serialize;
 use serde_json::{Value, json};
 use tools_rs::ToolCollection;
-
-use super::parts::{OpenAIContent, OpenAIWireMessage};
 
 #[derive(Debug, Serialize)]
 pub struct OpenAIEmbeddingRequest {
@@ -63,41 +66,49 @@ impl OpenAIEmbeddingRequest {
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct OpenAIReasoning {
+    pub effort: String,
+    pub summary: String,
+}
+
 #[derive(Debug, Serialize, Default)]
-pub struct OpenAIRequest {
+pub struct OpenAIResponsesRequest {
     pub model: String,
-    pub messages: Vec<OpenAIWireMessage>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<Vec<Value>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_completion_tokens: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stop: Option<Vec<String>>,
+    pub max_output_tokens: Option<u32>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<OpenAIReasoning>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Value>>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub response_format: Option<Value>,
+    pub text: Option<Value>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_response_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub store: Option<bool>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct OpenAIReasoning {
-    pub effort: String,
-    /// Controls whether reasoning tokens are returned in the response.
-    /// Must be set to "auto", "concise", or "detailed" to see reasoning_content.
-    pub summary: String,
-}
-
-impl OpenAIRequest {
+impl OpenAIResponsesRequest {
     pub fn from_core(
         model_name: &str,
         messages: &Messages,
@@ -106,6 +117,7 @@ impl OpenAIRequest {
         reasoning_effort: Option<String>,
         options: Option<&ChatOptions>,
         output_shape: Option<&Schema>,
+        previous_response_id: Option<String>,
     ) -> Result<Self, ChatError> {
         let mut req = Self {
             model: model_name.to_string(),
@@ -113,19 +125,20 @@ impl OpenAIRequest {
                 effort,
                 summary: "auto".to_string(),
             }),
+            store: Some(true),
             ..Default::default()
         };
 
         if let Some(opts) = options {
             req.temperature = opts.temperature;
             req.top_p = opts.top_p;
-            req.max_completion_tokens = opts.max_tokens;
+            req.max_output_tokens = opts.max_tokens;
         }
 
         if let Some(schema) = output_shape {
-            req.response_format = Some(json!({
-                "type": "json_schema",
-                "json_schema": {
+            req.text = Some(json!({
+                "format": {
+                    "type": "json_schema",
                     "name": "structured_output",
                     "strict": false,
                     "schema": schema
@@ -133,18 +146,15 @@ impl OpenAIRequest {
             }));
         }
 
+        // Build tools list
         let mut tools_list = Vec::new();
         if let Some(ct) = custom_tools {
-            let decls_value = ct.json().map_err(|e| ChatError::Other(e.to_string()))?;
-
-            if let serde_json::Value::Array(declarations) = decls_value {
-                for declaration in declarations {
-                    tools_list.push(json!({ "type": "function", "function": declaration }));
+            let declarations = ct.json().map_err(|e| ChatError::Other(e.to_string()))?;
+            if let Value::Array(funcs) = declarations {
+                for mut func in funcs {
+                    func["type"] = json!("function");
+                    tools_list.push(func);
                 }
-            } else {
-                return Err(ChatError::Other(
-                    "Expected tools-rs to output a JSON array".to_string(),
-                ));
             }
         }
         for tool in native_tools {
@@ -154,14 +164,109 @@ impl OpenAIRequest {
             req.tools = Some(tools_list);
         }
 
-        // Convert each core Content into OpenAIContent, then serialize to wire messages.
-        let mut oai_messages = Vec::new();
-        for content in &messages.0 {
-            let oai_content = OpenAIContent::from(content);
-            oai_messages.extend(oai_content.to_wire_messages());
+        // Build input items
+        if let Some(prev_id) = previous_response_id {
+            req.previous_response_id = Some(prev_id);
+
+            // Only send messages after the last model response
+            let tail_start = messages
+                .0
+                .iter()
+                .rposition(|c| c.role == RoleEnum::Model)
+                .map(|i| i + 1)
+                .unwrap_or(0);
+
+            let mut input = Vec::new();
+            for content in &messages.0[tail_start..] {
+                content_to_input_items(content, &mut input);
+            }
+            req.input = Some(input);
+        } else {
+            let mut input = Vec::new();
+            let mut instructions = Vec::new();
+
+            for content in &messages.0 {
+                if content.role == RoleEnum::System {
+                    for part in &content.parts.0 {
+                        if let PartEnum::Text(t) = part {
+                            instructions.push(t.0.clone());
+                        }
+                    }
+                } else {
+                    content_to_input_items(content, &mut input);
+                }
+            }
+
+            if !instructions.is_empty() {
+                req.instructions = Some(instructions.join("\n"));
+            }
+            req.input = Some(input);
         }
-        req.messages = oai_messages;
 
         Ok(req)
+    }
+}
+
+fn content_to_input_items(content: &Content, items: &mut Vec<Value>) {
+    let role = match content.role {
+        RoleEnum::User => "user",
+        RoleEnum::Model => "assistant",
+        RoleEnum::System => "system",
+    };
+
+    let mut message_parts: Vec<Value> = Vec::new();
+
+    for part in &content.parts.0 {
+        match part {
+            PartEnum::Text(t) => {
+                let part_type = if role == "assistant" { "output_text" } else { "input_text" };
+                message_parts.push(json!({ "type": part_type, "text": t.0 }));
+            }
+            PartEnum::Reasoning(r) => {
+                message_parts.push(json!({ "type": "input_text", "text": r.text }));
+            }
+            PartEnum::FunctionCall(fc) => {
+                items.push(json!({
+                    "type": "function_call",
+                    "call_id": fc.id.clone().map(String::from).unwrap_or_default(),
+                    "name": fc.name,
+                    "arguments": serde_json::to_string(&fc.arguments).unwrap_or_default(),
+                }));
+            }
+            PartEnum::FunctionResponse(fr) => {
+                let output = if fr.result.is_string() {
+                    fr.result.as_str().unwrap().to_string()
+                } else {
+                    fr.result.to_string()
+                };
+                items.push(json!({
+                    "type": "function_call_output",
+                    "call_id": fr.id.clone().map(String::from).unwrap_or_default(),
+                    "output": output,
+                }));
+            }
+            PartEnum::File(File::Url(u)) => {
+                message_parts.push(json!({
+                    "type": "input_image",
+                    "image_url": u.url.to_string(),
+                }));
+            }
+            PartEnum::File(File::Bytes(b)) => {
+                let b64 = STANDARD.encode(&b.bytes);
+                let uri = format!("data:{};base64,{}", b.mimetype, b64);
+                message_parts.push(json!({
+                    "type": "input_image",
+                    "image_url": uri,
+                }));
+            }
+            PartEnum::Structured(_) | PartEnum::Embeddings(_) => {}
+        }
+    }
+
+    if !message_parts.is_empty() {
+        items.push(json!({
+            "role": role,
+            "content": message_parts,
+        }));
     }
 }

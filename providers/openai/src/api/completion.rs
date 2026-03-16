@@ -1,5 +1,5 @@
-use crate::api::types::request::OpenAIRequest;
-use crate::api::types::response::OpenAIResponse;
+use crate::api::types::request::OpenAIResponsesRequest;
+use crate::api::types::response::ResponsesApiResponse;
 use crate::client::OpenAIClient;
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::traits::CompletionProvider;
@@ -17,9 +17,15 @@ impl CompletionProvider for OpenAIClient {
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
-        let url = format!("{}/chat/completions", self.base_url);
+        let url = format!("{}/responses", self.base_url);
 
-        let request_body = OpenAIRequest::from_core(
+        let previous_response_id = if self.use_previous_response_id {
+            self.last_response_id.clone()
+        } else {
+            None
+        };
+
+        let request_body = OpenAIResponsesRequest::from_core(
             &self.model_name,
             messages,
             tools,
@@ -27,6 +33,7 @@ impl CompletionProvider for OpenAIClient {
             self.reasoning_effort.clone(),
             options,
             structured_output,
+            previous_response_id,
         )
         .map_err(ChatFailure::from_err)?;
 
@@ -42,13 +49,14 @@ impl CompletionProvider for OpenAIClient {
             .error_for_status()
             .map_err(|e| ChatFailure::from_err(ChatError::Provider(e.to_string())))?;
 
-        let oai_data: OpenAIResponse = res
+        let oai_data: ResponsesApiResponse = res
             .json()
             .await
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
         oai_data
             .into_core_chat_response()
+            .map(|(response, _response_id)| response)
             .map_err(ChatFailure::from_err)
     }
 }

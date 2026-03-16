@@ -32,11 +32,9 @@ impl OpenAINativeTool for WebSearchTool {
 
     fn to_tool_declaration(&self) -> Value {
         json!({
-            "type": "web_search",
-            "web_search": {
-                "context_size": self.context_size,
-                "user_location": self.user_location
-            }
+            "type": "web_search_preview",
+            "search_context_size": self.context_size,
+            "user_location": self.user_location
         })
     }
 

@@ -7,4 +7,6 @@ pub struct OpenAIClient {
     pub(crate) native_tools: Vec<Box<dyn OpenAINativeTool>>,
     pub(crate) http_client: reqwest::Client,
     pub(crate) reasoning_effort: Option<String>,
+    pub(crate) use_previous_response_id: bool,
+    pub(crate) last_response_id: Option<String>,
 }
