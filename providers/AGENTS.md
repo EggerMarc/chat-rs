@@ -7,6 +7,7 @@ All provider crates live under `providers/`. Each implements the core traits (`C
 | Crate | Directory | API Key Env Var | API Style |
 |---|---|---|---|
 | `chat-gemini` | `providers/gemini` | `GEMINI_API_KEY` | Gemini `generateContent` / `embedContent` |
+| `chat-claude` | `providers/claude` | `CLAUDE_API_KEY` | Anthropic Messages API (`/v1/messages`) |
 | `chat-openai` | `providers/openai` | `OPENAI_API_KEY` | OpenAI Responses API (`/v1/responses`) |
 
 ## Common Architecture

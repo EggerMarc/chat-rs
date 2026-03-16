@@ -1,0 +1,32 @@
+[package]
+name = "chat-claude"
+version = "0.0.1"
+description = "Provider implementation of Claude for chat-rs"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+chat-core = { path = "../../core", version = "0.0.3" }
+async-trait.workspace = true
+reqwest = { workspace = true, features = ["json", "stream"] }
+serde.workspace = true
+serde_json.workspace = true
+tools-rs.workspace = true
+schemars.workspace = true
+base64 = "0.22.1"
+
+[dev-dependencies]
+tokio.workspace = true
+
+[features]
+default = []
+stream = ["chat-core/stream", "dep:futures", "dep:async-stream"]
+
+[dependencies.futures]
+workspace = true
+optional = true
+
+[dependencies.async-stream]
+workspace = true
+optional = true

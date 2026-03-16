@@ -7,7 +7,7 @@ A multi-provider LLM framework for Rust. Build type-safe chat clients with tool 
 
 ## Features
 
-- **Multi-provider** — Gemini and OpenAI today, more coming (see [Roadmap](ROADMAP.md))
+- **Multi-provider** — Gemini, Claude, and OpenAI today, more coming (see [Roadmap](ROADMAP.md))
 - **Type-safe builder** — compile-time enforcement of valid configurations via type-state pattern
 - **Tool calling** — define tools with `#[tool]`, the framework handles the call loop automatically
 - **Structured output** — deserialize model responses directly into your Rust types via `schemars`
@@ -42,22 +42,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 ```
 
-Set your API key via environment variable (`OPENAI_API_KEY` or `GEMINI_API_KEY`), or pass it explicitly with `.with_api_key()`.
+Set your API key via environment variable (`OPENAI_API_KEY`, `GEMINI_API_KEY`, or `CLAUDE_API_KEY`), or pass it explicitly with `.with_api_key()`.
 
 ## Providers
 
 Enable providers via feature flags:
 
 ```toml
-# Pick one or both
+# Pick one or more
 chat-rs = { version = "0.0.9", features = ["gemini"] }
+chat-rs = { version = "0.0.9", features = ["claude"] }
 chat-rs = { version = "0.0.9", features = ["openai"] }
-chat-rs = { version = "0.0.9", features = ["gemini", "openai", "stream"] }
+chat-rs = { version = "0.0.9", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
 | Provider | Feature | API Key Env Var | Builder |
 |---|---|---|---|
 | Google Gemini | `gemini` | `GEMINI_API_KEY` | `GeminiBuilder` |
+| Anthropic Claude | `claude` | `CLAUDE_API_KEY` | `ClaudeBuilder` |
 | OpenAI | `openai` | `OPENAI_API_KEY` | `OpenAIBuilder` |
 
 Swapping providers is a one-line change — replace the builder, everything else stays the same:
@@ -66,6 +68,11 @@ Swapping providers is a one-line change — replace the builder, everything else
 // Gemini
 let client = GeminiBuilder::new()
     .with_model("gemini-2.5-flash".to_string())
+    .build();
+
+// Claude
+let client = ClaudeBuilder::new()
+    .with_model("claude-sonnet-4-20250514".to_string())
     .build();
 
 // OpenAI
@@ -140,7 +147,7 @@ println!("Name: {}, Likes: {:?}", response.content.name, response.content.likes)
 
 ## Streaming
 
-Enable the `stream` feature flag and use `.with_streamed_response()`:
+Enable the `stream` feature flag:
 
 ```toml
 chat-rs = { version = "0.0.9", features = ["gemini", "stream"] }
@@ -152,7 +159,6 @@ use futures::StreamExt;
 
 let mut chat = ChatBuilder::new()
     .with_model(client)
-    .with_streamed_response()
     .build();
 
 let mut stream = chat.stream(&mut messages).await?;
@@ -225,9 +231,11 @@ chat-rs (root)              ← Re-exports + feature flags
 ├── core/                   ← Traits, types, Chat engine, builder
 ├── providers/
 │   ├── gemini/             ← Google Gemini provider
+│   ├── claude/             ← Anthropic Claude provider
 │   └── openai/             ← OpenAI Responses API provider
 └── examples/
     ├── gemini/             ← Gemini examples
+    ├── claude/             ← Claude examples
     └── openai/             ← OpenAI examples
 ```
 
@@ -246,6 +254,10 @@ cargo run --example gemini-embeddings --features gemini
 cargo run --example gemini-code-execution --features gemini
 cargo run --example gemini-google-maps --features gemini
 cargo run --example gemini-image-understanding --features gemini
+
+# Claude
+cargo run --example claude-completion --features claude
+cargo run --example claude-stream --features claude,stream
 
 # OpenAI
 cargo run --example openai-completion --features openai

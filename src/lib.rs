@@ -37,6 +37,11 @@ pub mod gemini {
 }
 
 
+#[cfg(feature = "claude")]
+pub mod claude {
+    pub use chat_claude::*;
+}
+
 #[cfg(feature = "openai")]
 pub mod openai {
     pub use chat_openai::*;
@@ -51,6 +56,9 @@ pub mod prelude {
 
     #[cfg(feature = "gemini")]
     pub use crate::gemini;
+
+    #[cfg(feature = "claude")]
+    pub use crate::claude;
 
     #[cfg(feature = "openai")]
     pub use crate::openai;

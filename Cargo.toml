@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "core",
     "providers/gemini",
+    "providers/claude",
     "providers/openai"
 ]
 
@@ -51,6 +52,7 @@ path = "src/lib.rs"
 chat-core   = { path = "core", version = "0.0.3"}
 chat-gemini = { path = "providers/gemini", optional = true, version = "0.0.2"}
 chat-openai = { path = "providers/openai", optional = true, version = "0.0.2"}
+chat-claude = { path = "providers/claude", optional = true }
 tokio.workspace = true
 schemars.workspace = true
 serde.workspace = true
@@ -71,16 +73,17 @@ serde.workspace = true
 serde_json.workspace = true
 inventory.workspace    = true
 tools-rs.workspace = true
-tools_core.workspace = true 
-tools_macros.workspace = true 
+tools_core.workspace = true
+tools_macros.workspace = true
 tokio.workspace = true
-futures.workspace = true 
+futures.workspace = true
 
 [features]
 default = []
 gemini = ["dep:chat-gemini"]
+claude = ["dep:chat-claude"]
 openai = ["dep:chat-openai"]
-stream = ["chat-core/stream", "chat-gemini?/stream", "chat-openai?/stream"]
+stream = ["chat-core/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream"]
 
 
 [[example]]
@@ -127,6 +130,16 @@ required-features = ["gemini"]
 name = "retry"
 path = "./examples/retry.rs"
 required-features = ["gemini"]
+
+[[example]]
+name = "claude-completion"
+path = "./examples/claude/completion.rs"
+required-features = ["claude"]
+
+[[example]]
+name = "claude-stream"
+path = "./examples/claude/stream.rs"
+required-features = ["claude", "stream"]
 
 [[example]]
 name = "gemini-stream"
