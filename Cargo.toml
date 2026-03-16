@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
     "core",
-    "providers/gemini"
+    "providers/gemini",
+    "providers/claude",
 ]
 
 [workspace.package]
@@ -25,8 +26,8 @@ serde               = { version = "1.0.228", features = ["derive"] }
 serde_json          = "1.0.145"
 thiserror           = "2.0.17"
 tokio               = { version = "1.48.0", features = ["macros", "rt-multi-thread", "time", "sync"] }
-tools-rs            = "0.1.5"
-tools_core          = "0.1.4"
+tools-rs            = "0.1.7"
+tools_core          = "0.1.6"
 tools_macros        = "0.1.1"
 url                 = { version = "2.5.8", features = ["serde"] }
 
@@ -48,6 +49,7 @@ path = "src/lib.rs"
 [dependencies]
 chat-core   = { path = "core" }
 chat-gemini = { path = "providers/gemini", optional = true }
+chat-claude = { path = "providers/claude", optional = true }
 
 
 
@@ -58,14 +60,16 @@ serde.workspace = true
 serde_json.workspace = true
 inventory.workspace    = true
 tools-rs.workspace = true
-tools_core.workspace = true 
-tools_macros.workspace = true 
+tools_core.workspace = true
+tools_macros.workspace = true
 tokio.workspace = true
+futures.workspace = true
 
 [features]
 default = []
 gemini = ["dep:chat-gemini"]
-stream = ["chat-core/stream", "chat-gemini?/stream"]
+claude = ["dep:chat-claude"]
+stream = ["chat-core/stream", "chat-gemini?/stream", "chat-claude?/stream"]
 
 
 [[example]]
@@ -112,4 +116,18 @@ required-features = ["gemini"]
 name = "retry"
 path = "./examples/retry.rs"
 required-features = ["gemini"]
+
+[[example]]
+name = "claude-completion"
+path = "./examples/claude/completion.rs"
+required-features = ["claude"]
+
+[[example]]
+name = "claude-stream"
+path = "./examples/claude/stream.rs"
+required-features = ["claude", "stream"]
+
+[[example]]
+name = "claude-embeddings"
+path = "./examples/claude/embeddings.rs"
 

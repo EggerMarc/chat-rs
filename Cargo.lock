@@ -108,6 +108,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "chat-claude"
+version = "0.0.1"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "base64",
+ "chat-core",
+ "futures",
+ "reqwest",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tools-rs",
+]
+
+[[package]]
 name = "chat-core"
 version = "0.0.6"
 dependencies = [
@@ -141,8 +158,10 @@ dependencies = [
 name = "chat-rs"
 version = "0.0.6"
 dependencies = [
+ "chat-claude",
  "chat-core",
  "chat-gemini",
+ "futures",
  "inventory",
  "once_cell",
  "regex",
@@ -935,6 +954,7 @@ dependencies = [
  "bytes",
  "encoding_rs",
  "futures-core",
+ "futures-util",
  "h2",
  "http",
  "http-body",
@@ -956,12 +976,14 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-native-tls",
+ "tokio-util",
  "tower",
  "tower-http",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-streams",
  "web-sys",
 ]
 
@@ -1396,9 +1418,9 @@ dependencies = [
 
 [[package]]
 name = "tools-rs"
-version = "0.1.5"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15ccc804c668b8d23cd0cc1c23f29912ef359ee868570805c311d0acbf70bbdb"
+checksum = "70a299a6dfe7af587a0aff5ded7fe922d1eee72a0c781a0ed58a78924b799ca4"
 dependencies = [
  "inventory",
  "serde",
@@ -1410,9 +1432,9 @@ dependencies = [
 
 [[package]]
 name = "tools_core"
-version = "0.1.4"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2ca51f00845cacbbd432cdd5e094e3039d962978ac87e40228bb5530c42ba26"
+checksum = "50097b8738b628474380c32016b87ad05036cc3b95348802c0c371ed9dcdb9cb"
 dependencies = [
  "futures",
  "inventory",
@@ -1642,6 +1664,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76f218a38c84bcb33c25ec7059b07847d465ce0e0a76b995e134a45adcb6af76"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "wasm-streams"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15053d8d85c7eccdbefef60f06769760a563c7f0a9d6902a13d35c7800b0ad65"
+dependencies = [
+ "futures-util",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
