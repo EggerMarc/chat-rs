@@ -4,7 +4,6 @@ version = "0.0.1"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-publish = false
 
 [dependencies]
 chat-core = { path = "../../core", version = "0.0.3" }
