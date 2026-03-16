@@ -73,7 +73,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             tool_result.result.to_string().len()
                         );
                     }
-                    StreamEvent::Done(_) => {}
+                    StreamEvent::Done(res) => {
+                        println!("Usage: {:?}", res.metadata);
+                    }
                 },
                 Err(failure) => {
                     eprintln!("\n[Stream Error]: {:?}", failure);

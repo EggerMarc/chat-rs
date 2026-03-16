@@ -41,11 +41,9 @@ impl OpenAINativeTool for WebSearchTool {
             })
         });
         json!({
-            "type": "web_search",
-            "web_search": {
-                "context_size": self.context_size,
-                "user_location": user_location
-            }
+            "type": "web_search_preview",
+            "search_context_size": self.context_size,
+            "user_location": self.user_location
         })
     }
 

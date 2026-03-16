@@ -79,7 +79,7 @@ fn parse_gemini_sse_stream(
 
             sse_parser.push(&chunk);
 
-            while let Some(json_str) = sse_parser.next_event() {
+            while let Some((_, json_str)) = sse_parser.next_event() {
                 let gemini_chunk = serde_json::from_str::<GeminiCompletionResponse>(&json_str)
                     .map_err(|e| {
                         ChatError::InvalidResponse(format!("Failed to parse Gemini SSE chunk: {e}"))

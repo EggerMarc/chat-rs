@@ -26,6 +26,7 @@ pub struct OpenAIBuilder<M = WithoutModel, U = BaseEndpoint, C = BaseConfig> {
     base_url: String,
     native_tools: Vec<Box<dyn OpenAINativeTool>>,
     reasoning_effort: Option<String>,
+    use_previous_response_id: bool,
     _m: PhantomData<M>,
     _u: PhantomData<U>,
     _c: PhantomData<C>,
@@ -45,6 +46,7 @@ impl OpenAIBuilder<WithoutModel, BaseEndpoint, BaseConfig> {
             base_url: "https://api.openai.com/v1".to_string(),
             native_tools: Vec::new(),
             reasoning_effort: None,
+            use_previous_response_id: true,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -60,10 +62,18 @@ impl<U, C> OpenAIBuilder<WithoutModel, U, C> {
             base_url: self.base_url,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
+            use_previous_response_id: self.use_previous_response_id,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
         }
+    }
+}
+
+impl<M, U, C> OpenAIBuilder<M, U, C> {
+    pub fn without_previous_response_id(mut self) -> Self {
+        self.use_previous_response_id = false;
+        self
     }
 }
 
@@ -82,6 +92,7 @@ impl<M, C> OpenAIBuilder<M, BaseEndpoint, C> {
             base_url: base_url.trim_end_matches('/').to_string(),
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
+            use_previous_response_id: self.use_previous_response_id,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -97,6 +108,7 @@ impl<M> OpenAIBuilder<M, BaseEndpoint, BaseConfig> {
             base_url: self.base_url,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
+            use_previous_response_id: self.use_previous_response_id,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -128,6 +140,7 @@ impl<M> OpenAIBuilder<M, CustomEndpoint, BaseConfig> {
             base_url: self.base_url,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
+            use_previous_response_id: self.use_previous_response_id,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -203,6 +216,7 @@ impl<M, U> OpenAIBuilder<M, U, BaseConfig> {
             base_url: self.base_url,
             native_tools: vec![],
             reasoning_effort: None,
+            use_previous_response_id: false,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -228,6 +242,8 @@ impl<U, C> OpenAIBuilder<WithModel, U, C> {
             http_client: reqwest::Client::new(),
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
+            use_previous_response_id: self.use_previous_response_id,
+            last_response_id: None,
         }
     }
 }
