@@ -253,12 +253,17 @@ fn parse_claude_sse_stream(
                         }
                     }
                     "error" => {
-                        if let Ok(data) = serde_json::from_str::<Value>(&json_str) {
-                            let msg = data.get("error")
-                                .and_then(|e| e.get("message"))
-                                .and_then(|m| m.as_str())
-                                .unwrap_or("Unknown stream error");
-                            Err(ChatError::Provider(msg.to_string()))?;
+                        match serde_json::from_str::<Value>(&json_str) {
+                            Ok(data) => {
+                                let msg = data.get("error")
+                                    .and_then(|e| e.get("message"))
+                                    .and_then(|m| m.as_str())
+                                    .unwrap_or("Unknown stream error");
+                                Err(ChatError::Provider(msg.to_string()))?;
+                            }
+                            Err(_) => {
+                                Err(ChatError::Provider(format!("Stream error (unparseable): {}", json_str)))?;
+                            }
                         }
                     }
                     _ => {}
