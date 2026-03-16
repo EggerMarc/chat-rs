@@ -182,11 +182,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat-openai"
+version = "0.0.1"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "base64",
+ "chat-core",
+ "futures",
+ "reqwest",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tools-rs",
+]
+
+[[package]]
 name = "chat-rs"
 version = "0.0.8"
 dependencies = [
  "chat-core",
  "chat-gemini",
+ "chat-openai",
+ "dotenvy",
  "futures",
  "inventory",
  "once_cell",
@@ -256,6 +274,12 @@ dependencies = [
  "quote",
  "syn 2.0.117",
 ]
+
+[[package]]
+name = "dotenvy"
+version = "0.15.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "dunce"

@@ -1,8 +1,7 @@
 use chat_rs::{
-    chat::ChatBuilder,
-    gemini,
-    messages::{self, content},
-    retry_strategy,
+    ChatBuilder, gemini,
+    macros::retry_strategy,
+    types::messages::{self, content},
 };
 
 #[tokio::main]

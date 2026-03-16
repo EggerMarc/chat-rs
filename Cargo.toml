@@ -3,7 +3,8 @@
 resolver = "2"
 members = [
     "core",
-    "providers/gemini"
+    "providers/gemini",
+    "providers/openai"
 ]
 
 [workspace.package]
@@ -49,6 +50,7 @@ path = "src/lib.rs"
 [dependencies]
 chat-core   = { path = "core", version = "0.0.2"}
 chat-gemini = { path = "providers/gemini", optional = true, version = "0.0.2"}
+chat-openai = { path = "providers/openai", optional = true, version = "0.0.1"}
 tokio.workspace = true
 schemars.workspace = true
 serde.workspace = true
@@ -62,6 +64,7 @@ url.workspace = true
 
 
 [dev-dependencies]
+dotenvy      = "0.15"
 regex        = "1"
 once_cell    = "1"
 serde.workspace = true
@@ -76,7 +79,8 @@ futures.workspace = true
 [features]
 default = []
 gemini = ["dep:chat-gemini"]
-stream = ["chat-core/stream", "chat-gemini?/stream"]
+openai = ["dep:chat-openai"]
+stream = ["chat-core/stream", "chat-gemini?/stream", "chat-openai?/stream"]
 
 
 [[example]]
@@ -128,3 +132,23 @@ required-features = ["gemini"]
 name = "gemini-stream"
 path = "./examples/gemini/stream.rs"
 required-features = ["gemini", "stream"]
+
+[[example]]
+name = "openai-completion"
+path = "./examples/openai/completions.rs"
+required-features = ["openai"]
+
+[[example]]
+name = "openai-stream"
+path = "./examples/openai/stream.rs"
+required-features = ["openai", "stream"]
+
+[[example]]
+name = "openai-embeddings"
+path = "./examples/openai/embeddings.rs"
+required-features = ["openai"]
+
+[[example]]
+name = "openai-structured"
+path = "./examples/openai/structured.rs"
+required-features = ["openai"]

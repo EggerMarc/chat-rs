@@ -11,6 +11,7 @@ pub use chat_core::{
     chat::Chat,
     chat::state::{Structured, Unstructured},
     error::{ChatError, ChatFailure},
+    macros,
     traits::{CompletionProvider, EmbeddingsProvider},
     types,
     types::{
@@ -52,11 +53,12 @@ pub mod prelude {
     pub use crate::{CompletionProvider, EmbeddingsProvider};
 
     #[cfg(feature = "gemini")]
-    pub use crate::gemini::*;
+    pub use crate::gemini;
 
     #[cfg(feature = "claude")]
-    pub use crate::claude::*;
+    pub use crate::claude;
 
     #[cfg(feature = "openai")]
-    pub use crate::openai::*;
+    pub use crate::openai;
 }
+
