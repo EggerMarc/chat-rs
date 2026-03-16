@@ -17,8 +17,14 @@ impl Embeddings {
 
     pub fn from_batch(batch: Vec<Vec<f32>>) -> Vec<Self> {
         batch
-            .iter()
-            .map(|value| Embeddings::new(value.to_owned()))
-            .collect::<Vec<Embeddings>>()
+            .into_iter()
+            .map(Embeddings::new)
+            .collect::<Vec<Self>>()
+    }
+}
+
+impl From<Vec<f32>> for Embeddings {
+    fn from(data: Vec<f32>) -> Self {
+        Self::new(data)
     }
 }

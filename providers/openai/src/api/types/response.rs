@@ -104,8 +104,6 @@ pub struct OpenAIUsage {
 fn append_content_part(parts: &mut Parts, content_part: &ResponsesContentPart) {
     match content_part {
         ResponsesContentPart::OutputText { text } => {
-            // If the text is valid JSON, treat it as structured output;
-            // otherwise treat it as plain text.
             if let Ok(value) = serde_json::from_str::<Value>(text)
                 && (value.is_object() || value.is_array())
             {
@@ -116,7 +114,7 @@ fn append_content_part(parts: &mut Parts, content_part: &ResponsesContentPart) {
         }
         ResponsesContentPart::OutputImage { image_url } => {
             if let Some(url_str) = image_url
-                && let Ok(file) = File::from_url(url_str, Option::<&str>::None)
+                && let Ok(file) = File::from_url(url_str, None)
             {
                 parts.push(PartEnum::File(file));
             }
