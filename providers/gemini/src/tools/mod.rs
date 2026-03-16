@@ -15,14 +15,6 @@ pub trait GeminiNativeTool: Send + Sync {
 }
 
 impl Clone for Box<dyn GeminiNativeTool> {
-    /// Create a boxed clone of the underlying `GeminiNativeTool`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// let boxed: Box<dyn GeminiNativeTool> = /* create a tool */ unimplemented!();
-    /// let cloned = boxed.clone();
-    /// ```
     fn clone(&self) -> Box<dyn GeminiNativeTool> {
         self.clone_box()
     }

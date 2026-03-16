@@ -11,7 +11,7 @@ use tools_rs::ToolCollection;
 #[async_trait::async_trait]
 impl CompletionProvider for OpenAIClient {
     async fn complete(
-        &self,
+        &mut self,
         messages: &mut Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
@@ -26,14 +26,17 @@ impl CompletionProvider for OpenAIClient {
         };
 
         let request_body = OpenAIResponsesRequest::from_core(
-            &self.model_name,
-            messages,
-            tools,
-            self.native_tools.as_slice(),
-            self.reasoning_effort.clone(),
-            options,
-            structured_output,
-            previous_response_id,
+            crate::api::types::request::ResponsesRequestConfig {
+                model_name: &self.model_name,
+                messages,
+                custom_tools: tools,
+                native_tools: self.native_tools.as_slice(),
+                reasoning_effort: self.reasoning_effort.clone(),
+                options,
+                output_shape: structured_output,
+                previous_response_id,
+                store: self.store,
+            },
         )
         .map_err(ChatFailure::from_err)?;
 
@@ -54,9 +57,62 @@ impl CompletionProvider for OpenAIClient {
             .await
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
-        oai_data
+        let (response, response_id) = oai_data
             .into_core_chat_response()
-            .map(|(response, _response_id)| response)
-            .map_err(ChatFailure::from_err)
+            .map_err(ChatFailure::from_err)?;
+
+        if self.use_previous_response_id
+            && let Some(id) = response_id
+        {
+            self.last_response_id = Some(id);
+        }
+
+        Ok(response)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::types::request::ResponsesRequestConfig;
+
+    #[test]
+    fn test_from_core_without_previous_response_id() {
+        let messages = chat_core::types::messages::from_user(vec!["hello"]);
+        let req = OpenAIResponsesRequest::from_core(ResponsesRequestConfig {
+            model_name: "gpt-4o",
+            messages: &messages,
+            custom_tools: None,
+            native_tools: &[],
+            reasoning_effort: None,
+            options: None,
+            output_shape: None,
+            previous_response_id: None,
+            store: None,
+        })
+        .unwrap();
+
+        let json = serde_json::to_value(&req).unwrap();
+        assert!(json.get("previous_response_id").is_none());
+    }
+
+    #[test]
+    fn test_from_core_with_previous_response_id() {
+        let messages = chat_core::types::messages::from_user(vec!["hello"]);
+        let req = OpenAIResponsesRequest::from_core(ResponsesRequestConfig {
+            model_name: "gpt-4o",
+            messages: &messages,
+            custom_tools: None,
+            native_tools: &[],
+            reasoning_effort: None,
+            options: None,
+            output_shape: None,
+            previous_response_id: Some("resp_abc".to_string()),
+            store: None,
+        })
+        .unwrap();
+
+        let json = serde_json::to_value(&req).unwrap();
+        assert_eq!(json["previous_response_id"], "resp_abc");
     }
 }

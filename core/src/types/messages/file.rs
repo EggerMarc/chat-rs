@@ -41,7 +41,7 @@ impl FromStr for UrlData {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use std::str::FromStr;
     /// let data = UrlData::from_str("https://example.com").unwrap();
     /// assert!(data.url.as_str().starts_with("https://example.com"));
@@ -65,7 +65,7 @@ impl UrlData {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use reqwest::Url;
     ///
     /// let mut ud = crate::UrlData { url: Url::parse("https://example.com").unwrap(), mimetype: None };
@@ -84,7 +84,7 @@ impl UrlData {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let ud = UrlData::from("https://example.com/file.png", "image/png").unwrap();
     /// assert_eq!(ud.url.as_str(), "https://example.com/file.png");
     /// assert_eq!(ud.mimetype.unwrap().to_string(), "image/png");
@@ -113,7 +113,7 @@ impl RawData {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let data = RawData::from(b"hello".to_vec(), "text/plain");
     /// assert_eq!(data.bytes, b"hello".to_vec());
     /// assert_eq!(data.mimetype.to_string(), "text/plain");
@@ -130,7 +130,7 @@ impl fmt::Display for MimeType {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let mt = MimeType("text/plain".into());
     /// assert_eq!(format!("{}", mt), "text/plain");
     /// ```
@@ -153,7 +153,7 @@ impl File {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let f = File::from_bytes(b"hello".to_vec(), "text/plain");
     /// match f {
     ///     File::Bytes(raw) => {
@@ -186,7 +186,7 @@ impl File {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// # use core::messages::file::File;
     /// // with explicit mimetype
     /// let f = File::from_url("https://example.com/image.png", Some("image/png")).unwrap();

@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
+#[cfg(feature = "stream")]
 use std::fmt;
 #[cfg(feature = "stream")]
 use tools_rs::{FunctionCall, FunctionResponse};

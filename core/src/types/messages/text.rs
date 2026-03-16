@@ -19,9 +19,9 @@ impl Text {
     }
 }
 
-impl Into<String> for Text {
-    fn into(self) -> String {
-        self.0
+impl From<Text> for String {
+    fn from(text: Text) -> Self {
+        text.0
     }
 }
 

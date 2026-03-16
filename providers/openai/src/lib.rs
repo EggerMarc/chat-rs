@@ -27,6 +27,7 @@ pub struct OpenAIBuilder<M = WithoutModel, U = BaseEndpoint, C = BaseConfig> {
     native_tools: Vec<Box<dyn OpenAINativeTool>>,
     reasoning_effort: Option<String>,
     use_previous_response_id: bool,
+    store: Option<bool>,
     _m: PhantomData<M>,
     _u: PhantomData<U>,
     _c: PhantomData<C>,
@@ -47,6 +48,7 @@ impl OpenAIBuilder<WithoutModel, BaseEndpoint, BaseConfig> {
             native_tools: Vec::new(),
             reasoning_effort: None,
             use_previous_response_id: true,
+            store: None,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -63,6 +65,7 @@ impl<U, C> OpenAIBuilder<WithoutModel, U, C> {
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
+            store: self.store,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -75,11 +78,14 @@ impl<M, U, C> OpenAIBuilder<M, U, C> {
         self.use_previous_response_id = false;
         self
     }
-}
 
-impl<M, U, C> OpenAIBuilder<M, U, C> {
     pub fn with_api_key(mut self, api_key: String) -> Self {
         self.api_key = Some(api_key);
+        self
+    }
+
+    pub fn with_store(mut self, store: bool) -> Self {
+        self.store = Some(store);
         self
     }
 }
@@ -93,6 +99,7 @@ impl<M, C> OpenAIBuilder<M, BaseEndpoint, C> {
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
+            store: self.store,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -109,6 +116,7 @@ impl<M> OpenAIBuilder<M, BaseEndpoint, BaseConfig> {
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
+            store: self.store,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -141,6 +149,7 @@ impl<M> OpenAIBuilder<M, CustomEndpoint, BaseConfig> {
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
+            store: self.store,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -217,6 +226,7 @@ impl<M, U> OpenAIBuilder<M, U, BaseConfig> {
             native_tools: vec![],
             reasoning_effort: None,
             use_previous_response_id: false,
+            store: None,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -244,6 +254,7 @@ impl<U, C> OpenAIBuilder<WithModel, U, C> {
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
             last_response_id: None,
+            store: self.store,
         }
     }
 }

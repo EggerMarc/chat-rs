@@ -47,8 +47,6 @@ pub enum ResponsesOutputItem {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResponsesMessage {
-    pub id: Option<String>,
-    pub role: Option<String>,
     pub content: Vec<ResponsesContentPart>,
 }
 
@@ -65,7 +63,6 @@ pub enum ResponsesContentPart {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResponsesFunctionCall {
-    pub id: Option<String>,
     pub call_id: Option<String>,
     pub name: Option<String>,
     pub arguments: Option<String>,
@@ -73,7 +70,6 @@ pub struct ResponsesFunctionCall {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResponsesReasoning {
-    pub id: Option<String>,
     pub summary: Option<Vec<ResponsesSummaryPart>>,
 }
 
@@ -85,10 +81,7 @@ pub enum ResponsesSummaryPart {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ResponsesWebSearchCall {
-    pub id: Option<String>,
-    pub status: Option<String>,
-}
+pub struct ResponsesWebSearchCall {}
 
 // ---------------------------------------------------------------------------
 // Usage (supports both completions and responses field names)
@@ -111,21 +104,19 @@ pub struct OpenAIUsage {
 fn append_content_part(parts: &mut Parts, content_part: &ResponsesContentPart) {
     match content_part {
         ResponsesContentPart::OutputText { text } => {
-            // If the text is valid JSON, treat it as structured output;
-            // otherwise treat it as plain text.
-            if let Ok(value) = serde_json::from_str::<Value>(text) {
-                if value.is_object() || value.is_array() {
-                    parts.push(PartEnum::Structured(value));
-                    return;
-                }
+            if let Ok(value) = serde_json::from_str::<Value>(text)
+                && (value.is_object() || value.is_array())
+            {
+                parts.push(PartEnum::Structured(value));
+                return;
             }
             parts.push(PartEnum::Text(Text::new(text.clone())));
         }
         ResponsesContentPart::OutputImage { image_url } => {
-            if let Some(url_str) = image_url {
-                if let Ok(file) = File::from_url(url_str, Option::<&str>::None) {
-                    parts.push(PartEnum::File(file));
-                }
+            if let Some(url_str) = image_url
+                && let Ok(file) = File::from_url(url_str, None)
+            {
+                parts.push(PartEnum::File(file));
             }
         }
         ResponsesContentPart::Unknown => {}
@@ -232,7 +223,6 @@ pub struct OpenAIEmbeddingResponse {
 #[derive(Debug, Deserialize)]
 pub struct OpenAIEmbeddingData {
     pub embedding: Vec<f32>,
-    pub index: usize,
 }
 
 impl OpenAIEmbeddingResponse {

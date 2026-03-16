@@ -108,24 +108,38 @@ pub struct OpenAIResponsesRequest {
     pub store: Option<bool>,
 }
 
+pub struct ResponsesRequestConfig<'a> {
+    pub model_name: &'a str,
+    pub messages: &'a Messages,
+    pub custom_tools: Option<&'a ToolCollection>,
+    pub native_tools: &'a [Box<dyn OpenAINativeTool>],
+    pub reasoning_effort: Option<String>,
+    pub options: Option<&'a ChatOptions>,
+    pub output_shape: Option<&'a Schema>,
+    pub previous_response_id: Option<String>,
+    pub store: Option<bool>,
+}
+
 impl OpenAIResponsesRequest {
-    pub fn from_core(
-        model_name: &str,
-        messages: &Messages,
-        custom_tools: Option<&ToolCollection>,
-        native_tools: &[Box<dyn OpenAINativeTool>],
-        reasoning_effort: Option<String>,
-        options: Option<&ChatOptions>,
-        output_shape: Option<&Schema>,
-        previous_response_id: Option<String>,
-    ) -> Result<Self, ChatError> {
+    pub fn from_core(config: ResponsesRequestConfig<'_>) -> Result<Self, ChatError> {
+        let ResponsesRequestConfig {
+            model_name,
+            messages,
+            custom_tools,
+            native_tools,
+            reasoning_effort,
+            options,
+            output_shape,
+            previous_response_id,
+            store,
+        } = config;
         let mut req = Self {
             model: model_name.to_string(),
             reasoning: reasoning_effort.map(|effort| OpenAIReasoning {
                 effort,
                 summary: "auto".to_string(),
             }),
-            store: Some(true),
+            store,
             ..Default::default()
         };
 
