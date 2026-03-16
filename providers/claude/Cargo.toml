@@ -1,6 +1,7 @@
 [package]
 name = "chat-claude"
 version = "0.0.1"
+description = "Provider implementation of Claude for chat-rs"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
