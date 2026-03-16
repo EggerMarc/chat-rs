@@ -9,13 +9,14 @@ Tracking upcoming providers and features for chat-rs.
 | Provider | Crate | Completion | Streaming | Embeddings | Native Tools |
 |---|---|---|---|---|---|
 | Google Gemini | `chat-gemini` | Yes | Yes | Yes | Google Search, Code Execution, Google Maps |
+| Anthropic Claude | `chat-claude` | Yes | Yes | N/A | Extended Thinking |
 | OpenAI | `chat-openai` | Yes | Yes | Yes | Web Search |
 
 ### Planned Providers
 
 | Provider | Priority | Completion | Streaming | Embeddings | Notes |
 |---|---|---|---|---|---|
-| **Anthropic** | High | Planned | Planned | N/A | Claude models. Messages API. No native embeddings endpoint. |
+| ~~**Anthropic**~~ | ~~High~~ | ~~Done~~ | ~~Done~~ | ~~N/A~~ | ~~Implemented as `chat-claude`.~~ |
 | **Hugging Face** | Medium | Planned | Planned | Planned | Inference API + Inference Endpoints. Wide model catalog. |
 | **Cerebras** | Medium | Planned | Planned | Planned | Fast inference. OpenAI-compatible API — may share request layer with `chat-openai`. |
 | **AI21** | Medium | Planned | Planned | Planned | Jamba models. |
@@ -31,7 +32,7 @@ Tracking upcoming providers and features for chat-rs.
 
 **OpenAI-compatible providers** (Cerebras, Groq, Together AI) could potentially share a base with `chat-openai` via custom URLs. However, they may not support the Responses API format. A dedicated provider or a Chat Completions API mode for `chat-openai` may be needed.
 
-**Anthropic** has a unique message format with content blocks and tool use blocks. It also supports extended thinking, which maps to the existing `Reasoning` part type. No embeddings API exists — the `EmbeddingsProvider` trait would not be implemented.
+**Anthropic** is implemented as `chat-claude`. It uses Claude's Messages API with content blocks and tool use blocks. Extended thinking maps to the `Reasoning` part type with signature round-tripping. No embeddings API — `EmbeddingsProvider` is not implemented.
 
 **AWS Bedrock** and **Azure OpenAI** require non-standard auth (AWS SigV4 / Azure AD tokens) rather than simple API keys. These will need builder extensions for credential configuration.
 
@@ -39,7 +40,7 @@ Tracking upcoming providers and features for chat-rs.
 
 ### Short Term
 
-- [ ] **Anthropic provider** — highest priority missing provider
+- [x] **Anthropic provider** — implemented as `chat-claude`
 - [ ] **Image generation** — support image output parts from models that can generate images
 
 ### Medium Term

@@ -142,10 +142,6 @@ path = "./examples/claude/stream.rs"
 required-features = ["claude", "stream"]
 
 [[example]]
-name = "claude-embeddings"
-path = "./examples/claude/embeddings.rs"
-
-[[example]]
 name = "gemini-stream"
 path = "./examples/gemini/stream.rs"
 required-features = ["gemini", "stream"]
