@@ -38,7 +38,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
         messages.push(response.content.clone());
-        println!("Model:\t{}", response.content.parts.text_response().unwrap());
+        if let Some(text) = response.content.parts.text_response() {
+            println!("Model:\t{}", text);
+        }
         println!("Metadata:\t{:?}", response.metadata);
     }
 }
