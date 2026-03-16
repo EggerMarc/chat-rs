@@ -193,6 +193,10 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
 
                     last_err = Some(failure.err.clone());
 
+                    if !failure.err.is_retryable() {
+                        break;
+                    }
+
                     if idx + 1 < max_retries {
                         let ctx = CallbackRetryContext { idx, failure };
                         if let Some(strategy) = self.retry_strategy.as_mut() {

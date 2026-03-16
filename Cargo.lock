@@ -215,6 +215,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat-router"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "chat-core",
+ "schemars",
+ "tools-rs",
+]
+
+[[package]]
 name = "chat-rs"
 version = "0.0.9"
 dependencies = [
@@ -222,6 +232,7 @@ dependencies = [
  "chat-core",
  "chat-gemini",
  "chat-openai",
+ "chat-router",
  "dotenvy",
  "futures",
  "inventory",

@@ -5,7 +5,8 @@ members = [
     "core",
     "providers/gemini",
     "providers/claude",
-    "providers/openai"
+    "providers/openai",
+    "providers/router",
 ]
 
 [workspace.package]
@@ -53,6 +54,7 @@ chat-core   = { path = "core", version = "0.0.3"}
 chat-gemini = { path = "providers/gemini", optional = true, version = "0.0.2"}
 chat-openai = { path = "providers/openai", optional = true, version = "0.0.2"}
 chat-claude = { path = "providers/claude", optional = true }
+chat-router = { path = "providers/router", optional = true }
 tokio.workspace = true
 schemars.workspace = true
 serde.workspace = true
@@ -83,6 +85,7 @@ default = []
 gemini = ["dep:chat-gemini"]
 claude = ["dep:chat-claude"]
 openai = ["dep:chat-openai"]
+router = ["dep:chat-router"]
 stream = ["chat-core/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream"]
 
 
@@ -165,3 +168,8 @@ required-features = ["openai"]
 name = "openai-structured"
 path = "./examples/openai/structured.rs"
 required-features = ["openai"]
+
+[[example]]
+name = "router"
+path = "./examples/router.rs"
+required-features = ["router", "claude", "gemini"]
