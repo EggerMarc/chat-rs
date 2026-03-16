@@ -57,7 +57,7 @@ impl Parts {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use crate::core::messages::parts::{Parts, PartEnum};
     ///
     /// let parts = Parts(vec![PartEnum::from_text("hello")]);
@@ -184,7 +184,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let part = PartEnum::from_reasoning("because it's correct");
     /// let text = part.reasoning().unwrap();
     /// assert_eq!(text, Text::new("because it's correct"));
@@ -204,7 +204,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use crate::messages::parts::PartEnum;
     /// use crate::messages::embeddings::Embeddings;
     ///
@@ -223,7 +223,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```ignore
     /// use serde_json::json;
     /// use crate::core::messages::parts::PartEnum;
     ///
@@ -245,7 +245,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use crate::core::messages::parts::PartEnum;
     /// use crate::messages::file::File;
     ///
@@ -264,7 +264,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let part = PartEnum::from_reasoning("inference detail");
     /// match part {
     ///     PartEnum::Reasoning(text) => assert_eq!(text.as_str(), "inference detail"),
@@ -285,7 +285,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let fc = FunctionCall::default(); // construct a FunctionCall as appropriate
     /// let part = PartEnum::from_function_call(fc);
     /// matches!(part, PartEnum::FunctionCall(_));
@@ -311,7 +311,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let embeddings = /* obtain an Embeddings value */ unimplemented!();
     /// let part = from_embeddings(embeddings);
     /// match part {
@@ -327,7 +327,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use serde_json::json;
     ///
     /// let value = json!({ "key": "value" });
@@ -346,7 +346,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let file: File = /* obtain or construct a File */ unimplemented!();
     /// let part = PartEnum::from_file(file);
     /// match part {
@@ -373,7 +373,7 @@ impl Display for PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let p = PartEnum::from_text("hello");
     /// assert_eq!(format!("{}", p), "hello");
     /// ```

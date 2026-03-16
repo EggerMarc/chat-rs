@@ -26,7 +26,7 @@ use crate::{
 #[async_trait::async_trait]
 impl StreamProvider for GeminiClient {
     async fn stream(
-        &self,
+        &mut self,
         messages: &mut Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,

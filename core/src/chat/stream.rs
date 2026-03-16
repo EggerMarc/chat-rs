@@ -51,6 +51,8 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
                 }
 
                 if let Some(response) = final_response {
+                    self.model.on_stream_done(&response);
+
                     if let Some(metadata) = response.metadata.clone() {
                         match &mut last_metadata {
                             Some(existing) => { existing.extend(&metadata); },

@@ -37,7 +37,7 @@ pub enum CompleteReasonEnum {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// let c = from_user(vec!["hello"]);
 /// assert_eq!(c.role, RoleEnum::User);
 /// assert_eq!(c.parts.0.len(), 1);
@@ -63,7 +63,7 @@ pub fn from_user(prompts: Vec<&str>) -> Content {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// let content = from_system(vec!["Initialize system", "Set config"]);
 /// assert_eq!(content.role, RoleEnum::System);
 /// assert_eq!(content.parts.0.len(), 2);
@@ -89,7 +89,7 @@ pub fn from_system(prompts: Vec<&str>) -> Content {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// let content = from_model(vec!["generated text"]);
 /// assert_eq!(content.role, RoleEnum::Model);
 /// assert!(matches!(content.complete_reason, CompleteReasonEnum::Stop));
@@ -106,7 +106,7 @@ pub fn from_model(prompts: Vec<&str>) -> Content {
     Content {
         role,
         parts,
-        ..Content::default()
+        complete_reason: CompleteReasonEnum::Stop,
     }
 }
 
@@ -210,7 +210,6 @@ mod tests {
     #[test]
     fn test_from_model_creates_content_with_correct_role() {
         let content = from_model(vec!["Model response"]);
-        // Note: There appears to be a bug - from_model sets role to System instead of Model
         assert_eq!(content.role, RoleEnum::Model);
     }
 

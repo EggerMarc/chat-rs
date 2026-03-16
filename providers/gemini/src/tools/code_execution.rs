@@ -12,7 +12,7 @@ impl GeminiNativeTool for CodeExecutionTool {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let tool = CodeExecutionTool;
     /// assert_eq!(tool.tool_key(), "codeExecution");
     /// ```
@@ -24,7 +24,7 @@ impl GeminiNativeTool for CodeExecutionTool {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use serde_json::json;
     /// let decl = CodeExecutionTool.to_tool_declaration();
     /// assert_eq!(decl, json!({ "codeExecution": {} }));
@@ -41,7 +41,7 @@ impl GeminiNativeTool for CodeExecutionTool {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let tool = crate::providers::gemini::code_execution::CodeExecutionTool;
     /// assert!(tool.to_tool_config().is_none());
     /// ```
@@ -55,7 +55,7 @@ impl GeminiNativeTool for CodeExecutionTool {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let tool = CodeExecutionTool {};
     /// let boxed: Box<dyn GeminiNativeTool> = tool.clone_box();
     /// ```

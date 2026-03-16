@@ -19,7 +19,7 @@ use tools_rs::ToolCollection;
 #[async_trait]
 pub trait CompletionProvider: Send + Sync {
     async fn complete(
-        &self,
+        &mut self,
         messages: &mut Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
@@ -31,11 +31,15 @@ pub trait CompletionProvider: Send + Sync {
 #[async_trait]
 pub trait StreamProvider: Send + Sync {
     async fn stream(
-        &self,
+        &mut self,
         messages: &mut Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError>;
+
+    /// Called after the stream has been fully consumed with the final response.
+    /// Providers can override this to store state from the completed stream.
+    fn on_stream_done(&mut self, _response: &ChatResponse) {}
 }
 
 #[async_trait]

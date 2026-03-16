@@ -2,10 +2,12 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use tools_rs::ToolCollection;
 
+#[cfg(feature = "stream")]
+use crate::chat::state::Streamed;
 use crate::{
     chat::{
         Chat,
-        state::{Embedded, Streamed, Structured, Unstructured},
+        state::{Embedded, Structured, Unstructured},
     },
     traits::CompletionProvider,
     types::{

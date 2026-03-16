@@ -13,14 +13,6 @@ pub trait OpenAINativeTool: Send + Sync {
 }
 
 impl Clone for Box<dyn OpenAINativeTool> {
-    /// Create a boxed clone of the underlying `OpenAINativeTool`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// let boxed: Box<dyn OpenAINativeTool> = /* create a tool */ unimplemented!();
-    /// let cloned = boxed.clone();
-    /// ```
     fn clone(&self) -> Box<dyn OpenAINativeTool> {
         self.clone_box()
     }

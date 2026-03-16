@@ -33,7 +33,7 @@ use crate::{
 #[async_trait::async_trait]
 impl StreamProvider for OpenAIClient {
     async fn stream(
-        &self,
+        &mut self,
         messages: &mut Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
@@ -47,14 +47,17 @@ impl StreamProvider for OpenAIClient {
         };
 
         let mut request_body = OpenAIResponsesRequest::from_core(
-            &self.model_name,
-            messages,
-            tools,
-            self.native_tools.as_slice(),
-            self.reasoning_effort.clone(),
-            options,
-            None,
-            previous_response_id,
+            crate::api::types::request::ResponsesRequestConfig {
+                model_name: &self.model_name,
+                messages,
+                custom_tools: tools,
+                native_tools: self.native_tools.as_slice(),
+                reasoning_effort: self.reasoning_effort.clone(),
+                options,
+                output_shape: None,
+                previous_response_id,
+                store: self.store,
+            },
         )?;
         request_body.stream = Some(true);
 
@@ -69,6 +72,15 @@ impl StreamProvider for OpenAIClient {
         let res = handle_openai_error(res).await.map_err(|f| f.err)?;
 
         Ok(parse_responses_sse_stream(res))
+    }
+
+    fn on_stream_done(&mut self, response: &ChatResponse) {
+        if self.use_previous_response_id
+            && let Some(ref meta) = response.metadata
+            && let Some(ref id) = meta.id
+        {
+            self.last_response_id = Some(id.clone());
+        }
     }
 }
 

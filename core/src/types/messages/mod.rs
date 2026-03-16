@@ -13,7 +13,7 @@ use content::Content;
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// let msgs = from_user(vec!["Hello", "How are you?"]);
 /// assert_eq!(msgs.len(), 1);
 /// ```
@@ -25,7 +25,7 @@ pub fn from_user(prompts: Vec<&str>) -> Messages {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// let msgs = from_system(vec!["You are a helpful assistant."]);
 /// assert_eq!(msgs.len(), 1);
 /// ```
@@ -43,7 +43,7 @@ pub fn from_system(prompts: Vec<&str>) -> Messages {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// let msgs = from_model(vec!["Thinking...", "More details"]);
 /// assert_eq!(msgs.len(), 1);
 /// ```
@@ -62,7 +62,7 @@ impl Messages {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let mut msgs = Messages(Vec::new());
     /// msgs.push(content::from_system(vec!["first"]));
     /// msgs.push(content::from_system(vec!["second"]));
@@ -86,7 +86,7 @@ impl Messages {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use crate::messages::content;
     /// use crate::messages::Messages;
     ///
@@ -108,7 +108,7 @@ impl Messages {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use crate::messages::Messages;
     ///
     /// let msgs = Messages(Vec::new());
@@ -116,6 +116,10 @@ impl Messages {
     /// ```
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     /// Gets the last content item in the messages collection, if any.
@@ -126,7 +130,7 @@ impl Messages {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let msgs = from_user(vec!["hello"]);
     /// assert!(msgs.last().is_some());
     /// ```

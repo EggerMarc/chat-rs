@@ -1,6 +1,5 @@
 use chat_rs::{
     ChatBuilder, gemini,
-    macros::retry_strategy,
     types::messages::{self, content},
 };
 
@@ -10,12 +9,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .with_model("gibberish-model".to_string())
         .build();
 
-    let retry_model = ChatBuilder::new().with_model(client);
-
     let mut chat = ChatBuilder::new()
         .with_model(client)
         .with_max_retries(5)
-        .with_retry_strategy(retry_strategy!(|ctx| {
+        .with_retry_strategy(chat_rs::retry_strategy!(|ctx| {
             println!("Retrying for the {}th time", ctx.idx);
             tokio::time::sleep(tokio::time::Duration::from_millis((400 * ctx.idx).into())).await;
         }))

@@ -31,15 +31,6 @@ impl OpenAINativeTool for WebSearchTool {
     }
 
     fn to_tool_declaration(&self) -> Value {
-        let user_location = self.user_location.as_ref().map(|loc| {
-            json!({
-                "type": "approximate",
-                "city": loc.city,
-                "region": loc.region,
-                "country": loc.country,
-                "timezone": loc.timezone
-            })
-        });
         json!({
             "type": "web_search_preview",
             "search_context_size": self.context_size,
