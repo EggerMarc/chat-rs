@@ -6,6 +6,8 @@
 //! like Google Gemini, Anthropic Claude, and OpenAI. It features compile-time safe builders,
 //! automatic retry loops, and native tool execution.
 
+pub use chat_core::retry_strategy;
+
 pub use chat_core::{
     builder::ChatBuilder,
     chat::Chat,
@@ -34,6 +36,7 @@ pub mod gemini {
     pub use chat_gemini::*;
 }
 
+
 #[cfg(feature = "claude")]
 pub mod claude {
     pub use chat_claude::*;
@@ -52,11 +55,11 @@ pub mod prelude {
     pub use crate::{CompletionProvider, EmbeddingsProvider};
 
     #[cfg(feature = "gemini")]
-    pub use crate::gemini::*;
+    pub use crate::gemini;
 
     #[cfg(feature = "claude")]
-    pub use crate::claude::*;
+    pub use crate::claude;
 
     #[cfg(feature = "openai")]
-    pub use crate::openai::*;
+    pub use crate::openai;
 }

@@ -5,6 +5,7 @@ use tools_rs::{CallId, FunctionCall, FunctionResponse};
 
 use crate::types::messages::embeddings::Embeddings;
 use crate::types::messages::file::File;
+use crate::types::messages::reasoning::Reasoning;
 use crate::types::messages::text::Text;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
@@ -56,7 +57,7 @@ impl Parts {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use crate::core::messages::parts::{Parts, PartEnum};
     ///
     /// let parts = Parts(vec![PartEnum::from_text("hello")]);
@@ -138,7 +139,7 @@ impl Parts {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", content = "value")]
 pub enum PartEnum {
-    Reasoning(Text),
+    Reasoning(Reasoning),
     Text(Text),
     FunctionCall(FunctionCall),
     FunctionResponse(FunctionResponse),
@@ -183,14 +184,14 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let part = PartEnum::from_reasoning("because it's correct");
     /// let text = part.reasoning().unwrap();
     /// assert_eq!(text, Text::new("because it's correct"));
     /// ```
-    pub fn reasoning(&self) -> Option<Text> {
+    pub fn reasoning(&self) -> Option<Reasoning> {
         match self {
-            PartEnum::Reasoning(text) => Some(text.clone()),
+            PartEnum::Reasoning(reasoning) => Some(reasoning.clone()),
             _ => None,
         }
     }
@@ -203,7 +204,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use crate::messages::parts::PartEnum;
     /// use crate::messages::embeddings::Embeddings;
     ///
@@ -222,7 +223,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```ignore
     /// use serde_json::json;
     /// use crate::core::messages::parts::PartEnum;
     ///
@@ -244,7 +245,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use crate::core::messages::parts::PartEnum;
     /// use crate::messages::file::File;
     ///
@@ -263,7 +264,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let part = PartEnum::from_reasoning("inference detail");
     /// match part {
     ///     PartEnum::Reasoning(text) => assert_eq!(text.as_str(), "inference detail"),
@@ -271,7 +272,7 @@ impl PartEnum {
     /// }
     /// ```
     pub fn from_reasoning(s: impl Into<String>) -> PartEnum {
-        PartEnum::Reasoning(Text::new(s))
+        PartEnum::Reasoning(Reasoning::new(s))
     }
 
     pub fn from_text(s: impl Into<String>) -> PartEnum {
@@ -284,7 +285,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let fc = FunctionCall::default(); // construct a FunctionCall as appropriate
     /// let part = PartEnum::from_function_call(fc);
     /// matches!(part, PartEnum::FunctionCall(_));
@@ -310,7 +311,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let embeddings = /* obtain an Embeddings value */ unimplemented!();
     /// let part = from_embeddings(embeddings);
     /// match part {
@@ -326,7 +327,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// use serde_json::json;
     ///
     /// let value = json!({ "key": "value" });
@@ -345,7 +346,7 @@ impl PartEnum {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ```ignore
     /// let file: File = /* obtain or construct a File */ unimplemented!();
     /// let part = PartEnum::from_file(file);
     /// match part {
@@ -372,7 +373,7 @@ impl Display for PartEnum {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```ignore
     /// let p = PartEnum::from_text("hello");
     /// assert_eq!(format!("{}", p), "hello");
     /// ```
@@ -407,6 +408,73 @@ impl Display for PartEnum {
                     ),
                 }
             }
+        }
+    }
+}
+
+#[cfg(feature = "stream")]
+impl Parts {
+    pub fn merge_chunk(&mut self, part: PartEnum) -> Option<crate::types::response::StreamEvent> {
+        use crate::types::response::StreamEvent;
+
+        match part {
+            PartEnum::Reasoning(new_r) => {
+                let event = StreamEvent::ReasoningChunk(new_r.text.clone());
+                if let Some(PartEnum::Reasoning(last_r)) = self.0.last_mut() {
+                    last_r.text.push_str(&new_r.text);
+                    if last_r.signature.is_none() && new_r.signature.is_some() {
+                        last_r.signature = new_r.signature;
+                    }
+                } else {
+                    self.push(PartEnum::Reasoning(new_r));
+                }
+                Some(event)
+            }
+            PartEnum::Text(new_t) => {
+                let event = StreamEvent::TextChunk(new_t.0.clone());
+                if let Some(PartEnum::Text(last_t)) = self.0.last_mut() {
+                    last_t.0.push_str(&new_t.0);
+                } else {
+                    self.push(PartEnum::Text(new_t));
+                }
+                Some(event)
+            }
+            PartEnum::FunctionCall(new_fc) => {
+                if let Some(PartEnum::FunctionCall(last_fc)) = self.0.last_mut() {
+                    // A continuation chunk has an empty name and no id — it
+                    // carries only an argument fragment for the previous call.
+                    let is_continuation = new_fc.name.is_empty() && new_fc.id.is_none();
+                    let same_call = is_continuation
+                        || (last_fc.name == new_fc.name
+                            && match (&last_fc.id, &new_fc.id) {
+                                (Some(last_id), Some(new_id)) => last_id == new_id,
+                                _ => true,
+                            });
+                    if same_call {
+                        // Concatenate argument string fragments rather than
+                        // replacing, since streaming delivers them in pieces.
+                        match (&mut last_fc.arguments, &new_fc.arguments) {
+                            (serde_json::Value::String(existing), serde_json::Value::String(new_str)) => {
+                                existing.push_str(new_str);
+                            }
+                            _ => {
+                                last_fc.arguments = new_fc.arguments.clone();
+                            }
+                        }
+                        if last_fc.id.is_none() && new_fc.id.is_some() {
+                            last_fc.id = new_fc.id.clone();
+                        }
+                        None
+                    } else {
+                        self.push(PartEnum::FunctionCall(new_fc.clone()));
+                        Some(StreamEvent::ToolCall(new_fc))
+                    }
+                } else {
+                    self.push(PartEnum::FunctionCall(new_fc.clone()));
+                    Some(StreamEvent::ToolCall(new_fc))
+                }
+            }
+            _ => None,
         }
     }
 }

@@ -10,11 +10,12 @@ use chat_core::types::response::ChatResponse;
 use tools_rs::ToolCollection;
 
 const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
+const THINKING_BETA_HEADER: &str = "interleaved-thinking-2025-05-14";
 
 #[async_trait::async_trait]
 impl CompletionProvider for ClaudeClient {
     async fn complete(
-        &self,
+        &mut self,
         messages: &mut Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
@@ -27,15 +28,22 @@ impl CompletionProvider for ClaudeClient {
             options,
             structured_output,
             false,
+            self.thinking_budget,
         )
         .map_err(ChatFailure::from_err)?;
 
-        let res = self
+        let mut req = self
             .http_client
             .post(CLAUDE_API_URL)
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", &self.api_version)
-            .header("content-type", "application/json")
+            .header("content-type", "application/json");
+
+        if self.include_thoughts {
+            req = req.header("anthropic-beta", THINKING_BETA_HEADER);
+        }
+
+        let res = req
             .json(&request_body)
             .send()
             .await

@@ -40,6 +40,16 @@ pub struct GeminiRequest {
     pub tools: Option<Vec<Value>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_config: Option<GeminiToolConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
+}
+
+#[derive(Debug, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct GeminiThinkingConfig {
+    pub include_thoughts: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -62,6 +72,9 @@ pub struct GeminiPart {
     pub inline_data: Option<GeminiInlineData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_data: Option<GeminiFileData>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
+    pub thought: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,6 +82,8 @@ pub struct GeminiPart {
 pub struct GeminiFunctionCall {
     pub name: String,
     pub args: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -109,6 +124,8 @@ pub struct GeminiGenerationConfig {
     pub response_schema: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_sequences: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_config: Option<GeminiThinkingConfig>,
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -136,6 +153,7 @@ impl GeminiRequest {
         function_config: Option<&GeminiFunctionCallingConfig>,
         options: Option<&ChatOptions>,
         output_shape: Option<&schemars::Schema>,
+        include_thoughts: bool,
     ) -> Result<Self, ChatError> {
         let mut req = Self::default();
 
@@ -148,13 +166,21 @@ impl GeminiRequest {
             for core_part in &content.parts.0 {
                 let mut gemini_part = GeminiPart::default();
                 match core_part {
-                    PartEnum::Text(t) => gemini_part.text = Some(t.0.clone()),
-                    PartEnum::Reasoning(r) => gemini_part.text = Some(r.0.clone()),
+                    PartEnum::Text(t) => {
+                        gemini_part.text = Some(t.0.clone());
+                    }
+                    PartEnum::Reasoning(r) => {
+                        gemini_part.text = Some(r.text.clone());
+                        gemini_part.thought = true;
+                        gemini_part.thought_signature = r.signature.clone();
+                    }
                     PartEnum::FunctionCall(fc) => {
                         gemini_part.function_call = Some(GeminiFunctionCall {
                             name: fc.name.clone(),
                             args: fc.arguments.clone(),
+                            id: fc.id.clone().map(Into::into),
                         });
+                        gemini_part.thought_signature = fc.id.clone().map(Into::into);
                     }
                     PartEnum::FunctionResponse(fr) => {
                         gemini_part.function_response = Some(GeminiFunctionResponse {
@@ -187,12 +213,7 @@ impl GeminiRequest {
                     PartEnum::Embeddings(_) => {
                         println!("Skipping Embeddings part in Gemini completion request.");
                         continue;
-                    } /*
-                                          part => {
-                                              println!("Skipping unknown PartEnum variant. {:#?}", part);
-                                              continue;
-                                          }
-                      */
+                    }
                 }
                 parts.push(gemini_part);
             }
@@ -230,6 +251,13 @@ impl GeminiRequest {
         }
 
         let mut gen_config = GeminiGenerationConfig::default();
+
+        if include_thoughts {
+            gen_config.thinking_config = Some(GeminiThinkingConfig {
+                include_thoughts: true,
+            });
+        }
+
         if let Some(opts) = options {
             gen_config.temperature = opts.temperature;
             gen_config.top_p = opts.top_p;
@@ -253,12 +281,11 @@ impl GeminiRequest {
             gen_config.response_schema = Some(clean_schema);
         }
 
-        if serde_json::to_value(&gen_config)
+        if !serde_json::to_value(&gen_config)
             .unwrap()
             .as_object()
             .unwrap()
-            .len()
-            > 0
+            .is_empty()
         {
             req.generation_config = Some(gen_config);
         }
@@ -308,7 +335,6 @@ impl GeminiRequest {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GeminiEmbeddingRequest {
-    //pub model: String,
     pub content: GeminiContent,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_type: Option<&'static str>,
@@ -319,18 +345,9 @@ pub struct GeminiEmbeddingRequest {
 
 impl GeminiEmbeddingRequest {
     pub fn from_core(
-        //model_name: &str,
         messages: &Messages,
         config: Option<&GeminiEmbeddingsConfig>,
     ) -> Result<Self, ChatError> {
-        /*
-                let formatted_model = if model_name.starts_with("models/") {
-                    model_name.to_string()
-                } else {
-                    format!("models/{}", model_name)
-                };
-        */
-
         let last_content = messages
             .0
             .last()
@@ -344,7 +361,7 @@ impl GeminiEmbeddingRequest {
                     ..Default::default()
                 }),
                 PartEnum::Reasoning(r) => parts.push(GeminiPart {
-                    text: Some(r.0.clone()),
+                    text: Some(r.text.clone()),
                     ..Default::default()
                 }),
                 _ => {

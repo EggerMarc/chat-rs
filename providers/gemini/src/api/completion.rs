@@ -12,7 +12,7 @@ use tools_rs::ToolCollection;
 #[async_trait::async_trait]
 impl CompletionProvider for GeminiClient {
     async fn complete(
-        &self,
+        &mut self,
         messages: &mut Messages,
         tools: Option<&ToolCollection>,
         options: Option<&ChatOptions>,
@@ -30,6 +30,7 @@ impl CompletionProvider for GeminiClient {
             self.function_config.as_ref(),
             options,
             structured_output,
+            self.include_thoughts,
         )
         .map_err(ChatFailure::from_err)?;
 

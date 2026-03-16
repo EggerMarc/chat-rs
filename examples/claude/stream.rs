@@ -1,40 +1,96 @@
-use chat_rs::{ChatBuilder, claude::ClaudeBuilder, types::messages, types::messages::content};
+use std::env;
+use std::io::Write;
+
+use chat_rs::{
+    ChatBuilder, StreamEvent,
+    claude::ClaudeBuilder,
+    types::messages::{self, content},
+};
 use futures::StreamExt;
+use tools_rs::{collect_tools, tool};
+
+#[tool]
+/// Gets user metadata. Must be called whenever a name is identified.
+async fn get_user_metadata(name: String) -> String {
+    format!(
+        "The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate",
+        name
+    )
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = ClaudeBuilder::new()
         .with_model("claude-sonnet-4-20250514".to_string())
+        .with_api_key(env::var("CLAUDE_API_KEY").expect("Couldn't find api key"))
+        .with_thoughts(true)
         .build();
 
+    let tools = collect_tools();
+
     let mut chat = ChatBuilder::new()
+        .with_tools(tools)
         .with_model(client)
-        .with_streamed_response()
+        .with_max_steps(5)
         .build();
 
     let mut messages = messages::Messages::default();
     messages.push(content::from_system(vec![
-        "You are a helpful assistant.",
+        "You are a helpful assistant. Your job is to be as useful as possible.",
     ]));
+
+    println!("Start chatting! (Type 'My name is [your name]' to test the tool)");
+    println!("---------------------------------------------------------------");
 
     loop {
         let mut user_input = String::new();
-        println!("\nUser:");
-        std::io::stdin().read_line(&mut user_input)?;
-        messages.push(content::from_user(vec![&user_input]));
+        print!("\nUser:\t");
+        std::io::stdout().flush()?;
 
-        print!("Model:\t");
+        std::io::stdin().read_line(&mut user_input)?;
+        let user_message = content::from_user(vec![user_input.trim()]);
+        messages.push(user_message);
+
+        std::io::stdout().flush()?;
+
         let mut stream = chat.stream(&mut messages).await.map_err(|err| err.err)?;
 
-        while let Some(chunk) = stream.next().await {
-            match chunk {
-                Ok(text) => print!("{}", text),
-                Err(err) => {
-                    eprintln!("\nStream error: {}", err.err);
+        while let Some(chunk_res) = stream.next().await {
+            match chunk_res {
+                Ok(event) => match event {
+                    StreamEvent::TextChunk(text) => {
+                        print!("{}", text);
+                    }
+                    // Thoughts print in dim gray
+                    StreamEvent::ReasoningChunk(reasoning) => {
+                        print!("\x1b[90m{}\x1b[0m", reasoning);
+                    }
+                    // Tools print in yellow
+                    StreamEvent::ToolCall(tool_call) => {
+                        println!(
+                            "\n\x1b[33m[Agent is executing tool: {}]\x1b[0m\n",
+                            tool_call.name
+                        );
+                    }
+                    StreamEvent::ToolResult(tool_result) => {
+                        println!(
+                            "\x1b[33m[Tool {} returned {} bytes]\x1b[0m\n\t",
+                            tool_result.name,
+                            tool_result.result.to_string().len()
+                        );
+                    }
+                    StreamEvent::Done(_) => {
+                        // Stream is fully complete for this turn
+                    }
+                },
+                Err(failure) => {
+                    eprintln!("\n[Stream Error]: {:?}", failure);
                     break;
                 }
             }
+            std::io::stdout().flush()?;
         }
+
         println!();
     }
 }

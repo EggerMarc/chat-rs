@@ -5,11 +5,6 @@ use crate::error::ChatFailure;
 use crate::types::messages::Messages;
 use crate::types::metadata::Metadata;
 
-/*#[derive(Clone)]
-pub struct CallbackStepContext {
-    pub step: u16,
-}*/
-
 #[derive(Clone)]
 pub struct CallbackRetryContext {
     pub idx: u16,

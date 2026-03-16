@@ -4,6 +4,7 @@ use chat_core::{
         messages::{
             content::{CompleteReasonEnum, Content, RoleEnum},
             parts::{PartEnum, Parts},
+            reasoning::Reasoning,
             text::Text,
         },
         metadata::{Metadata, usage::Usage},
@@ -31,7 +32,10 @@ pub enum ClaudeContentBlock {
     #[serde(rename = "text")]
     Text { text: String },
     #[serde(rename = "thinking")]
-    Thinking { thinking: String },
+    Thinking {
+        thinking: String,
+        signature: Option<String>,
+    },
     #[serde(rename = "tool_use")]
     ToolUse {
         id: String,
@@ -58,8 +62,15 @@ impl ClaudeResponse {
                 ClaudeContentBlock::Text { text } => {
                     core_parts.push(PartEnum::Text(Text::new(&text)));
                 }
-                ClaudeContentBlock::Thinking { thinking } => {
-                    core_parts.push(PartEnum::Reasoning(Text::new(&thinking)));
+                ClaudeContentBlock::Thinking {
+                    thinking,
+                    signature,
+                } => {
+                    let mut r = Reasoning::new(&thinking);
+                    if let Some(sig) = signature {
+                        r = r.with_signature(sig);
+                    }
+                    core_parts.push(PartEnum::Reasoning(r));
                 }
                 ClaudeContentBlock::ToolUse { id, name, input } => {
                     if is_structured && name == STRUCTURED_OUTPUT_TOOL_NAME {

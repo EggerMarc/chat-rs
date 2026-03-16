@@ -1,5 +1,5 @@
 use crate::api::types::error::handle_gemini_error;
-use crate::api::types::request::{GeminiEmbeddingRequest, GeminiRequest};
+use crate::api::types::request::GeminiEmbeddingRequest;
 use crate::api::types::response::GeminiEmbeddingResponse;
 use crate::client::GeminiClient;
 use chat_core::error::{ChatError, ChatFailure};

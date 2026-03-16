@@ -30,6 +30,15 @@ pub struct ClaudeRequest {
     pub top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<ThinkingConfig>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ThinkingConfig {
+    #[serde(rename = "type")]
+    pub thinking_type: String,
+    pub budget_tokens: u32,
 }
 
 #[derive(Debug, Serialize)]
@@ -53,6 +62,7 @@ impl ClaudeRequest {
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
         stream: bool,
+        thinking_budget: Option<u32>,
     ) -> Result<Self, ChatError> {
         let mut claude_messages: Vec<ClaudeMessage> = Vec::new();
         let mut system_blocks: Vec<Value> = Vec::new();
@@ -65,7 +75,7 @@ impl ClaudeRequest {
                             system_blocks.push(json!({"type": "text", "text": t.0}));
                         }
                         PartEnum::Reasoning(r) => {
-                            system_blocks.push(json!({"type": "text", "text": r.0}));
+                            system_blocks.push(json!({"type": "text", "text": r.text}));
                         }
                         _ => continue,
                     }
@@ -87,7 +97,17 @@ impl ClaudeRequest {
                         blocks.push(json!({"type": "text", "text": t.0}));
                     }
                     PartEnum::Reasoning(r) => {
-                        blocks.push(json!({"type": "thinking", "thinking": r.0}));
+                        let mut block = json!({
+                            "type": "thinking",
+                            "thinking": r.text,
+                        });
+                        if let Some(sig) = &r.signature {
+                            block
+                                .as_object_mut()
+                                .unwrap()
+                                .insert("signature".to_string(), json!(sig));
+                        }
+                        blocks.push(block);
                     }
                     PartEnum::FunctionCall(fc) => {
                         let id = fc
@@ -241,11 +261,19 @@ impl ClaudeRequest {
         let system = if system_blocks.is_empty() {
             None
         } else if system_blocks.len() == 1 {
-            // Single text block can be a plain string
             system_blocks[0].get("text").cloned()
         } else {
             Some(Value::Array(system_blocks))
         };
+
+        // Thinking config — when enabled, temperature must be unset (Claude requires it)
+        let thinking = thinking_budget.map(|budget| {
+            temperature = None;
+            ThinkingConfig {
+                thinking_type: "enabled".to_string(),
+                budget_tokens: budget,
+            }
+        });
 
         Ok(ClaudeRequest {
             model: model_name.to_string(),
@@ -261,6 +289,7 @@ impl ClaudeRequest {
             temperature,
             top_p,
             stream: if stream { Some(true) } else { None },
+            thinking,
         })
     }
 }
