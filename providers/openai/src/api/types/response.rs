@@ -237,11 +237,17 @@ pub struct OpenAIEmbeddingData {
 
 impl OpenAIEmbeddingResponse {
     pub fn into_core_embeddings_response(self) -> Result<EmbeddingsResponse, ChatError> {
-        let data = self.data.into_iter().next().ok_or_else(|| {
+        let mut data = self.data.into_iter();
+        let first = data.next().ok_or_else(|| {
             ChatError::InvalidResponse("No embedding data returned by OpenAI".into())
         })?;
+        if data.next().is_some() {
+            return Err(ChatError::InvalidResponse(
+                "Expected a single embedding result".into(),
+            ));
+        }
 
-        let dimension = data.embedding.len();
+        let dimension = first.embedding.len();
 
         let metadata = Metadata {
             model_slug: self.model,
@@ -258,7 +264,7 @@ impl OpenAIEmbeddingResponse {
 
         Ok(EmbeddingsResponse {
             embeddings: Embeddings {
-                content: data.embedding,
+                content: first.embedding,
                 dimension,
             },
             metadata: Some(metadata),
