@@ -1,3 +1,4 @@
+use chat_core::types::provider_meta::ProviderMeta;
 use reqwest::Client;
 
 pub struct ClaudeClient {
@@ -7,4 +8,5 @@ pub struct ClaudeClient {
     pub(crate) http_client: Client,
     pub(crate) include_thoughts: bool,
     pub(crate) thinking_budget: Option<u32>,
+    pub(crate) meta: ProviderMeta,
 }

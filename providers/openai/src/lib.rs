@@ -4,6 +4,8 @@ mod tools;
 use std::env;
 use std::marker::PhantomData;
 
+use chat_core::types::provider_meta::ProviderMeta;
+
 use crate::client::OpenAIClient;
 use crate::tools::{
     OpenAINativeTool, web_search::SearchContextSizeEnum, web_search::UserLocation,
@@ -28,6 +30,7 @@ pub struct OpenAIBuilder<M = WithoutModel, U = BaseEndpoint, C = BaseConfig> {
     reasoning_effort: Option<String>,
     use_previous_response_id: bool,
     store: Option<bool>,
+    meta: ProviderMeta,
     _m: PhantomData<M>,
     _u: PhantomData<U>,
     _c: PhantomData<C>,
@@ -49,6 +52,7 @@ impl OpenAIBuilder<WithoutModel, BaseEndpoint, BaseConfig> {
             reasoning_effort: None,
             use_previous_response_id: true,
             store: None,
+            meta: ProviderMeta::default(),
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -66,6 +70,7 @@ impl<U, C> OpenAIBuilder<WithoutModel, U, C> {
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
             store: self.store,
+            meta: self.meta,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -88,6 +93,20 @@ impl<M, U, C> OpenAIBuilder<M, U, C> {
         self.store = Some(store);
         self
     }
+
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.meta.description = Some(description.into());
+        self
+    }
+
+    pub fn with_metadata(
+        mut self,
+        key: impl Into<String>,
+        value: impl std::any::Any + Send + Sync + 'static,
+    ) -> Self {
+        self.meta.data.insert(key.into(), Box::new(value));
+        self
+    }
 }
 
 impl<M, C> OpenAIBuilder<M, BaseEndpoint, C> {
@@ -100,6 +119,7 @@ impl<M, C> OpenAIBuilder<M, BaseEndpoint, C> {
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
             store: self.store,
+            meta: self.meta,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -117,6 +137,7 @@ impl<M> OpenAIBuilder<M, BaseEndpoint, BaseConfig> {
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
             store: self.store,
+            meta: self.meta,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -150,6 +171,7 @@ impl<M> OpenAIBuilder<M, CustomEndpoint, BaseConfig> {
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
             store: self.store,
+            meta: self.meta,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -227,6 +249,7 @@ impl<M, U> OpenAIBuilder<M, U, BaseConfig> {
             reasoning_effort: None,
             use_previous_response_id: false,
             store: None,
+            meta: self.meta,
             _m: PhantomData,
             _u: PhantomData,
             _c: PhantomData,
@@ -255,6 +278,7 @@ impl<U, C> OpenAIBuilder<WithModel, U, C> {
             use_previous_response_id: self.use_previous_response_id,
             last_response_id: None,
             store: self.store,
+            meta: self.meta,
         }
     }
 }

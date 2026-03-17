@@ -5,7 +5,8 @@ members = [
     "core",
     "providers/gemini",
     "providers/claude",
-    "providers/openai"
+    "providers/openai",
+    "providers/router",
 ]
 
 [workspace.package]
@@ -49,10 +50,11 @@ name = "chat_rs"
 path = "src/lib.rs"
 
 [dependencies]
-chat-core   = { path = "core", version = "0.0.3"}
+chat-core   = { path = "core", version = "0.0.4"}
 chat-gemini = { path = "providers/gemini", optional = true, version = "0.0.2"}
 chat-openai = { path = "providers/openai", optional = true, version = "0.0.2"}
 chat-claude = { path = "providers/claude", optional = true }
+chat-router = { path = "providers/router", version = "0.0.1", optional = true }
 tokio.workspace = true
 schemars.workspace = true
 serde.workspace = true
@@ -77,12 +79,14 @@ tools_core.workspace = true
 tools_macros.workspace = true
 tokio.workspace = true
 futures.workspace = true
+async-trait.workspace = true
 
 [features]
 default = []
 gemini = ["dep:chat-gemini"]
 claude = ["dep:chat-claude"]
 openai = ["dep:chat-openai"]
+router = ["dep:chat-router"]
 stream = ["chat-core/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream"]
 
 
@@ -165,3 +169,18 @@ required-features = ["openai"]
 name = "openai-structured"
 path = "./examples/openai/structured.rs"
 required-features = ["openai"]
+
+[[example]]
+name = "router-embeddings"
+path = "./examples/router/embeddings.rs"
+required-features = ["router", "claude", "gemini"]
+
+[[example]]
+name = "router-capability"
+path = "./examples/router/capability.rs"
+required-features = ["router", "claude", "gemini"]
+
+[[example]]
+name = "router-keyword"
+path = "./examples/router/keyword.rs"
+required-features = ["router", "claude", "gemini"]

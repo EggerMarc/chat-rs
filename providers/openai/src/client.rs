@@ -1,3 +1,5 @@
+use chat_core::types::provider_meta::ProviderMeta;
+
 use crate::tools::OpenAINativeTool;
 
 pub struct OpenAIClient {
@@ -10,4 +12,5 @@ pub struct OpenAIClient {
     pub(crate) use_previous_response_id: bool,
     pub(crate) last_response_id: Option<String>,
     pub(crate) store: Option<bool>,
+    pub(crate) meta: ProviderMeta,
 }

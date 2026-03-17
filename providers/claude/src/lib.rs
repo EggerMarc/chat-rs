@@ -4,6 +4,8 @@ pub mod client;
 use std::env;
 use std::marker::PhantomData;
 
+use chat_core::types::provider_meta::ProviderMeta;
+
 use crate::client::ClaudeClient;
 
 const DEFAULT_API_VERSION: &str = "2023-06-01";
@@ -18,6 +20,7 @@ pub struct ClaudeBuilder<M = WithoutModel> {
     api_version: Option<String>,
     include_thoughts: bool,
     thinking_budget: Option<u32>,
+    meta: ProviderMeta,
     _m: PhantomData<M>,
 }
 
@@ -35,6 +38,7 @@ impl ClaudeBuilder<WithoutModel> {
             api_version: None,
             include_thoughts: true,
             thinking_budget: None,
+            meta: ProviderMeta::default(),
             _m: PhantomData,
         }
     }
@@ -60,6 +64,20 @@ impl<M> ClaudeBuilder<M> {
         self.thinking_budget = Some(budget);
         self
     }
+
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.meta.description = Some(description.into());
+        self
+    }
+
+    pub fn with_metadata(
+        mut self,
+        key: impl Into<String>,
+        value: impl std::any::Any + Send + Sync + 'static,
+    ) -> Self {
+        self.meta.data.insert(key.into(), Box::new(value));
+        self
+    }
 }
 
 impl ClaudeBuilder<WithoutModel> {
@@ -70,6 +88,7 @@ impl ClaudeBuilder<WithoutModel> {
             api_version: self.api_version,
             include_thoughts: self.include_thoughts,
             thinking_budget: self.thinking_budget,
+            meta: self.meta,
             _m: PhantomData,
         }
     }
@@ -92,6 +111,7 @@ impl ClaudeBuilder<WithModel> {
             } else {
                 None
             },
+            meta: self.meta,
         }
     }
 }

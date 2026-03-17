@@ -24,6 +24,7 @@ pub use chat_core::{
         },
         metadata::Metadata,
         options::ChatOptions,
+        provider_meta::ProviderMeta,
         response::{ChatResponse, EmbeddingsResponse},
     },
 };
@@ -47,6 +48,11 @@ pub mod openai {
     pub use chat_openai::*;
 }
 
+#[cfg(feature = "router")]
+pub mod router {
+    pub use chat_router::*;
+}
+
 pub mod prelude {
     pub use crate::ChatOptions;
     pub use crate::Messages;
@@ -62,4 +68,7 @@ pub mod prelude {
 
     #[cfg(feature = "openai")]
     pub use crate::openai;
+
+    #[cfg(feature = "router")]
+    pub use crate::router;
 }

@@ -25,6 +25,17 @@ pub enum ChatError {
     Other(String),
 }
 
+impl ChatError {
+    /// Whether this error is transient and worth retrying.
+    ///
+    /// Retryable: `RateLimited`, `Network` (transient failures).
+    /// Not retryable: `Provider`, `InvalidResponse`, `MaxStepsExceeded`,
+    /// `Callback`, `Other` (request/response or client-side issues).
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, ChatError::RateLimited | ChatError::Network(_))
+    }
+}
+
 #[derive(Clone, Debug, Error)]
 #[error("Chat engine failed: {err}")]
 pub struct ChatFailure {

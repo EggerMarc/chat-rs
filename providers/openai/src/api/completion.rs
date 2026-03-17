@@ -3,6 +3,7 @@ use crate::api::types::response::ResponsesApiResponse;
 use crate::client::OpenAIClient;
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::traits::CompletionProvider;
+use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
 use chat_core::types::response::ChatResponse;
@@ -68,6 +69,10 @@ impl CompletionProvider for OpenAIClient {
         }
 
         Ok(response)
+    }
+
+    fn metadata(&self) -> Option<&ProviderMeta> {
+        Some(&self.meta)
     }
 }
 
