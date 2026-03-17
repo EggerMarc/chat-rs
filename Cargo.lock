@@ -228,6 +228,7 @@ dependencies = [
 name = "chat-rs"
 version = "0.0.9"
 dependencies = [
+ "async-trait",
  "chat-claude",
  "chat-core",
  "chat-gemini",

@@ -1,3 +1,4 @@
+use chat_core::types::provider_meta::ProviderMeta;
 use reqwest::Client;
 
 use crate::{
@@ -13,4 +14,5 @@ pub struct GeminiClient {
     pub(crate) function_config: Option<GeminiFunctionCallingConfig>,
     pub(crate) embeddings_config: Option<GeminiEmbeddingsConfig>,
     pub(crate) include_thoughts: bool,
+    pub(crate) meta: ProviderMeta,
 }

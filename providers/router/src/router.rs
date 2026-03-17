@@ -28,8 +28,11 @@ impl CompletionProvider for Router {
             )));
         }
 
-        let order: Vec<usize> = match &self.strategy {
-            Some(strategy) => strategy.rank(messages, count),
+        let order = match &self.strategy {
+            Some(strategy) => {
+                let result = strategy.rank(messages, &self.providers).await;
+                result.map_err(|e| ChatFailure::from_err(ChatError::Other(e.to_string())))?
+            }
             None => (0..count).collect(),
         };
 

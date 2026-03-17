@@ -4,6 +4,7 @@ use crate::api::types::response::GeminiCompletionResponse;
 use crate::client::GeminiClient;
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::traits::CompletionProvider;
+use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
 use chat_core::types::response::ChatResponse;
@@ -53,5 +54,9 @@ impl CompletionProvider for GeminiClient {
         gemini_data
             .into_core_chat_response()
             .map_err(ChatFailure::from_err)
+    }
+
+    fn metadata(&self) -> Option<&ProviderMeta> {
+        Some(&self.meta)
     }
 }

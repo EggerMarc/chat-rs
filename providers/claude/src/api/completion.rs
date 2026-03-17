@@ -4,6 +4,7 @@ use crate::api::types::response::ClaudeResponse;
 use crate::client::ClaudeClient;
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::traits::CompletionProvider;
+use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
 use chat_core::types::response::ChatResponse;
@@ -59,5 +60,9 @@ impl CompletionProvider for ClaudeClient {
         claude_data
             .into_core_chat_response(structured_output.is_some())
             .map_err(ChatFailure::from_err)
+    }
+
+    fn metadata(&self) -> Option<&ProviderMeta> {
+        Some(&self.meta)
     }
 }

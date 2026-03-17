@@ -7,6 +7,7 @@ use crate::{
     types::{
         messages::Messages,
         options::ChatOptions,
+        provider_meta::ProviderMeta,
         response::{ChatResponse, EmbeddingsResponse},
     },
 };
@@ -25,6 +26,10 @@ pub trait CompletionProvider: Send + Sync {
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure>;
+
+    fn metadata(&self) -> Option<&ProviderMeta> {
+        None
+    }
 }
 
 #[cfg(feature = "stream")]

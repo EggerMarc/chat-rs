@@ -1,8 +1,8 @@
+pub mod macros;
 mod router;
 pub mod strategy;
-
 pub use router::Router;
-pub use strategy::RoutingStrategy;
+pub use strategy::{RoutingStrategy, StrategyError};
 
 use std::marker::PhantomData;
 
@@ -52,8 +52,9 @@ impl RouterBuilder<WithProvider> {
         self
     }
 
-    pub fn with_strategy(self, _strategy: impl RoutingStrategy + 'static) -> Self {
-        unimplemented!("RoutingStrategy is not yet implemented")
+    pub fn with_strategy(mut self, strategy: impl RoutingStrategy + 'static) -> Self {
+        self.strategy = Some(Box::new(strategy));
+        self
     }
 
     pub fn build(self) -> Router {

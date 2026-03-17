@@ -7,6 +7,8 @@ use std::marker::PhantomData;
 use crate::api::types::request::{
     EmbeddingsTask, GeminiEmbeddingsConfig, GeminiFunctionCallingConfig,
 };
+use chat_core::types::provider_meta::ProviderMeta;
+
 use crate::client::GeminiClient;
 use crate::tools::GeminiNativeTool;
 use crate::tools::code_execution::CodeExecutionTool;
@@ -27,6 +29,7 @@ pub struct GeminiBuilder<M = WithoutModel, C = BaseConfig> {
     function_config: Option<GeminiFunctionCallingConfig>,
     embeddings_config: Option<GeminiEmbeddingsConfig>,
     include_thoughts: bool,
+    meta: ProviderMeta,
     _m: PhantomData<M>,
     _c: PhantomData<C>,
 }
@@ -46,6 +49,7 @@ impl GeminiBuilder<WithoutModel, BaseConfig> {
             function_config: None,
             embeddings_config: None,
             include_thoughts: false,
+            meta: ProviderMeta::default(),
             _m: PhantomData,
             _c: PhantomData,
         }
@@ -55,6 +59,20 @@ impl GeminiBuilder<WithoutModel, BaseConfig> {
 impl<M, C> GeminiBuilder<M, C> {
     pub fn with_api_key(mut self, api_key: String) -> Self {
         self.api_key = Some(api_key);
+        self
+    }
+
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.meta.description = Some(description.into());
+        self
+    }
+
+    pub fn with_metadata(
+        mut self,
+        key: impl Into<String>,
+        value: impl std::any::Any + Send + Sync + 'static,
+    ) -> Self {
+        self.meta.data.insert(key.into(), Box::new(value));
         self
     }
 }
@@ -68,6 +86,7 @@ impl<C> GeminiBuilder<WithoutModel, C> {
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
             include_thoughts: self.include_thoughts,
+            meta: self.meta,
             _m: PhantomData,
             _c: PhantomData,
         }
@@ -83,6 +102,7 @@ impl<M> GeminiBuilder<M, BaseConfig> {
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
             include_thoughts: self.include_thoughts,
+            meta: self.meta,
             _m: PhantomData,
             _c: PhantomData,
         }
@@ -165,6 +185,7 @@ impl<M> GeminiBuilder<M, BaseConfig> {
             function_config: None,
             embeddings_config: self.embeddings_config,
             include_thoughts: false,
+            meta: self.meta,
             _m: PhantomData,
             _c: PhantomData,
         }
@@ -203,6 +224,7 @@ impl<C> GeminiBuilder<WithModel, C> {
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
             include_thoughts: self.include_thoughts,
+            meta: self.meta,
         }
     }
 }

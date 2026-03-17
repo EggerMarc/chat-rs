@@ -24,6 +24,7 @@ pub use chat_core::{
         },
         metadata::Metadata,
         options::ChatOptions,
+        provider_meta::ProviderMeta,
         response::{ChatResponse, EmbeddingsResponse},
     },
 };

@@ -79,6 +79,7 @@ tools_core.workspace = true
 tools_macros.workspace = true
 tokio.workspace = true
 futures.workspace = true
+async-trait.workspace = true
 
 [features]
 default = []
