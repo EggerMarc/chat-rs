@@ -7,7 +7,8 @@ A multi-provider LLM framework for Rust. Build type-safe chat clients with tool 
 
 ## Features
 
-- **Multi-provider** — Gemini, Claude, and OpenAI today, more coming (see [Roadmap](ROADMAP.md))
+- **Multi-provider** — Gemini, Claude, OpenAI, and Router today, more coming (see [Roadmap](ROADMAP.md))
+- **Router** — route requests across multiple providers with fallback and custom strategies (keyword, embedding, capability-based)
 - **Type-safe builder** — compile-time enforcement of valid configurations via type-state pattern
 - **Tool calling** — define tools with `#[tool]`, the framework handles the call loop automatically
 - **Structured output** — deserialize model responses directly into your Rust types via `schemars`
@@ -53,6 +54,7 @@ Enable providers via feature flags:
 chat-rs = { version = "0.0.9", features = ["gemini"] }
 chat-rs = { version = "0.0.9", features = ["claude"] }
 chat-rs = { version = "0.0.9", features = ["openai"] }
+chat-rs = { version = "0.0.9", features = ["router", "gemini", "claude"] }
 chat-rs = { version = "0.0.9", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
@@ -61,6 +63,7 @@ chat-rs = { version = "0.0.9", features = ["gemini", "claude", "openai", "stream
 | Google Gemini | `gemini` | `GEMINI_API_KEY` | `GeminiBuilder` |
 | Anthropic Claude | `claude` | `CLAUDE_API_KEY` | `ClaudeBuilder` |
 | OpenAI | `openai` | `OPENAI_API_KEY` | `OpenAIBuilder` |
+| Router | `router` | — | `RouterBuilder` |
 
 Swapping providers is a one-line change — replace the builder, everything else stays the same:
 
@@ -224,6 +227,43 @@ let client = OpenAIBuilder::new()
 
 > **Note:** The custom endpoint must support the Responses API format (`POST /responses`), not the Chat Completions API.
 
+## Router
+
+Route requests across multiple providers with automatic fallback on retryable errors. Add a custom `RoutingStrategy` to control provider selection based on keywords, embeddings, capabilities, or any logic you need.
+
+```rust
+use chat_rs::{
+    ChatBuilder,
+    router::RouterBuilder,
+    gemini::GeminiBuilder,
+    claude::ClaudeBuilder,
+    types::messages,
+};
+
+let gemini = GeminiBuilder::new()
+    .with_model("gemini-2.5-flash".to_string())
+    .build();
+
+let claude = ClaudeBuilder::new()
+    .with_model("claude-sonnet-4-20250514".to_string())
+    .build();
+
+let router = RouterBuilder::new()
+    .add_provider(gemini)
+    .add_provider(claude)
+    // .with_strategy(my_strategy)  // optional custom routing
+    .build();
+
+let mut chat = ChatBuilder::new().with_model(router).build();
+
+let mut msgs = messages::from_user(vec!["Hello!"]);
+let res = chat.complete(&mut msgs).await?;
+```
+
+Without a custom strategy, the router tries providers in order and falls back on retryable errors (rate limits, network issues). Non-retryable errors are returned immediately.
+
+> **Note:** The router currently supports completions only — streaming and embeddings are not yet available.
+
 ## Architecture
 
 ```
@@ -232,11 +272,13 @@ chat-rs (root)              ← Re-exports + feature flags
 ├── providers/
 │   ├── gemini/             ← Google Gemini provider
 │   ├── claude/             ← Anthropic Claude provider
-│   └── openai/             ← OpenAI Responses API provider
+│   ├── openai/             ← OpenAI Responses API provider
+│   └── router/             ← Multi-provider router
 └── examples/
     ├── gemini/             ← Gemini examples
     ├── claude/             ← Claude examples
-    └── openai/             ← OpenAI examples
+    ├── openai/             ← OpenAI examples
+    └── router/             ← Router strategy examples
 ```
 
 See [`core/AGENTS.md`](core/AGENTS.md) and [`providers/AGENTS.md`](providers/AGENTS.md) for detailed architecture documentation.
@@ -264,6 +306,11 @@ cargo run --example openai-completion --features openai
 cargo run --example openai-stream --features openai,stream
 cargo run --example openai-structured --features openai
 cargo run --example openai-embeddings --features openai
+
+# Router
+cargo run --example router-keyword --features router,gemini,claude
+cargo run --example router-embeddings --features router,gemini,claude
+cargo run --example router-capability --features router,gemini,claude
 
 # Retry strategies
 cargo run --example retry --features gemini
