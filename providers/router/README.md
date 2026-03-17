@@ -44,7 +44,7 @@ Providers are tried in the order they are added. On a **retryable** error (`Rate
 
 ## Routing Strategy
 
-The `RoutingStrategy` trait allows custom provider ordering based on the messages. This is currently unimplemented and reserved for a future release.
+The `RoutingStrategy` trait allows custom provider ordering based on the messages. Implement `RoutingStrategy::rank()` and pass it to `RouterBuilder::with_strategy()` to control provider selection. See the `router-keyword` and `router-capability` examples.
 
 ## Scope
 
