@@ -1,4 +1,3 @@
-pub mod macros;
 mod router;
 pub mod strategy;
 pub use router::Router;

@@ -171,6 +171,16 @@ path = "./examples/openai/structured.rs"
 required-features = ["openai"]
 
 [[example]]
-name = "router"
-path = "./examples/router.rs"
+name = "router-embeddings"
+path = "./examples/router/embeddings.rs"
+required-features = ["router", "claude", "gemini"]
+
+[[example]]
+name = "router-capability"
+path = "./examples/router/capability.rs"
+required-features = ["router", "claude", "gemini"]
+
+[[example]]
+name = "router-keyword"
+path = "./examples/router/keyword.rs"
 required-features = ["router", "claude", "gemini"]

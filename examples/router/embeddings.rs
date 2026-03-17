@@ -1,20 +1,13 @@
 use async_trait::async_trait;
 use chat_rs::{
-    ChatBuilder, CompletionProvider, EmbeddingsProvider, Messages, claude::ClaudeBuilder,
+    ChatBuilder, CompletionProvider, EmbeddingsProvider, Messages,
+    claude::ClaudeBuilder,
     gemini::{GeminiBuilder, client::GeminiClient},
-    router::RouterBuilder, router::RoutingStrategy, router::StrategyError,
+    router::RouterBuilder,
+    router::RoutingStrategy,
+    router::StrategyError,
     types::messages::content,
 };
-use tools_rs::{collect_tools, tool};
-
-#[tool]
-/// Gets user metadata. Must be called whenever a name is identified.
-async fn get_user_metadata(name: String) -> String {
-    format!(
-        "The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate",
-        name
-    )
-}
 
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     let (dot, norm_a, norm_b) = a
@@ -107,6 +100,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .with_model("gemini-2.5-flash".to_string())
         .with_description(gemini_desc)
         .with_metadata("embedding", gemini_emb)
+        .with_google_search()
+        .with_google_maps(None, false)
         .build();
 
     let strategy = EmbeddingRouter { embedder };
@@ -117,10 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .with_strategy(strategy)
         .build();
 
-    let tools = collect_tools();
-
     let mut chat = ChatBuilder::new()
-        .with_tools(tools)
         .with_model(router)
         .with_max_steps(5)
         .build();
