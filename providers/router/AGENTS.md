@@ -8,7 +8,7 @@ Implements `CompletionProvider` by wrapping multiple providers with fallback sem
 providers/router/src/
 ├── lib.rs          # RouterBuilder (typestate: WithoutProvider → WithProvider)
 ├── router.rs       # Router struct + CompletionProvider impl
-└── strategy.rs     # RoutingStrategy trait (unimplemented)
+└── strategy.rs     # RoutingStrategy trait + StrategyError type
 ```
 
 ## Builder
@@ -22,7 +22,7 @@ RouterBuilder::new()
     .build()                       // → Router
 ```
 
-`with_strategy()` exists on `WithProvider` but is currently `unimplemented!()`.
+`with_strategy(strategy)` accepts any `impl RoutingStrategy + 'static` to control provider ordering.
 
 ## Router Struct
 
@@ -57,17 +57,24 @@ The router uses `ChatError::is_retryable()` (added in chat-core 0.0.4):
 | `InvalidResponse` | No | Malformed response, switching provider won't help the same request |
 | `MaxStepsExceeded` | No | Client-side limit |
 | `Callback` | No | User callback error |
-| `Other` | No | Unknown, fail safe |
+| `Other` | No | Unknown, fail-safe |
 
 ## RoutingStrategy Trait
 
 ```rust
+pub type StrategyError = Box<dyn std::error::Error + Send + Sync>;
+
+#[async_trait]
 pub trait RoutingStrategy: Send + Sync {
-    fn rank(&self, messages: &Messages, count: usize) -> Vec<usize>;
+    async fn rank(
+        &self,
+        messages: &Messages,
+        providers: &[Box<dyn CompletionProvider>],
+    ) -> Result<Vec<usize>, StrategyError>;
 }
 ```
 
-Reserved for future use. Will allow custom provider ordering based on message content (e.g., route coding tasks to one model, creative tasks to another).
+Allows custom provider ordering based on message content. The `rank` method is async (to support strategies that need async work like embedding lookups), receives the full `providers` slice for inspection, and returns a `Result` — returning `StrategyError` on failure so the router can handle strategy errors gracefully. See the `examples/router/` directory for keyword, embedding, and capability-based strategies.
 
 ## Caveats
 

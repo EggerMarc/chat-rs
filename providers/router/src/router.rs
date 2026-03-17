@@ -41,7 +41,13 @@ impl CompletionProvider for Router {
         for idx in order {
             let provider = match self.providers.get_mut(idx) {
                 Some(p) => p,
-                None => continue,
+                None => {
+                    return Err(ChatFailure::from_err(ChatError::Other(
+                        format!(
+                            "Strategy returned out-of-range index {idx} for {count} providers"
+                        ),
+                    )));
+                }
             };
 
             match provider

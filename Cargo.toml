@@ -54,7 +54,7 @@ chat-core   = { path = "core", version = "0.0.4"}
 chat-gemini = { path = "providers/gemini", optional = true, version = "0.0.2"}
 chat-openai = { path = "providers/openai", optional = true, version = "0.0.2"}
 chat-claude = { path = "providers/claude", optional = true }
-chat-router = { path = "providers/router", optional = true }
+chat-router = { path = "providers/router", version = "0.0.1", optional = true }
 tokio.workspace = true
 schemars.workspace = true
 serde.workspace = true

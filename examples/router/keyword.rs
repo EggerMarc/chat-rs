@@ -21,9 +21,8 @@ impl RoutingStrategy for KeywordRouter {
     ) -> Result<Vec<usize>, StrategyError> {
         let query = messages
             .0
-            .iter()
-            .rev()
-            .find_map(|c| c.parts.text_response())
+            .last()
+            .and_then(|c| c.parts.text_response())
             .map(|t| t.0.to_lowercase())
             .unwrap_or_default();
 
