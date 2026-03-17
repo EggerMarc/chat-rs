@@ -50,7 +50,7 @@ name = "chat_rs"
 path = "src/lib.rs"
 
 [dependencies]
-chat-core   = { path = "core", version = "0.0.3"}
+chat-core   = { path = "core", version = "0.0.4"}
 chat-gemini = { path = "providers/gemini", optional = true, version = "0.0.2"}
 chat-openai = { path = "providers/openai", optional = true, version = "0.0.2"}
 chat-claude = { path = "providers/claude", optional = true }
