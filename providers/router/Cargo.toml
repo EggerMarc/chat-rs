@@ -11,3 +11,8 @@ chat-core = { path = "../../core", version = "0.0.5" }
 async-trait.workspace = true
 schemars.workspace = true
 tools-rs.workspace = true
+futures = { workspace = true, optional = true }
+
+[features]
+default = []
+stream = ["chat-core/stream", "dep:futures"]

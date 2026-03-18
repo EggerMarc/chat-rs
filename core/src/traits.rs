@@ -47,6 +47,15 @@ pub trait StreamProvider: Send + Sync {
     fn on_stream_done(&mut self, _response: &ChatResponse) {}
 }
 
+/// Combined supertrait for providers that support both completion and streaming.
+/// All providers that implement both `CompletionProvider` and `StreamProvider`
+/// automatically implement this trait via the blanket impl.
+#[cfg(feature = "stream")]
+pub trait ChatProvider: CompletionProvider + StreamProvider {}
+
+#[cfg(feature = "stream")]
+impl<T: CompletionProvider + StreamProvider> ChatProvider for T {}
+
 #[async_trait]
 pub trait EmbeddingsProvider: Send + Sync {
     async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;

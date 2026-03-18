@@ -2,10 +2,25 @@ use chat_core::error::{ChatError, ChatFailure};
 use chat_core::traits::CompletionProvider;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
+use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::response::ChatResponse;
 use tools_rs::ToolCollection;
 
 use crate::strategy::RoutingStrategy;
+
+pub(crate) async fn resolve_order(
+    strategy: &Option<Box<dyn RoutingStrategy>>,
+    messages: &Messages,
+    metadata: &[Option<&ProviderMeta>],
+) -> Result<Vec<usize>, ChatError> {
+    match strategy {
+        Some(strategy) => strategy
+            .rank(messages, metadata)
+            .await
+            .map_err(|e| ChatError::Other(e.to_string())),
+        None => Ok((0..metadata.len()).collect()),
+    }
+}
 
 pub struct Router {
     pub(crate) providers: Vec<Box<dyn CompletionProvider>>,
@@ -28,13 +43,11 @@ impl CompletionProvider for Router {
             )));
         }
 
-        let order = match &self.strategy {
-            Some(strategy) => {
-                let result = strategy.rank(messages, &self.providers).await;
-                result.map_err(|e| ChatFailure::from_err(ChatError::Other(e.to_string())))?
-            }
-            None => (0..count).collect(),
-        };
+        let metadata: Vec<Option<&ProviderMeta>> =
+            self.providers.iter().map(|p| p.metadata()).collect();
+        let order = resolve_order(&self.strategy, messages, &metadata)
+            .await
+            .map_err(|e| ChatFailure::from_err(e))?;
 
         let mut last_failure: Option<ChatFailure> = None;
 

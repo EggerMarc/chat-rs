@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chat_rs::{
-    ChatBuilder, CompletionProvider, Messages, claude::ClaudeBuilder, gemini::GeminiBuilder,
+    ChatBuilder, Messages, ProviderMeta, claude::ClaudeBuilder, gemini::GeminiBuilder,
     router::RouterBuilder, router::RoutingStrategy, router::StrategyError,
     types::messages::content,
 };
@@ -27,14 +27,13 @@ impl RoutingStrategy for CapabilityRouter {
     async fn rank(
         &self,
         _messages: &Messages,
-        providers: &[Box<dyn CompletionProvider>],
+        providers: &[Option<&ProviderMeta>],
     ) -> Result<Vec<usize>, StrategyError> {
         let capable: Vec<usize> = providers
             .iter()
             .enumerate()
-            .filter(|(_, p)| {
-                p.metadata()
-                    .and_then(|m| m.data.get("supports_custom_tools"))
+            .filter(|(_, meta)| {
+                meta.and_then(|m| m.data.get("supports_custom_tools"))
                     .and_then(|v| v.downcast_ref::<bool>())
                     .copied()
                     .unwrap_or(false)
