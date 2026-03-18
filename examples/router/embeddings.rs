@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chat_rs::{
-    ChatBuilder, CompletionProvider, EmbeddingsProvider, Messages,
+    ChatBuilder, EmbeddingsProvider, Messages, ProviderMeta,
     claude::ClaudeBuilder,
     gemini::{GeminiBuilder, client::GeminiClient},
     router::RouterBuilder,
@@ -41,7 +41,7 @@ impl RoutingStrategy for EmbeddingRouter {
     async fn rank(
         &self,
         messages: &Messages,
-        providers: &[Box<dyn CompletionProvider>],
+        providers: &[Option<&ProviderMeta>],
     ) -> Result<Vec<usize>, StrategyError> {
         let query = messages
             .0
@@ -60,10 +60,9 @@ impl RoutingStrategy for EmbeddingRouter {
         let mut ranked: Vec<(usize, f32)> = providers
             .iter()
             .enumerate()
-            .map(|(i, provider)| {
-                let score = provider
-                    .metadata()
-                    .and_then(|meta| meta.data.get("embedding"))
+            .map(|(i, meta)| {
+                let score = meta
+                    .and_then(|m| m.data.get("embedding"))
                     .and_then(|v| v.downcast_ref::<Vec<f32>>())
                     .map(|emb| cosine_similarity(&query_emb, emb))
                     .unwrap_or(0.0);

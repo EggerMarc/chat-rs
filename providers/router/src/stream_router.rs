@@ -1,0 +1,135 @@
+use chat_core::error::{ChatError, ChatFailure};
+use chat_core::traits::{ChatProvider, CompletionProvider, StreamProvider};
+use chat_core::types::messages::Messages;
+use chat_core::types::options::ChatOptions;
+use chat_core::types::provider_meta::ProviderMeta;
+use chat_core::types::response::{ChatResponse, StreamEvent};
+use futures::stream::BoxStream;
+use tools_rs::ToolCollection;
+
+use crate::router::resolve_order;
+use crate::strategy::RoutingStrategy;
+
+pub struct StreamRouter {
+    pub(crate) providers: Vec<Box<dyn ChatProvider>>,
+    pub(crate) strategy: Option<Box<dyn RoutingStrategy>>,
+    pub(crate) last_used: Option<usize>,
+}
+
+#[async_trait::async_trait]
+impl CompletionProvider for StreamRouter {
+    async fn complete(
+        &mut self,
+        messages: &mut Messages,
+        tools: Option<&ToolCollection>,
+        options: Option<&ChatOptions>,
+        structured_output: Option<&schemars::Schema>,
+    ) -> Result<ChatResponse, ChatFailure> {
+        let count = self.providers.len();
+        if count == 0 {
+            return Err(ChatFailure::from_err(ChatError::Other(
+                "StreamRouter has no providers".to_string(),
+            )));
+        }
+
+        let metadata: Vec<Option<&ProviderMeta>> =
+            self.providers.iter().map(|p| p.metadata()).collect();
+        let order = resolve_order(&self.strategy, messages, &metadata)
+            .await
+            .map_err(|e| ChatFailure::from_err(e))?;
+
+        let mut last_failure: Option<ChatFailure> = None;
+
+        for idx in order {
+            let provider = match self.providers.get_mut(idx) {
+                Some(p) => p,
+                None => {
+                    return Err(ChatFailure::from_err(ChatError::Other(format!(
+                        "Strategy returned out-of-range index {idx} for {count} providers"
+                    ))));
+                }
+            };
+
+            match provider
+                .complete(messages, tools, options, structured_output)
+                .await
+            {
+                Ok(response) => {
+                    self.last_used = Some(idx);
+                    return Ok(response);
+                }
+                Err(failure) => {
+                    if !failure.err.is_retryable() {
+                        return Err(failure);
+                    }
+                    last_failure = Some(failure);
+                }
+            }
+        }
+
+        Err(last_failure.unwrap_or_else(|| {
+            ChatFailure::from_err(ChatError::Other(
+                "All providers exhausted".to_string(),
+            ))
+        }))
+    }
+}
+
+#[async_trait::async_trait]
+impl StreamProvider for StreamRouter {
+    async fn stream(
+        &mut self,
+        messages: &mut Messages,
+        tools: Option<&ToolCollection>,
+        options: Option<&ChatOptions>,
+    ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
+        let count = self.providers.len();
+        if count == 0 {
+            return Err(ChatError::Other(
+                "StreamRouter has no providers".to_string(),
+            ));
+        }
+
+        let metadata: Vec<Option<&ProviderMeta>> =
+            self.providers.iter().map(|p| p.metadata()).collect();
+        let order = resolve_order(&self.strategy, messages, &metadata).await?;
+
+        let mut last_error: Option<ChatError> = None;
+
+        for idx in order {
+            let provider = match self.providers.get_mut(idx) {
+                Some(p) => p,
+                None => {
+                    return Err(ChatError::Other(format!(
+                        "Strategy returned out-of-range index {idx} for {count} providers"
+                    )));
+                }
+            };
+
+            match provider.stream(messages, tools, options).await {
+                Ok(stream) => {
+                    self.last_used = Some(idx);
+                    return Ok(stream);
+                }
+                Err(err) => {
+                    if !err.is_retryable() {
+                        return Err(err);
+                    }
+                    last_error = Some(err);
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            ChatError::Other("All providers exhausted".to_string())
+        }))
+    }
+
+    fn on_stream_done(&mut self, response: &ChatResponse) {
+        if let Some(idx) = self.last_used {
+            if let Some(provider) = self.providers.get_mut(idx) {
+                provider.on_stream_done(response);
+            }
+        }
+    }
+}

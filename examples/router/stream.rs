@@ -1,15 +1,27 @@
+use std::io::Write;
+
 use async_trait::async_trait;
 use chat_rs::{
-    ChatBuilder, Messages, ProviderMeta, claude::ClaudeBuilder, gemini::GeminiBuilder,
-    router::RouterBuilder, router::RoutingStrategy, router::StrategyError,
+    ChatBuilder, Messages, ProviderMeta, StreamEvent,
+    claude::ClaudeBuilder,
+    gemini::GeminiBuilder,
+    router::StreamRouterBuilder,
+    router::{RoutingStrategy, StrategyError},
     types::messages::content,
 };
+use futures::StreamExt;
+use tools_rs::{collect_tools, tool};
+
+#[tool]
+/// Gets user metadata. Must be called whenever a name is identified.
+async fn get_user_metadata(name: String) -> String {
+    format!(
+        "The user {} is a big fan of tacos and burgers. They also like it when you talk like a pirate",
+        name
+    )
+}
 
 /// Routes based on keywords in the last user message.
-///
-/// Each provider stores a list of keywords in its metadata under "keywords".
-/// The strategy scores each provider by how many keywords match the user's
-/// message and returns them sorted by score (highest first).
 struct KeywordRouter;
 
 #[async_trait]
@@ -25,10 +37,6 @@ impl RoutingStrategy for KeywordRouter {
             .and_then(|c| c.parts.text_response())
             .map(|t| t.0.to_lowercase())
             .unwrap_or_default();
-
-        if query.is_empty() {
-            return Ok((0..providers.len()).collect());
-        }
 
         let mut scored: Vec<(usize, usize)> = providers
             .iter()
@@ -49,13 +57,12 @@ impl RoutingStrategy for KeywordRouter {
             .collect();
 
         scored.sort_by(|a, b| b.1.cmp(&a.1));
-
         Ok(scored.into_iter().map(|(idx, _)| idx).collect())
     }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let claude = ClaudeBuilder::new()
         .with_model("claude-sonnet-4-20250514".to_string())
         .with_metadata(
@@ -66,7 +73,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 "explain".to_string(),
                 "plan".to_string(),
                 "complex".to_string(),
-                "compare".to_string(),
             ],
         )
         .build();
@@ -81,18 +87,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 "translate".to_string(),
                 "summarize".to_string(),
                 "simple".to_string(),
-                "fast".to_string(),
             ],
         )
         .build();
 
-    let router = RouterBuilder::new()
+    let router = StreamRouterBuilder::new()
         .add_provider(claude)
         .add_provider(gemini)
         .with_strategy(KeywordRouter)
         .build();
 
+    let tools = collect_tools();
+
     let mut chat = ChatBuilder::new()
+        .with_tools(tools)
         .with_model(router)
         .with_max_steps(5)
         .build();
@@ -102,28 +110,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         "You are a helpful assistant. Your job is to be as useful as possible.",
     ]));
 
-    println!("Keyword-routed: Claude (reasoning) <-> Gemini (quick tasks)");
+    println!("Keyword-routed streaming: Claude (reasoning) <-> Gemini (quick tasks)");
     println!("Try: 'analyze this problem' vs 'quick summary of X'");
-    println!("------------------------------------------------------------");
+    println!("(Type 'My name is [your name]' to test the tool)");
+    println!("---------------------------------------------------------------------");
 
     loop {
         let mut user_input = String::new();
         print!("\nUser:\t");
-        std::io::Write::flush(&mut std::io::stdout())?;
+        std::io::stdout().flush()?;
+
         std::io::stdin().read_line(&mut user_input)?;
         messages.push(content::from_user(vec![user_input.trim()]));
 
-        let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
-        messages.push(response.content.clone());
+        let mut stream = chat.stream(&mut messages).await.map_err(|err| err.err)?;
 
-        if let Some(text) = response.content.parts.text_response() {
-            println!("Model:\t{}", text);
+        while let Some(chunk_res) = stream.next().await {
+            match chunk_res {
+                Ok(event) => match event {
+                    StreamEvent::TextChunk(text) => {
+                        print!("{}", text);
+                    }
+                    StreamEvent::ReasoningChunk(reasoning) => {
+                        print!("\x1b[90m{}\x1b[0m", reasoning);
+                    }
+                    StreamEvent::ToolCall(tool_call) => {
+                        println!(
+                            "\n\x1b[33m[Agent is executing tool: {}]\x1b[0m\n",
+                            tool_call.name
+                        );
+                    }
+                    StreamEvent::ToolResult(tool_result) => {
+                        println!(
+                            "\x1b[33m[Tool {} returned {} bytes]\x1b[0m\n\t",
+                            tool_result.name,
+                            tool_result.result.to_string().len()
+                        );
+                    }
+                    StreamEvent::Done(response) => {
+                        if let Some(meta) = &response.metadata {
+                            println!(
+                                "\n\x1b[36m[Routed to: {}]\x1b[0m",
+                                meta.model_slug.as_deref().unwrap_or("unknown")
+                            );
+                        }
+                    }
+                },
+                Err(failure) => {
+                    eprintln!("\n[Stream Error]: {:?}", failure);
+                    break;
+                }
+            }
+            std::io::stdout().flush()?;
         }
-        if let Some(meta) = &response.metadata {
-            println!(
-                "Routed to:\t{}",
-                meta.model_slug.as_deref().unwrap_or("unknown")
-            );
-        }
+
+        println!();
     }
 }

@@ -87,7 +87,7 @@ gemini = ["dep:chat-gemini"]
 claude = ["dep:chat-claude"]
 openai = ["dep:chat-openai"]
 router = ["dep:chat-router"]
-stream = ["chat-core/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream"]
+stream = ["chat-core/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-router?/stream"]
 
 
 [[example]]
@@ -184,3 +184,8 @@ required-features = ["router", "claude", "gemini"]
 name = "router-keyword"
 path = "./examples/router/keyword.rs"
 required-features = ["router", "claude", "gemini"]
+
+[[example]]
+name = "router-stream"
+path = "./examples/router/stream.rs"
+required-features = ["router", "claude", "gemini", "stream"]

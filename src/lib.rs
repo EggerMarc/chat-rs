@@ -30,7 +30,10 @@ pub use chat_core::{
 };
 
 #[cfg(feature = "stream")]
-pub use chat_core::{chat::state::Streamed, traits::StreamProvider, types::response::StreamEvent};
+pub use chat_core::{
+    chat::state::Streamed, traits::ChatProvider, traits::StreamProvider,
+    types::response::StreamEvent,
+};
 
 #[cfg(feature = "gemini")]
 pub mod gemini {

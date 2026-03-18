@@ -220,6 +220,7 @@ version = "0.0.2"
 dependencies = [
  "async-trait",
  "chat-core",
+ "futures",
  "schemars",
  "tools-rs",
 ]
