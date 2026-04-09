@@ -157,7 +157,7 @@ impl GeminiRequest {
     ) -> Result<Self, ChatError> {
         let mut req = Self::default();
 
-        let mut gemini_contents = Vec::new();
+        let mut gemini_contents: Vec<GeminiContent> = Vec::new();
         let mut system_parts = Vec::new();
 
         for content in &messages.0 {
@@ -231,12 +231,22 @@ impl GeminiRequest {
                     .iter()
                     .any(|p| matches!(p, PartEnum::FunctionResponse(_)));
 
+                let effective_role = if is_func_response {
+                    "function"
+                } else {
+                    role_str
+                };
+
+                // Merge consecutive messages with the same role
+                if let Some(last) = gemini_contents.last_mut() {
+                    if last.role == effective_role {
+                        last.parts.extend(parts);
+                        continue;
+                    }
+                }
+
                 gemini_contents.push(GeminiContent {
-                    role: if is_func_response {
-                        "function".to_string()
-                    } else {
-                        role_str.to_string()
-                    },
+                    role: effective_role.to_string(),
                     parts,
                 });
             }
