@@ -184,7 +184,7 @@ dependencies = [
 
 [[package]]
 name = "chat-gemini"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -227,7 +227,7 @@ dependencies = [
 
 [[package]]
 name = "chat-rs"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "async-trait",
  "chat-claude",
