@@ -133,7 +133,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         messages.push(content::from_user(vec![user_input.trim()]));
 
         let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
-        messages.push(response.content.clone());
 
         if let Some(text) = response.content.parts.text_response() {
             println!("Model:\t{}", text);

@@ -25,7 +25,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         messages.push(user_message);
 
         let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
-        messages.push(response.content.clone());
         println!("Model:\t{:?}", response.content.parts);
         println!("Metadata:\t{:?}", response.metadata);
     }
