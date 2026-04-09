@@ -216,7 +216,7 @@ dependencies = [
 
 [[package]]
 name = "chat-router"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "async-trait",
  "chat-core",
@@ -227,7 +227,7 @@ dependencies = [
 
 [[package]]
 name = "chat-rs"
-version = "0.0.12"
+version = "0.0.13"
 dependencies = [
  "async-trait",
  "chat-claude",

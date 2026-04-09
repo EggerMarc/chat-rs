@@ -23,7 +23,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-chat-rs = { version = "0.0.10", features = ["openai"] }
+chat-rs = { version = "0.0.13", features = ["openai"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -51,11 +51,11 @@ Enable providers via feature flags:
 
 ```toml
 # Pick one or more
-chat-rs = { version = "0.0.10", features = ["gemini"] }
-chat-rs = { version = "0.0.10", features = ["claude"] }
-chat-rs = { version = "0.0.10", features = ["openai"] }
-chat-rs = { version = "0.0.10", features = ["router", "gemini", "claude"] }
-chat-rs = { version = "0.0.10", features = ["gemini", "claude", "openai", "stream"] }
+chat-rs = { version = "0.0.13", features = ["gemini"] }
+chat-rs = { version = "0.0.13", features = ["claude"] }
+chat-rs = { version = "0.0.13", features = ["openai"] }
+chat-rs = { version = "0.0.13", features = ["router", "gemini", "claude"] }
+chat-rs = { version = "0.0.13", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
 | Provider | Feature | API Key Env Var | Builder |
@@ -153,7 +153,7 @@ println!("Name: {}, Likes: {:?}", response.content.name, response.content.likes)
 Enable the `stream` feature flag:
 
 ```toml
-chat-rs = { version = "0.0.10", features = ["gemini", "stream"] }
+chat-rs = { version = "0.0.13", features = ["gemini", "stream"] }
 ```
 
 ```rust
@@ -252,6 +252,7 @@ let router = RouterBuilder::new()
     .add_provider(gemini)
     .add_provider(claude)
     // .with_strategy(my_strategy)  // optional custom routing
+    // .circuit_breaker(CircuitBreakerConfig::default())  // optional circuit breaker
     .build();
 
 let mut chat = ChatBuilder::new().with_model(router).build();
@@ -262,7 +263,22 @@ let res = chat.complete(&mut msgs).await?;
 
 Without a custom strategy, the router tries providers in order and falls back on retryable errors (rate limits, network issues). Non-retryable errors are returned immediately.
 
-> **Note:** The router currently supports completions only — streaming and embeddings are not yet available.
+Enable the optional **circuit breaker** to automatically skip providers that have failed repeatedly, and probe them again after a configurable recovery timeout:
+
+```rust
+use chat_rs::router::CircuitBreakerConfig;
+
+let router = RouterBuilder::new()
+    .add_provider(gemini)
+    .add_provider(claude)
+    .circuit_breaker(CircuitBreakerConfig {
+        failure_threshold: 3,
+        recovery_timeout: std::time::Duration::from_secs(30),
+    })
+    .build();
+```
+
+Streaming is also supported via `StreamRouterBuilder` — enable the `stream` feature flag and use providers that implement `ChatProvider`.
 
 ## Architecture
 
@@ -311,6 +327,7 @@ cargo run --example openai-embeddings --features openai
 cargo run --example router-keyword --features router,gemini,claude
 cargo run --example router-embeddings --features router,gemini,claude
 cargo run --example router-capability --features router,gemini,claude
+cargo run --example router-stream --features router,gemini,claude,stream
 
 # Retry strategies
 cargo run --example retry --features gemini

@@ -6,6 +6,7 @@ use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::response::ChatResponse;
 use tools_rs::ToolCollection;
 
+use crate::circuit_breaker::CircuitBreaker;
 use crate::strategy::RoutingStrategy;
 
 pub(crate) async fn resolve_order(
@@ -25,6 +26,7 @@ pub(crate) async fn resolve_order(
 pub struct Router {
     pub(crate) providers: Vec<Box<dyn CompletionProvider>>,
     pub(crate) strategy: Option<Box<dyn RoutingStrategy>>,
+    pub(crate) circuit_breaker: Option<CircuitBreaker>,
 }
 
 #[async_trait::async_trait]
@@ -50,8 +52,15 @@ impl CompletionProvider for Router {
             .map_err(|e| ChatFailure::from_err(e))?;
 
         let mut last_failure: Option<ChatFailure> = None;
+        let mut tried_any = false;
 
         for idx in order {
+            if let Some(cb) = &self.circuit_breaker {
+                if !cb.is_available(idx) {
+                    continue;
+                }
+            }
+
             let provider = match self.providers.get_mut(idx) {
                 Some(p) => p,
                 None => {
@@ -63,16 +72,50 @@ impl CompletionProvider for Router {
                 }
             };
 
+            tried_any = true;
+
             match provider
                 .complete(messages, tools, options, structured_output)
                 .await
             {
-                Ok(response) => return Ok(response),
+                Ok(response) => {
+                    if let Some(cb) = &mut self.circuit_breaker {
+                        cb.record_success(idx);
+                    }
+                    return Ok(response);
+                }
                 Err(failure) => {
-                    if !failure.err.is_retryable() {
-                        return Err(failure);
+                    if let Some(cb) = &mut self.circuit_breaker {
+                        cb.record_failure(idx);
                     }
                     last_failure = Some(failure);
+                }
+            }
+        }
+
+        // All circuits were open — try the one open the longest as a last resort
+        if !tried_any {
+            if let Some(cb) = &self.circuit_breaker {
+                if let Some(idx) = cb.longest_open() {
+                    if let Some(provider) = self.providers.get_mut(idx) {
+                        match provider
+                            .complete(messages, tools, options, structured_output)
+                            .await
+                        {
+                            Ok(response) => {
+                                if let Some(cb) = &mut self.circuit_breaker {
+                                    cb.record_success(idx);
+                                }
+                                return Ok(response);
+                            }
+                            Err(failure) => {
+                                if let Some(cb) = &mut self.circuit_breaker {
+                                    cb.record_failure(idx);
+                                }
+                                return Err(failure);
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -1,5 +1,7 @@
+mod circuit_breaker;
 mod router;
 pub mod strategy;
+pub use circuit_breaker::CircuitBreakerConfig;
 pub use router::Router;
 pub use strategy::{RoutingStrategy, StrategyError};
 
@@ -15,6 +17,8 @@ use chat_core::traits::CompletionProvider;
 #[cfg(feature = "stream")]
 use chat_core::traits::ChatProvider;
 
+use crate::circuit_breaker::CircuitBreaker;
+
 pub struct WithoutProvider;
 pub struct WithProvider;
 
@@ -25,6 +29,7 @@ pub struct WithProvider;
 pub struct RouterBuilder<M = WithoutProvider> {
     providers: Vec<Box<dyn CompletionProvider>>,
     strategy: Option<Box<dyn RoutingStrategy>>,
+    circuit_breaker_config: Option<CircuitBreakerConfig>,
     _m: PhantomData<M>,
 }
 
@@ -39,6 +44,7 @@ impl RouterBuilder<WithoutProvider> {
         Self {
             providers: Vec::new(),
             strategy: None,
+            circuit_breaker_config: None,
             _m: PhantomData,
         }
     }
@@ -52,6 +58,7 @@ impl RouterBuilder<WithoutProvider> {
         RouterBuilder {
             providers,
             strategy: self.strategy,
+            circuit_breaker_config: self.circuit_breaker_config,
             _m: PhantomData,
         }
     }
@@ -68,10 +75,19 @@ impl RouterBuilder<WithProvider> {
         self
     }
 
+    pub fn circuit_breaker(mut self, config: CircuitBreakerConfig) -> Self {
+        self.circuit_breaker_config = Some(config);
+        self
+    }
+
     pub fn build(self) -> Router {
+        let count = self.providers.len();
         Router {
             providers: self.providers,
             strategy: self.strategy,
+            circuit_breaker: self
+                .circuit_breaker_config
+                .map(|config| CircuitBreaker::new(config, count)),
         }
     }
 }
@@ -84,6 +100,7 @@ impl RouterBuilder<WithProvider> {
 pub struct StreamRouterBuilder<M = WithoutProvider> {
     providers: Vec<Box<dyn ChatProvider>>,
     strategy: Option<Box<dyn RoutingStrategy>>,
+    circuit_breaker_config: Option<CircuitBreakerConfig>,
     _m: PhantomData<M>,
 }
 
@@ -100,6 +117,7 @@ impl StreamRouterBuilder<WithoutProvider> {
         Self {
             providers: Vec::new(),
             strategy: None,
+            circuit_breaker_config: None,
             _m: PhantomData,
         }
     }
@@ -113,6 +131,7 @@ impl StreamRouterBuilder<WithoutProvider> {
         StreamRouterBuilder {
             providers,
             strategy: self.strategy,
+            circuit_breaker_config: self.circuit_breaker_config,
             _m: PhantomData,
         }
     }
@@ -130,10 +149,19 @@ impl StreamRouterBuilder<WithProvider> {
         self
     }
 
+    pub fn circuit_breaker(mut self, config: CircuitBreakerConfig) -> Self {
+        self.circuit_breaker_config = Some(config);
+        self
+    }
+
     pub fn build(self) -> StreamRouter {
+        let count = self.providers.len();
         StreamRouter {
             providers: self.providers,
             strategy: self.strategy,
+            circuit_breaker: self
+                .circuit_breaker_config
+                .map(|config| CircuitBreaker::new(config, count)),
             last_used: None,
         }
     }

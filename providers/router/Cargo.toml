@@ -1,6 +1,6 @@
 [package]
 name = "chat-router"
-version = "0.0.3"
+version = "0.0.4"
 description = "Router for multiple clients"
 edition.workspace = true
 authors.workspace = true
