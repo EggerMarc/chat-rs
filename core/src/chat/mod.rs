@@ -125,12 +125,6 @@ impl<P, Output> Chat<P, Output> {
                 continue;
             }
 
-            // Human-resolved rejection: surface and move on.
-            if matches!(tool.status, ToolStatus::Rejected { .. }) {
-                idx += 1;
-                continue;
-            }
-
             // Approved either by human review on resume, or programmatically.
             // Skip strategy — execute directly.
             let already_approved = matches!(tool.status, ToolStatus::Approved { .. });
