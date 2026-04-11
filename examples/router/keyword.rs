@@ -113,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         std::io::stdin().read_line(&mut user_input)?;
         messages.push(content::from_user(vec![user_input.trim()]));
 
-        let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
+        let response = chat.complete(&mut messages).await.map_err(|err| err.err)?.expect_complete();
 
         if let Some(text) = response.content.parts.text_response() {
             println!("Model:\t{}", text);

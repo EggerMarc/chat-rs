@@ -15,7 +15,6 @@ use chat_core::{
 use schemars::Schema;
 use serde::Serialize;
 use serde_json::{Value, json};
-use tools_rs::ToolCollection;
 
 #[derive(Debug, Serialize)]
 pub struct OpenAIEmbeddingRequest {
@@ -111,7 +110,9 @@ pub struct OpenAIResponsesRequest {
 pub struct ResponsesRequestConfig<'a> {
     pub model_name: &'a str,
     pub messages: &'a Messages,
-    pub custom_tools: Option<&'a ToolCollection>,
+    /// Pre-computed tool declarations from `Chat`. Already in the
+    /// `ToolCollection::json()` shape (a JSON array of function decls).
+    pub tool_declarations: Option<&'a Value>,
     pub native_tools: &'a [Box<dyn OpenAINativeTool>],
     pub reasoning_effort: Option<String>,
     pub options: Option<&'a ChatOptions>,
@@ -125,7 +126,7 @@ impl OpenAIResponsesRequest {
         let ResponsesRequestConfig {
             model_name,
             messages,
-            custom_tools,
+            tool_declarations,
             native_tools,
             reasoning_effort,
             options,
@@ -162,13 +163,13 @@ impl OpenAIResponsesRequest {
 
         // Build tools list
         let mut tools_list = Vec::new();
-        if let Some(ct) = custom_tools {
-            let declarations = ct.json().map_err(|e| ChatError::Other(e.to_string()))?;
-            if let Value::Array(funcs) = declarations {
-                for mut func in funcs {
-                    func["type"] = json!("function");
-                    tools_list.push(func);
-                }
+        if let Some(decls) = tool_declarations
+            && let Value::Array(funcs) = decls
+        {
+            for func in funcs {
+                let mut func = func.clone();
+                func["type"] = json!("function");
+                tools_list.push(func);
             }
         }
         for tool in native_tools {

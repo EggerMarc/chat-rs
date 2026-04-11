@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 
 use crate::chat::Chat;
-use crate::types::response::StructuredResponse;
+use crate::types::response::{ChatOutcome, PauseReason, StructuredResponse};
 use crate::{
     chat::state::{Structured, Unstructured},
     error::{ChatError, ChatFailure},
@@ -16,8 +16,32 @@ use crate::{
 use serde::de::DeserializeOwned;
 
 impl<CP: CompletionProvider> Chat<CP, Unstructured> {
-    pub async fn complete(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
+    /// Run the chat loop until the model completes, max_steps is reached,
+    /// or a tool call strategy pauses execution (pending approval,
+    /// scheduled, etc). Callers handle `ChatOutcome::Paused` by mutating
+    /// pending tool statuses and invoking [`Chat::resume`].
+    pub async fn complete(
+        &mut self,
+        messages: &mut Messages,
+    ) -> Result<ChatOutcome<ChatResponse>, ChatFailure> {
         self.execute_with_retries(messages, |response| {
+            Ok(ChatResponse {
+                content: response.content.clone(),
+                metadata: response.metadata.clone(),
+            })
+        })
+        .await
+    }
+
+    /// Resume a loop that previously returned `ChatOutcome::Paused`. The
+    /// caller is expected to have resolved at least one pending tool
+    /// (typically by calling `tool.approve(...)` or `tool.reject(...)`
+    /// on each) before calling resume.
+    pub async fn resume(
+        &mut self,
+        messages: &mut Messages,
+    ) -> Result<ChatOutcome<ChatResponse>, ChatFailure> {
+        self.resume_with(messages, |response| {
             Ok(ChatResponse {
                 content: response.content.clone(),
                 metadata: response.metadata.clone(),
@@ -34,7 +58,7 @@ where
     pub async fn complete(
         &mut self,
         messages: &mut Messages,
-    ) -> Result<StructuredResponse<T>, ChatFailure> {
+    ) -> Result<ChatOutcome<StructuredResponse<T>>, ChatFailure> {
         self.execute_with_retries(messages, |response| {
             let value = extract_structured_candidate(&response.content).ok_or_else(|| {
                 ChatError::InvalidResponse(
@@ -57,16 +81,39 @@ where
     }
 }
 
+/// Internal loop result: either the model reached a terminal text/structured
+/// response, or a tool-call strategy paused us.
+enum LoopStep {
+    Complete(ChatResponse),
+    Paused(PauseReason, Option<Metadata>),
+}
+
 impl<CP: CompletionProvider, Output> Chat<CP, Output> {
-    async fn call_loop(&mut self, messages: &mut Messages) -> Result<ChatResponse, ChatFailure> {
+    async fn call_loop(&mut self, messages: &mut Messages) -> Result<LoopStep, ChatFailure> {
         let mut last_metadata: Option<Metadata> = None;
 
+        // First attempt to resume any existing pending work on the last
+        // Content before calling the model. Lets `resume()` pick up where
+        // `complete()` paused without re-entering the provider.
+        if let Some(last) = messages.0.last_mut() {
+            let pre = self.tool_call(last).await.map_err(|err| ChatFailure {
+                err,
+                metadata: None,
+            })?;
+            if let Some(reason) = pre.pause {
+                return Ok(LoopStep::Paused(reason, last_metadata));
+            }
+            // If any tools just ran, fall through into the normal loop
+            // so the model sees the results.
+        }
+
         for _ in 0..self.max_steps.unwrap_or(1) {
+            let decls = self.tool_declarations();
             let response = self
                 .model
                 .complete(
                     messages,
-                    self.tools.as_ref(),
+                    decls.as_ref(),
                     self.model_options.as_ref(),
                     self.output_shape.as_ref(),
                 )
@@ -85,24 +132,31 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
 
             messages.push(response.content.clone());
 
-            // Execute any unresolved tools in place on the just-pushed
-            // Content. If anything ran, loop again so the model sees the
-            // results.
-            let executed = match messages.0.last_mut() {
-                Some(last) => self.tool_call(last).await.unwrap_or(false),
-                None => false,
+            // Walk the just-pushed Content: run tools whose strategy
+            // says Execute, leave tools that need approval/deferral in
+            // a non-resolved state, and return Paused if any remain.
+            let pass = match messages.0.last_mut() {
+                Some(last) => self.tool_call(last).await.map_err(|err| ChatFailure {
+                    err,
+                    metadata: last_metadata.clone(),
+                })?,
+                None => crate::chat::ToolCallPass::default(),
             };
-            if executed {
+
+            if let Some(reason) = pass.pause {
+                return Ok(LoopStep::Paused(reason, last_metadata));
+            }
+            if pass.executed {
                 continue;
             }
 
             match response.content.parts.last() {
                 Some(res) => match res {
                     PartEnum::Text(_) | PartEnum::Structured(_) => {
-                        return Ok(ChatResponse {
+                        return Ok(LoopStep::Complete(ChatResponse {
                             metadata: last_metadata,
                             content: response.content,
-                        });
+                        }));
                     }
                     PartEnum::Reasoning(_) => {
                         continue;
@@ -130,7 +184,7 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
         &mut self,
         messages: &mut Messages,
         mut processor: F,
-    ) -> Result<R, ChatFailure>
+    ) -> Result<ChatOutcome<R>, ChatFailure>
     where
         F: FnMut(&ChatResponse) -> Result<R, ChatError>,
     {
@@ -145,7 +199,14 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
         for idx in 0..max_retries {
             let original_len = messages.len();
             match self.call_loop(messages).await {
-                Ok(response) => {
+                Ok(LoopStep::Paused(reason, _metadata)) => {
+                    // Pause short-circuits the retry loop — metadata from
+                    // the paused step isn't currently surfaced to the
+                    // caller (ChatOutcome::Paused carries no metadata).
+                    // Add it to PauseReason's envelope if that changes.
+                    return Ok(ChatOutcome::Paused { reason });
+                }
+                Ok(LoopStep::Complete(response)) => {
                     if let Some(metadata) = response.metadata.clone() {
                         match &mut last_metadata {
                             Some(existing) => {
@@ -162,7 +223,7 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
                             if let Some(strategy) = self.after_strategy.as_mut() {
                                 strategy(messages, last_metadata.as_ref()).await;
                             }
-                            return Ok(parsed_result);
+                            return Ok(ChatOutcome::Complete(parsed_result));
                         }
                         Err(err) => {
                             last_err = Some(err.clone());
@@ -215,6 +276,31 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
             metadata: last_metadata,
             err: last_err.unwrap_or(ChatError::RateLimited),
         })
+    }
+
+    /// Resume helper for structured / unstructured variants. Does not
+    /// run retries — resume is always a continuation of a prior attempt,
+    /// not a new one.
+    async fn resume_with<F, R>(
+        &mut self,
+        messages: &mut Messages,
+        mut processor: F,
+    ) -> Result<ChatOutcome<R>, ChatFailure>
+    where
+        F: FnMut(&ChatResponse) -> Result<R, ChatError>,
+    {
+        match self.call_loop(messages).await? {
+            LoopStep::Paused(reason, _) => Ok(ChatOutcome::Paused { reason }),
+            LoopStep::Complete(response) => {
+                match processor(&response) {
+                    Ok(parsed) => Ok(ChatOutcome::Complete(parsed)),
+                    Err(err) => Err(ChatFailure {
+                        err,
+                        metadata: response.metadata,
+                    }),
+                }
+            }
+        }
     }
 }
 

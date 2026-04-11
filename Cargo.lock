@@ -151,7 +151,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chat-claude"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -168,7 +168,7 @@ dependencies = [
 
 [[package]]
 name = "chat-core"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -179,12 +179,13 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tools-rs",
+ "tools_core",
  "url",
 ]
 
 [[package]]
 name = "chat-gemini"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -200,7 +201,7 @@ dependencies = [
 
 [[package]]
 name = "chat-openai"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -216,18 +217,19 @@ dependencies = [
 
 [[package]]
 name = "chat-router"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-trait",
  "chat-core",
  "futures",
  "schemars",
+ "serde_json",
  "tools-rs",
 ]
 
 [[package]]
 name = "chat-rs"
-version = "0.0.14"
+version = "0.0.15"
 dependencies = [
  "async-trait",
  "chat-claude",
@@ -1670,9 +1672,9 @@ dependencies = [
 
 [[package]]
 name = "tools-rs"
-version = "0.1.7"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70a299a6dfe7af587a0aff5ded7fe922d1eee72a0c781a0ed58a78924b799ca4"
+checksum = "7c5ff3f2691dc9d4a1ef17edda478c470e8838c26fdaf18a6fe5b8fda7fbfccf"
 dependencies = [
  "inventory",
  "serde",
@@ -1684,9 +1686,9 @@ dependencies = [
 
 [[package]]
 name = "tools_core"
-version = "0.1.6"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50097b8738b628474380c32016b87ad05036cc3b95348802c0c371ed9dcdb9cb"
+checksum = "7b8c74161041bdbc67c0611f97097d9433e99937d6d58618db2c55a9a4472fad"
 dependencies = [
  "futures",
  "inventory",
@@ -1700,15 +1702,16 @@ dependencies = [
 
 [[package]]
 name = "tools_macros"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "581399bea2d11f0e1fee3af83ef11271e8b84fc134359cf99d90c459c986e52d"
+checksum = "b59085b2487793c99034e5d2d1aaef1502fcfadf7c96a3fca68bc26fc11310f3"
 dependencies = [
  "inventory",
  "proc-macro-crate",
  "proc-macro-error",
  "proc-macro2",
  "quote",
+ "serde_json",
  "syn 2.0.117",
 ]
 

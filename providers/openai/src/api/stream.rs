@@ -4,7 +4,7 @@ use async_stream::try_stream;
 use futures::{StreamExt, stream::BoxStream};
 use serde::Deserialize;
 use serde_json::Value;
-use tools_rs::{FunctionCall, ToolCollection};
+use tools_rs::FunctionCall;
 
 use chat_core::{
     error::ChatError,
@@ -35,7 +35,7 @@ impl StreamProvider for OpenAIClient {
     async fn stream(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&serde_json::Value>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
         let url = format!("{}/responses", self.base_url);
@@ -50,7 +50,7 @@ impl StreamProvider for OpenAIClient {
             crate::api::types::request::ResponsesRequestConfig {
                 model_name: &self.model_name,
                 messages,
-                custom_tools: tools,
+                tool_declarations,
                 native_tools: self.native_tools.as_slice(),
                 reasoning_effort: self.reasoning_effort.clone(),
                 options,

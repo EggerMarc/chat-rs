@@ -5,7 +5,7 @@ use chat_core::types::options::ChatOptions;
 use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::response::{ChatResponse, StreamEvent};
 use futures::stream::BoxStream;
-use tools_rs::ToolCollection;
+use serde_json::Value;
 
 use crate::circuit_breaker::CircuitBreaker;
 use crate::router::resolve_order;
@@ -23,7 +23,7 @@ impl CompletionProvider for StreamRouter {
     async fn complete(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&Value>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
@@ -62,7 +62,7 @@ impl CompletionProvider for StreamRouter {
             tried_any = true;
 
             match provider
-                .complete(messages, tools, options, structured_output)
+                .complete(messages, tool_declarations, options, structured_output)
                 .await
             {
                 Ok(response) => {
@@ -86,7 +86,7 @@ impl CompletionProvider for StreamRouter {
                 if let Some(idx) = cb.longest_open() {
                     if let Some(provider) = self.providers.get_mut(idx) {
                         match provider
-                            .complete(messages, tools, options, structured_output)
+                            .complete(messages, tool_declarations, options, structured_output)
                             .await
                         {
                             Ok(response) => {
@@ -121,7 +121,7 @@ impl StreamProvider for StreamRouter {
     async fn stream(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&Value>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
         let count = self.providers.len();
@@ -156,7 +156,7 @@ impl StreamProvider for StreamRouter {
 
             tried_any = true;
 
-            match provider.stream(messages, tools, options).await {
+            match provider.stream(messages, tool_declarations, options).await {
                 Ok(stream) => {
                     if let Some(cb) = &mut self.circuit_breaker {
                         cb.record_success(idx);
@@ -177,7 +177,7 @@ impl StreamProvider for StreamRouter {
             if let Some(cb) = &self.circuit_breaker {
                 if let Some(idx) = cb.longest_open() {
                     if let Some(provider) = self.providers.get_mut(idx) {
-                        match provider.stream(messages, tools, options).await {
+                        match provider.stream(messages, tool_declarations, options).await {
                             Ok(stream) => {
                                 if let Some(cb) = &mut self.circuit_breaker {
                                     cb.record_success(idx);

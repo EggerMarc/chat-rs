@@ -14,15 +14,21 @@ use crate::{
 use async_trait::async_trait;
 #[cfg(feature = "stream")]
 use futures::stream::BoxStream;
-
-use tools_rs::ToolCollection;
+use serde_json::Value;
 
 #[async_trait]
 pub trait CompletionProvider: Send + Sync {
+    /// Run one completion step.
+    ///
+    /// `tool_declarations`, when `Some`, is the pre-computed
+    /// `ToolCollection::json()` output — a JSON array of function
+    /// declarations — aggregated across every scoped collection the
+    /// chat loop holds. Providers splice this into their native request
+    /// format; they never see the typed `ToolCollection<M>` directly.
     async fn complete(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&Value>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure>;
@@ -38,7 +44,7 @@ pub trait StreamProvider: Send + Sync {
     async fn stream(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&Value>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError>;
 

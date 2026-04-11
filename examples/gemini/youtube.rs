@@ -93,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .extend(messages::parts::Parts(video_parts));
         messages.push(user_message);
 
-        let response = chat.complete(&mut messages).await.map_err(|err| err.err)?;
+        let response = chat.complete(&mut messages).await.map_err(|err| err.err)?.expect_complete();
         println!("Metadata: {:?}", response.metadata);
         println!("Model:\t{:?}", response.content.parts);
     }

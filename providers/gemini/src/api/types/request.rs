@@ -7,7 +7,6 @@ use chat_core::{
 };
 use serde::Serialize;
 use serde_json::{Value, json};
-use tools_rs::ToolCollection;
 
 use crate::tools::GeminiNativeTool;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -148,7 +147,7 @@ pub struct GeminiFunctionCallingConfig {
 impl GeminiRequest {
     pub fn from_core(
         messages: &Messages,
-        custom_tools: Option<&ToolCollection>,
+        tool_declarations: Option<&Value>,
         native_tools: Option<&[Box<dyn GeminiNativeTool>]>,
         function_config: Option<&GeminiFunctionCallingConfig>,
         options: Option<&ChatOptions>,
@@ -320,8 +319,7 @@ impl GeminiRequest {
         let mut tools_list = Vec::new();
         let mut tool_config_extras = serde_json::Map::new();
 
-        if let Some(ct) = custom_tools {
-            let decls = ct.json().map_err(|e| ChatError::Other(e.to_string()))?;
+        if let Some(decls) = tool_declarations {
             tools_list.push(json!({ "functionDeclarations": decls }));
         }
         if let Some(tools) = native_tools {

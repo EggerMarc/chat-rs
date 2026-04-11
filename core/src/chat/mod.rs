@@ -1,12 +1,17 @@
-use tools_rs::ToolCollection;
+use std::collections::HashMap;
+
+use serde_json::Value;
+use tools_rs::ToolError;
 
 use crate::{
     chat::state::Unstructured,
     error::ChatError,
     types::{
         callback::{CallbackStrategy, RetryStrategy},
-        messages::content::Content,
+        messages::{content::Content, tool::ToolStatus},
         options::ChatOptions,
+        response::PauseReason,
+        tools::{Action, TypedCollection},
     },
 };
 
@@ -26,46 +31,196 @@ pub struct Chat<CP, Output = Unstructured> {
     pub(crate) retry_strategy: Option<RetryStrategy>,
     pub(crate) before_strategy: Option<CallbackStrategy>,
     pub(crate) after_strategy: Option<CallbackStrategy>,
-    pub(crate) tools: Option<ToolCollection>,
+    pub(crate) scoped_collections: Vec<Box<dyn TypedCollection>>,
+    pub(crate) routing: HashMap<String, usize>,
     pub(crate) _output: std::marker::PhantomData<Output>,
 }
 
+/// Outcome of a single `tool_call` pass over the most recent Content.
+///
+/// - `executed`: at least one tool was run and populated (Completed/Failed/
+///   Rejected). Drives the continue-vs-stop decision in the chat loop.
+/// - `pause`: the strategy put at least one tool into a state that
+///   requires the caller to act. If `Some`, the loop returns
+///   `ChatOutcome::Paused` with this reason.
+#[derive(Debug, Default)]
+pub(crate) struct ToolCallPass {
+    pub executed: bool,
+    pub pause: Option<PauseReason>,
+}
+
 impl<P, Output> Chat<P, Output> {
-    /// Execute any tools in the given `Content` in place, flipping their
-    /// status from `Pending`/`Approved` through `Running` to `Completed` or
-    /// `Failed`.
-    ///
-    /// Returns `Ok(true)` if at least one tool was executed. `Rejected` and
-    /// already-resolved tools are skipped — they are left alone so that
-    /// human-in-the-loop flows can preserve their state through the loop.
-    pub(crate) async fn tool_call(&self, content: &mut Content) -> Result<bool, ChatError> {
-        let tools = self.tools.as_ref().ok_or_else(|| {
-            ChatError::InvalidResponse(
-                "Attempted to call tool but no tool collection has been set.".to_string(),
-            )
-        })?;
+    /// Aggregate tool declarations across every scoped collection. Returns
+    /// `None` when the chat has no tools, so providers can skip the field
+    /// entirely.
+    pub(crate) fn tool_declarations(&self) -> Option<Value> {
+        if self.scoped_collections.is_empty() {
+            return None;
+        }
+        let mut all = Vec::new();
+        for coll in &self.scoped_collections {
+            let Ok(v) = coll.declarations() else { continue };
+            if let Value::Array(arr) = v {
+                all.extend(arr);
+            }
+        }
+        if all.is_empty() {
+            None
+        } else {
+            Some(Value::Array(all))
+        }
+    }
 
-        let mut executed = false;
+    /// Look up which scoped collection owns a given tool name.
+    fn collection_for(&self, name: &str) -> Option<&dyn TypedCollection> {
+        self.routing
+            .get(name)
+            .and_then(|&idx| self.scoped_collections.get(idx).map(|b| b.as_ref()))
+    }
 
-        for tool in content.parts.tools_mut() {
-            // Only run tools that are ready to execute. Resolved tools
-            // (Completed/Rejected/Failed) are left alone.
+    /// Run one pass over the tools in `content`: consult each tool's
+    /// strategy, execute the ones that say `Execute`, leave the ones
+    /// that require human approval or deferral in a non-resolved state
+    /// and accumulate them into a `PauseReason`.
+    pub(crate) async fn tool_call(
+        &self,
+        content: &mut Content,
+    ) -> Result<ToolCallPass, ChatError> {
+        let mut pass = ToolCallPass::default();
+
+        // Phase 1: strategy decisions + execution. Walk tools in order;
+        // every unresolved, non-approved tool gets its strategy consulted.
+        // Tools already in `Approved` state (typically from a resume
+        // after human review) skip straight to execution.
+        let mut idx = 0;
+        while idx < content.parts.0.len() {
+            let part = &mut content.parts.0[idx];
+            let tool = match part {
+                crate::types::messages::parts::PartEnum::Tool(t) => t,
+                _ => {
+                    idx += 1;
+                    continue;
+                }
+            };
+
             if tool.is_resolved() {
+                idx += 1;
                 continue;
             }
 
-            let call = tool.effective_call().clone();
-            tool.mark_running();
-
-            match tools.call(call).await {
-                Ok(response) => tool.complete(response),
-                Err(err) => tool.fail(format!("{err:?}")),
+            // Human-resolved rejection: surface and move on.
+            if matches!(tool.status, ToolStatus::Rejected { .. }) {
+                idx += 1;
+                continue;
             }
 
-            executed = true;
+            // Approved either by human review on resume, or programmatically.
+            // Skip strategy — execute directly.
+            let already_approved = matches!(tool.status, ToolStatus::Approved { .. });
+
+            let action = if already_approved {
+                Action::Execute
+            } else {
+                let coll = self.collection_for(&tool.call.name).ok_or_else(|| {
+                    ChatError::InvalidResponse(format!(
+                        "no scoped collection owns tool `{}`",
+                        tool.call.name
+                    ))
+                })?;
+                coll.decide(&tool.call)
+            };
+
+            match action {
+                Action::Execute => {
+                    // Run the tool via its owning collection.
+                    let coll = self.collection_for(&tool.call.name).ok_or_else(|| {
+                        ChatError::InvalidResponse(format!(
+                            "no scoped collection owns tool `{}`",
+                            tool.call.name
+                        ))
+                    })?;
+                    tool.mark_running();
+                    let call = tool.effective_call().clone();
+                    match coll.call(call).await {
+                        Ok(response) => tool.complete(response),
+                        Err(ToolError::Runtime(msg)) => tool.fail(msg),
+                        Err(e) => tool.fail(format!("{e:?}")),
+                    }
+                    pass.executed = true;
+                }
+                Action::RequireApproval => {
+                    // Leave Pending. Collect id for pause.
+                    match &mut pass.pause {
+                        None => {
+                            pass.pause = Some(PauseReason::AwaitingApproval {
+                                tool_ids: vec![tool.id.clone()],
+                            });
+                        }
+                        Some(PauseReason::AwaitingApproval { tool_ids }) => {
+                            tool_ids.push(tool.id.clone());
+                        }
+                        Some(PauseReason::Scheduled { .. }) => {
+                            let prev = std::mem::replace(
+                                &mut pass.pause,
+                                Some(PauseReason::AwaitingApproval { tool_ids: vec![] }),
+                            );
+                            if let Some(PauseReason::Scheduled {
+                                tool_ids: sch_ids,
+                                earliest,
+                            }) = prev
+                            {
+                                pass.pause = Some(PauseReason::Mixed {
+                                    approvals: vec![tool.id.clone()],
+                                    scheduled: sch_ids
+                                        .into_iter()
+                                        .map(|id| (id, earliest))
+                                        .collect(),
+                                });
+                            }
+                        }
+                        Some(PauseReason::Mixed { approvals, .. }) => {
+                            approvals.push(tool.id.clone());
+                        }
+                    }
+                }
+                Action::Defer { at } => {
+                    match &mut pass.pause {
+                        None => {
+                            pass.pause = Some(PauseReason::Scheduled {
+                                tool_ids: vec![tool.id.clone()],
+                                earliest: at,
+                            });
+                        }
+                        Some(PauseReason::Scheduled {
+                            tool_ids,
+                            earliest,
+                        }) => {
+                            tool_ids.push(tool.id.clone());
+                            if at < *earliest {
+                                *earliest = at;
+                            }
+                        }
+                        Some(PauseReason::AwaitingApproval { tool_ids }) => {
+                            let approvals = std::mem::take(tool_ids);
+                            pass.pause = Some(PauseReason::Mixed {
+                                approvals,
+                                scheduled: vec![(tool.id.clone(), at)],
+                            });
+                        }
+                        Some(PauseReason::Mixed { scheduled, .. }) => {
+                            scheduled.push((tool.id.clone(), at));
+                        }
+                    }
+                }
+                Action::Reject { reason } => {
+                    tool.reject(Some(reason));
+                    pass.executed = true;
+                }
+            }
+
+            idx += 1;
         }
 
-        Ok(executed)
+        Ok(pass)
     }
-
 }

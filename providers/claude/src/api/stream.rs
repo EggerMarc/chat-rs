@@ -1,6 +1,5 @@
 use async_stream::try_stream;
 use futures::{StreamExt, stream::BoxStream};
-use tools_rs::ToolCollection;
 
 use chat_core::{
     error::ChatError,
@@ -34,13 +33,13 @@ impl StreamProvider for ClaudeClient {
     async fn stream(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&Value>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
         let request_body = ClaudeRequest::from_core(
             &self.model_name,
             messages,
-            tools,
+            tool_declarations,
             options,
             None,
             true,

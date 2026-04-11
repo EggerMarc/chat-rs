@@ -8,7 +8,6 @@ use chat_core::{
 };
 use serde::Serialize;
 use serde_json::{Value, json};
-use tools_rs::ToolCollection;
 
 pub(crate) const STRUCTURED_OUTPUT_TOOL_NAME: &str = "__structured_output__";
 const DEFAULT_MAX_TOKENS: u32 = 4096;
@@ -58,7 +57,7 @@ impl ClaudeRequest {
     pub fn from_core(
         model_name: &str,
         messages: &Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&Value>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
         stream: bool,
@@ -198,31 +197,30 @@ impl ClaudeRequest {
         // Build tools list
         let mut tools_list: Vec<ClaudeTool> = Vec::new();
 
-        if let Some(tc) = tools {
-            let decls = tc.json().map_err(|e| ChatError::Other(e.to_string()))?;
-            if let Value::Array(arr) = decls {
-                for decl in arr {
-                    let name = decl
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    let description = decl
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    let input_schema = decl
-                        .get("parameters")
-                        .cloned()
-                        .unwrap_or_else(|| json!({"type": "object"}));
+        if let Some(decls) = tool_declarations
+            && let Value::Array(arr) = decls
+        {
+            for decl in arr {
+                let name = decl
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let description = decl
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let input_schema = decl
+                    .get("parameters")
+                    .cloned()
+                    .unwrap_or_else(|| json!({"type": "object"}));
 
-                    tools_list.push(ClaudeTool {
-                        name,
-                        description,
-                        input_schema,
-                    });
-                }
+                tools_list.push(ClaudeTool {
+                    name,
+                    description,
+                    input_schema,
+                });
             }
         }
 

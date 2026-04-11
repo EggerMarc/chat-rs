@@ -26,9 +26,10 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
             let mut last_metadata: Option<Metadata> = None;
 
             for _ in 0..max_steps {
+                let decls = self.tool_declarations();
                 let mut provider_stream = self
                     .model
-                    .stream(messages, self.tools.as_ref(), self.model_options.as_ref())
+                    .stream(messages, decls.as_ref(), self.model_options.as_ref())
                     .await
                     .map_err(|err| ChatFailure { err, metadata: last_metadata.clone() })?;
 
@@ -60,12 +61,18 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
 
                     messages.push(response.content.clone());
 
-                    let executed = match messages.0.last_mut() {
-                        Some(last) => self.tool_call(last).await.unwrap_or(false),
-                        None => false,
+                    // Run any tools whose strategy says Execute; skip those
+                    // that need human approval or deferral (streaming mode
+                    // currently has no pause/resume contract — those tools
+                    // simply stay in their pre-execution state and the
+                    // stream ends).
+                    let pass = match messages.0.last_mut() {
+                        Some(last) => self.tool_call(last).await
+                            .map_err(|err| ChatFailure { err, metadata: last_metadata.clone() })?,
+                        None => crate::chat::ToolCallPass::default(),
                     };
 
-                    if executed {
+                    if pass.executed {
                         if let Some(last) = messages.0.last() {
                             for tool in last.parts.tools() {
                                 if let Some(fr) = tool.response() {
@@ -73,7 +80,9 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
                                 }
                             }
                         }
-                        continue;
+                        if pass.pause.is_none() {
+                            continue;
+                        }
                     }
 
                     if let Some(strategy) = self.after_strategy.as_mut() {

@@ -7,14 +7,14 @@ use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
 use chat_core::types::response::ChatResponse;
-use tools_rs::ToolCollection;
+use serde_json::Value;
 
 #[async_trait::async_trait]
 impl CompletionProvider for OpenAIClient {
     async fn complete(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&Value>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
@@ -30,7 +30,7 @@ impl CompletionProvider for OpenAIClient {
             crate::api::types::request::ResponsesRequestConfig {
                 model_name: &self.model_name,
                 messages,
-                custom_tools: tools,
+                tool_declarations,
                 native_tools: self.native_tools.as_slice(),
                 reasoning_effort: self.reasoning_effort.clone(),
                 options,
@@ -87,7 +87,7 @@ mod tests {
         let req = OpenAIResponsesRequest::from_core(ResponsesRequestConfig {
             model_name: "gpt-4o",
             messages: &messages,
-            custom_tools: None,
+            tool_declarations: None,
             native_tools: &[],
             reasoning_effort: None,
             options: None,
@@ -107,7 +107,7 @@ mod tests {
         let req = OpenAIResponsesRequest::from_core(ResponsesRequestConfig {
             model_name: "gpt-4o",
             messages: &messages,
-            custom_tools: None,
+            tool_declarations: None,
             native_tools: &[],
             reasoning_effort: None,
             options: None,

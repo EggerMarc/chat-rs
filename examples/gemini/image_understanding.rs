@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     messages.push(user_message);
 
-    let response = chat.complete(&mut messages).await.map_err(|e| e.err)?;
+    let response = chat.complete(&mut messages).await.map_err(|e| e.err)?.expect_complete();
 
     println!("Metadata: {:?}", response.metadata);
     println!("Model:");
