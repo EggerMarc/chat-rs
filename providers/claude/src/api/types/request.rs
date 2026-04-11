@@ -4,6 +4,7 @@ use chat_core::{
     types::{
         messages::{Messages, content::RoleEnum, file::File, parts::PartEnum},
         options::ChatOptions,
+        tools::ToolDeclarations,
     },
 };
 use serde::Serialize;
@@ -57,7 +58,7 @@ impl ClaudeRequest {
     pub fn from_core(
         model_name: &str,
         messages: &Messages,
-        tool_declarations: Option<&Value>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
         stream: bool,
@@ -197,10 +198,12 @@ impl ClaudeRequest {
         // Build tools list
         let mut tools_list: Vec<ClaudeTool> = Vec::new();
 
-        if let Some(decls) = tool_declarations
-            && let Value::Array(arr) = decls
-        {
-            for decl in arr {
+        if let Some(decls) = tool_declarations {
+            let value = decls
+                .json()
+                .map_err(|e| ChatError::Other(e.to_string()))?;
+            if let Value::Array(arr) = value {
+                for decl in arr {
                 let name = decl
                     .get("name")
                     .and_then(|v| v.as_str())
@@ -221,6 +224,7 @@ impl ClaudeRequest {
                     description,
                     input_schema,
                 });
+                }
             }
         }
 

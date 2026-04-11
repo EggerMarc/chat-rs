@@ -4,8 +4,8 @@ use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
 use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::response::{ChatResponse, StreamEvent};
+use chat_core::types::tools::ToolDeclarations;
 use futures::stream::BoxStream;
-use serde_json::Value;
 
 use crate::circuit_breaker::CircuitBreaker;
 use crate::router::resolve_order;
@@ -23,7 +23,7 @@ impl CompletionProvider for StreamRouter {
     async fn complete(
         &mut self,
         messages: &mut Messages,
-        tool_declarations: Option<&Value>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
@@ -121,7 +121,7 @@ impl StreamProvider for StreamRouter {
     async fn stream(
         &mut self,
         messages: &mut Messages,
-        tool_declarations: Option<&Value>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
         let count = self.providers.len();

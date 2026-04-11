@@ -26,10 +26,14 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
             let mut last_metadata: Option<Metadata> = None;
 
             for _ in 0..max_steps {
-                let decls = self.tool_declarations();
+                let decls =
+                    crate::chat::tool_declarations_from(&self.scoped_collections);
+                let decls_dyn = decls
+                    .as_ref()
+                    .map(|d| d as &dyn crate::types::tools::ToolDeclarations);
                 let mut provider_stream = self
                     .model
-                    .stream(messages, decls.as_ref(), self.model_options.as_ref())
+                    .stream(messages, decls_dyn, self.model_options.as_ref())
                     .await
                     .map_err(|err| ChatFailure { err, metadata: last_metadata.clone() })?;
 

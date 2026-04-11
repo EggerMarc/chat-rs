@@ -1,6 +1,5 @@
 use async_stream::try_stream;
 use futures::{StreamExt, stream::BoxStream};
-use serde_json::Value;
 
 use chat_core::{
     error::ChatError,
@@ -13,6 +12,7 @@ use chat_core::{
         },
         options::ChatOptions,
         response::{ChatResponse, SseParser, StreamEvent},
+        tools::ToolDeclarations,
     },
 };
 
@@ -28,7 +28,7 @@ impl StreamProvider for GeminiClient {
     async fn stream(
         &mut self,
         messages: &mut Messages,
-        tool_declarations: Option<&Value>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
         let url = format!(

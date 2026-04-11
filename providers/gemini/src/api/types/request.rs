@@ -3,6 +3,7 @@ use chat_core::{
     types::{
         messages::{Messages, content::RoleEnum, file::File, parts::PartEnum},
         options::ChatOptions,
+        tools::ToolDeclarations,
     },
 };
 use serde::Serialize;
@@ -147,7 +148,7 @@ pub struct GeminiFunctionCallingConfig {
 impl GeminiRequest {
     pub fn from_core(
         messages: &Messages,
-        tool_declarations: Option<&Value>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         native_tools: Option<&[Box<dyn GeminiNativeTool>]>,
         function_config: Option<&GeminiFunctionCallingConfig>,
         options: Option<&ChatOptions>,
@@ -320,7 +321,10 @@ impl GeminiRequest {
         let mut tool_config_extras = serde_json::Map::new();
 
         if let Some(decls) = tool_declarations {
-            tools_list.push(json!({ "functionDeclarations": decls }));
+            let value = decls
+                .json()
+                .map_err(|e| ChatError::Other(e.to_string()))?;
+            tools_list.push(json!({ "functionDeclarations": value }));
         }
         if let Some(tools) = native_tools {
             for tool in tools {

@@ -8,7 +8,7 @@ use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
 use chat_core::types::response::ChatResponse;
-use serde_json::Value;
+use chat_core::types::tools::ToolDeclarations;
 
 const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
 const THINKING_BETA_HEADER: &str = "interleaved-thinking-2025-05-14";
@@ -18,7 +18,7 @@ impl CompletionProvider for ClaudeClient {
     async fn complete(
         &mut self,
         messages: &mut Messages,
-        tool_declarations: Option<&Value>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {

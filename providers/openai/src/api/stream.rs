@@ -18,6 +18,7 @@ use chat_core::{
         metadata::{Metadata, usage::Usage},
         options::ChatOptions,
         response::{ChatResponse, SseParser, StreamEvent},
+        tools::ToolDeclarations,
     },
 };
 
@@ -35,7 +36,7 @@ impl StreamProvider for OpenAIClient {
     async fn stream(
         &mut self,
         messages: &mut Messages,
-        tool_declarations: Option<&serde_json::Value>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
         let url = format!("{}/responses", self.base_url);

@@ -108,12 +108,19 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
         }
 
         for _ in 0..self.max_steps.unwrap_or(1) {
-            let decls = self.tool_declarations();
+            // Split the borrows manually: `decls` views only
+            // `scoped_collections`, leaving `self.model` free to borrow
+            // mutably for the `complete()` call.
+            let decls =
+                crate::chat::tool_declarations_from(&self.scoped_collections);
+            let decls_dyn = decls
+                .as_ref()
+                .map(|d| d as &dyn crate::types::tools::ToolDeclarations);
             let response = self
                 .model
                 .complete(
                     messages,
-                    decls.as_ref(),
+                    decls_dyn,
                     self.model_options.as_ref(),
                     self.output_shape.as_ref(),
                 )

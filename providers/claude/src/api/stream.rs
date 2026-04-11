@@ -14,6 +14,7 @@ use chat_core::{
         },
         options::ChatOptions,
         response::{ChatResponse, SseParser, StreamEvent},
+        tools::ToolDeclarations,
     },
 };
 use serde_json::Value;
@@ -33,7 +34,7 @@ impl StreamProvider for ClaudeClient {
     async fn stream(
         &mut self,
         messages: &mut Messages,
-        tool_declarations: Option<&Value>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
         let request_body = ClaudeRequest::from_core(

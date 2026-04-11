@@ -10,6 +10,7 @@ use chat_core::{
             parts::PartEnum,
         },
         options::ChatOptions,
+        tools::ToolDeclarations,
     },
 };
 use schemars::Schema;
@@ -110,9 +111,9 @@ pub struct OpenAIResponsesRequest {
 pub struct ResponsesRequestConfig<'a> {
     pub model_name: &'a str,
     pub messages: &'a Messages,
-    /// Pre-computed tool declarations from `Chat`. Already in the
-    /// `ToolCollection::json()` shape (a JSON array of function decls).
-    pub tool_declarations: Option<&'a Value>,
+    /// Tool declarations view from `Chat`. The builder calls `.json()`
+    /// on it to obtain the JSON array of function decls.
+    pub tool_declarations: Option<&'a dyn ToolDeclarations>,
     pub native_tools: &'a [Box<dyn OpenAINativeTool>],
     pub reasoning_effort: Option<String>,
     pub options: Option<&'a ChatOptions>,
@@ -163,13 +164,16 @@ impl OpenAIResponsesRequest {
 
         // Build tools list
         let mut tools_list = Vec::new();
-        if let Some(decls) = tool_declarations
-            && let Value::Array(funcs) = decls
-        {
-            for func in funcs {
-                let mut func = func.clone();
-                func["type"] = json!("function");
-                tools_list.push(func);
+        if let Some(decls) = tool_declarations {
+            let value = decls
+                .json()
+                .map_err(|e| ChatError::Other(e.to_string()))?;
+            if let Value::Array(funcs) = value {
+                for func in funcs {
+                    let mut func = func;
+                    func["type"] = json!("function");
+                    tools_list.push(func);
+                }
             }
         }
         for tool in native_tools {

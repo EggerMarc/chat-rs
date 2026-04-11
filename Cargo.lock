@@ -223,7 +223,6 @@ dependencies = [
  "chat-core",
  "futures",
  "schemars",
- "serde_json",
  "tools-rs",
 ]
 

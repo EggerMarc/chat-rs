@@ -11,7 +11,7 @@ use crate::{
         messages::{content::Content, tool::ToolStatus},
         options::ChatOptions,
         response::PauseReason,
-        tools::{Action, TypedCollection},
+        tools::{Action, ToolDeclarations, TypedCollection},
     },
 };
 
@@ -49,27 +49,44 @@ pub(crate) struct ToolCallPass {
     pub pause: Option<PauseReason>,
 }
 
-impl<P, Output> Chat<P, Output> {
-    /// Aggregate tool declarations across every scoped collection. Returns
-    /// `None` when the chat has no tools, so providers can skip the field
-    /// entirely.
-    pub(crate) fn tool_declarations(&self) -> Option<Value> {
-        if self.scoped_collections.is_empty() {
-            return None;
-        }
+/// Aggregates every scoped collection's declarations into a single
+/// `ToolDeclarations` implementation that providers consume.
+///
+/// Borrowed against `&Chat` — lives only for the duration of a single
+/// request. Concatenation is lazy: `.json()` walks the collections on
+/// demand, so there's no per-request allocation beyond the resulting
+/// JSON array.
+pub(crate) struct AggregatedDeclarations<'a> {
+    collections: &'a [Box<dyn TypedCollection>],
+}
+
+impl<'a> ToolDeclarations for AggregatedDeclarations<'a> {
+    fn json(&self) -> Result<Value, ToolError> {
         let mut all = Vec::new();
-        for coll in &self.scoped_collections {
-            let Ok(v) = coll.declarations() else { continue };
-            if let Value::Array(arr) = v {
+        for coll in self.collections {
+            if let Value::Array(arr) = coll.declarations()? {
                 all.extend(arr);
             }
         }
-        if all.is_empty() {
-            None
-        } else {
-            Some(Value::Array(all))
-        }
+        Ok(Value::Array(all))
     }
+}
+
+/// Build an `AggregatedDeclarations` view directly from a slice. Used
+/// by the chat loop so the borrow is scoped to `scoped_collections` and
+/// not the whole `Chat` — lets callers still borrow `self.model`
+/// mutably.
+pub(crate) fn tool_declarations_from(
+    collections: &[Box<dyn TypedCollection>],
+) -> Option<AggregatedDeclarations<'_>> {
+    if collections.is_empty() {
+        None
+    } else {
+        Some(AggregatedDeclarations { collections })
+    }
+}
+
+impl<P, Output> Chat<P, Output> {
 
     /// Look up which scoped collection owns a given tool name.
     fn collection_for(&self, name: &str) -> Option<&dyn TypedCollection> {

@@ -32,6 +32,32 @@ use serde_json::Value;
 use tools_core::NoMeta;
 use tools_rs::{FunctionCall, FunctionResponse, ToolCollection, ToolError};
 
+/// Wire-format tool declarations for provider requests.
+///
+/// Providers only ever need to know *what tools exist* and their JSON
+/// schemas — not who owns them, what strategy governs them, or how to
+/// execute them. This trait hands providers exactly that, and nothing
+/// more. It's the type-safe boundary between the chat loop's tool
+/// machinery and a provider's wire-format serialization.
+///
+/// `ToolCollection<M>` implements this via a blanket impl so user code
+/// holding a typed collection can pass it directly to a provider without
+/// going through `Chat`. The chat loop's own aggregation (over multiple
+/// scoped collections) also implements it so providers can consume one
+/// uniform source.
+pub trait ToolDeclarations: Send + Sync {
+    /// JSON array of function declarations in the shape that
+    /// `ToolCollection::json()` produces. Providers splice this into
+    /// their native request format.
+    fn json(&self) -> Result<Value, ToolError>;
+}
+
+impl<M: Send + Sync> ToolDeclarations for ToolCollection<M> {
+    fn json(&self) -> Result<Value, ToolError> {
+        ToolCollection::<M>::json(self)
+    }
+}
+
 /// The chat loop's decision vocabulary for what to do with a model-emitted
 /// tool call before it runs. Produced by a strategy closure, consumed by
 /// the executor.
