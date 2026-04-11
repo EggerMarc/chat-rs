@@ -187,15 +187,43 @@ impl OpenAIResponsesRequest {
         if let Some(prev_id) = previous_response_id {
             req.previous_response_id = Some(prev_id);
 
-            // Only send messages after the last model response
-            let tail_start = messages
+            // OpenAI's stored response already contains everything up to
+            // and including the last Model message. We need to send any
+            // *new* information since then: tool results that resolve
+            // function_calls in that boundary Model message, plus any
+            // user/system content the caller appended afterwards.
+            let boundary = messages
                 .0
                 .iter()
-                .rposition(|c| c.role == RoleEnum::Model)
-                .map(|i| i + 1)
-                .unwrap_or(0);
+                .rposition(|c| c.role == RoleEnum::Model);
 
             let mut input = Vec::new();
+
+            if let Some(idx) = boundary {
+                // Boundary Model message: emit only function_call_output
+                // items for tools that now have a response. Skip
+                // function_call items themselves — those live in the
+                // stored response and re-sending them confuses the API.
+                for part in &messages.0[idx].parts.0 {
+                    if let PartEnum::Tool(tool) = part {
+                        let (_fc, maybe_fr) = tool.to_tuple();
+                        if let Some(fr) = maybe_fr {
+                            let output = if fr.result.is_string() {
+                                fr.result.as_str().unwrap().to_string()
+                            } else {
+                                fr.result.to_string()
+                            };
+                            input.push(json!({
+                                "type": "function_call_output",
+                                "call_id": fr.id.clone().map(String::from).unwrap_or_default(),
+                                "output": output,
+                            }));
+                        }
+                    }
+                }
+            }
+
+            let tail_start = boundary.map(|i| i + 1).unwrap_or(0);
             for content in &messages.0[tail_start..] {
                 content_to_input_items(content, &mut input);
             }

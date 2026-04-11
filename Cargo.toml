@@ -171,6 +171,11 @@ path = "./examples/openai/stream.rs"
 required-features = ["openai", "stream"]
 
 [[example]]
+name = "openai-hitl"
+path = "./examples/openai/hitl.rs"
+required-features = ["openai", "stream"]
+
+[[example]]
 name = "openai-embeddings"
 path = "./examples/openai/embeddings.rs"
 required-features = ["openai"]
