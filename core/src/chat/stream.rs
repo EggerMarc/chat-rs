@@ -6,13 +6,23 @@ use crate::{
     error::ChatFailure,
     traits::StreamProvider,
     types::{
-        messages::{Messages, content::Content, parts::PartEnum},
+        messages::Messages,
         metadata::Metadata,
         response::{ChatResponse, StreamEvent},
     },
 };
 
 impl<CP: StreamProvider> Chat<CP, Unstructured> {
+    /// Streaming chat loop with HITL support.
+    ///
+    /// Yields each token/chunk as `StreamEvent::TextChunk` / similar. When
+    /// a tool strategy pauses execution (for example, `RequireApproval`),
+    /// the stream yields `StreamEvent::Paused(PauseReason)` and then
+    /// terminates. The caller resolves pending tools on `messages` —
+    /// typically via `Messages::find_tool_mut` — and calls `stream()`
+    /// again to continue. On re-entry, a pre-step executes any
+    /// newly-approved tools, emits `ToolResult` events for them, and
+    /// then falls through into the next provider turn.
     pub async fn stream<'a>(
         &'a mut self,
         messages: &'a mut Messages,
@@ -26,9 +36,45 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
             let mut last_metadata: Option<Metadata> = None;
 
             for _ in 0..max_steps {
+                // Pre-step: execute any tools already resolved to
+                // Approved on the last Content (typically from a
+                // prior pause that the caller just resolved). Emit
+                // ToolResult events for completed tools. Yield Paused
+                // if the pre-step itself produced a pause (can happen
+                // if the caller left some tools still Pending).
+                if let Some(last) = messages.0.last_mut() {
+                    let pass = self
+                        .tool_call(last)
+                        .await
+                        .map_err(|err| ChatFailure {
+                            err,
+                            metadata: last_metadata.clone(),
+                        })?;
+
+                    if pass.executed
+                        && let Some(last) = messages.0.last()
+                    {
+                        for tool in last.parts.tools() {
+                            if let Some(fr) = tool.response() {
+                                yield StreamEvent::ToolResult(fr.clone());
+                            }
+                        }
+                    }
+
+                    if let Some(reason) = pass.pause {
+                        yield StreamEvent::Paused(reason);
+                        return;
+                    }
+                }
+
+                let decls =
+                    crate::chat::tool_declarations_from(&self.scoped_collections);
+                let decls_dyn = decls
+                    .as_ref()
+                    .map(|d| d as &dyn crate::types::tools::ToolDeclarations);
                 let mut provider_stream = self
                     .model
-                    .stream(messages, self.tools.as_ref(), self.model_options.as_ref())
+                    .stream(messages, decls_dyn, self.model_options.as_ref())
                     .await
                     .map_err(|err| ChatFailure { err, metadata: last_metadata.clone() })?;
 
@@ -60,18 +106,34 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
 
                     messages.push(response.content.clone());
 
-                    if let Ok(frs) = self.tool_call(&response.content).await &&!frs.is_empty() {
-                            let mut tool_message = Content::default();
+                    // Post-step: apply strategy to any tools the model
+                    // emitted this turn. Execute those that say Execute;
+                    // pause on anything that needs approval/deferral.
+                    let pass = match messages.0.last_mut() {
+                        Some(last) => self.tool_call(last).await
+                            .map_err(|err| ChatFailure { err, metadata: last_metadata.clone() })?,
+                        None => crate::chat::ToolCallPass::default(),
+                    };
 
-                            for part in frs.0 {
-                                if let PartEnum::FunctionResponse(ref fr) = part {
-                                    yield StreamEvent::ToolResult(fr.clone());
-                                }
-                                tool_message.parts.push(part);
+                    if pass.executed
+                        && let Some(last) = messages.0.last()
+                    {
+                        for tool in last.parts.tools() {
+                            if let Some(fr) = tool.response() {
+                                yield StreamEvent::ToolResult(fr.clone());
                             }
+                        }
+                    }
 
-                            messages.push(tool_message);
-                            continue;
+                    if let Some(reason) = pass.pause {
+                        yield StreamEvent::Paused(reason);
+                        return;
+                    }
+
+                    if pass.executed {
+                        // Tools ran; need another provider turn so the
+                        // model can react to the results.
+                        continue;
                     }
 
                     if let Some(strategy) = self.after_strategy.as_mut() {

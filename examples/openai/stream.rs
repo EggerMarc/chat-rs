@@ -76,6 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     StreamEvent::Done(res) => {
                         println!("Usage: {:?}", res.metadata);
                     }
+                    _ => {}
                 },
                 Err(failure) => {
                     eprintln!("\n[Stream Error]: {:?}", failure);

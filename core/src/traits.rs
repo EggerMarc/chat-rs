@@ -9,20 +9,30 @@ use crate::{
         options::ChatOptions,
         provider_meta::ProviderMeta,
         response::{ChatResponse, EmbeddingsResponse},
+        tools::ToolDeclarations,
     },
 };
 use async_trait::async_trait;
 #[cfg(feature = "stream")]
 use futures::stream::BoxStream;
 
-use tools_rs::ToolCollection;
-
+/// Tool declarations are the one and only view providers have into the
+/// user's tool collections. The trait intentionally exposes nothing
+/// about execution, metadata, or strategy — providers translate
+/// declarations to their wire format and nothing else. For the
+/// builder-side collection API, see [`crate::types::tools`].
 #[async_trait]
 pub trait CompletionProvider: Send + Sync {
+    /// Run one completion step.
+    ///
+    /// `tool_declarations`, when `Some`, is a view onto every scoped
+    /// tool collection the chat loop holds. Call `.json()` on it to get
+    /// the JSON array of function declarations that providers splice
+    /// into their native request format.
     async fn complete(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure>;
@@ -38,7 +48,7 @@ pub trait StreamProvider: Send + Sync {
     async fn stream(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError>;
 

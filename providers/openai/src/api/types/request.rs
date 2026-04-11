@@ -10,12 +10,12 @@ use chat_core::{
             parts::PartEnum,
         },
         options::ChatOptions,
+        tools::ToolDeclarations,
     },
 };
 use schemars::Schema;
 use serde::Serialize;
 use serde_json::{Value, json};
-use tools_rs::ToolCollection;
 
 #[derive(Debug, Serialize)]
 pub struct OpenAIEmbeddingRequest {
@@ -111,7 +111,9 @@ pub struct OpenAIResponsesRequest {
 pub struct ResponsesRequestConfig<'a> {
     pub model_name: &'a str,
     pub messages: &'a Messages,
-    pub custom_tools: Option<&'a ToolCollection>,
+    /// Tool declarations view from `Chat`. The builder calls `.json()`
+    /// on it to obtain the JSON array of function decls.
+    pub tool_declarations: Option<&'a dyn ToolDeclarations>,
     pub native_tools: &'a [Box<dyn OpenAINativeTool>],
     pub reasoning_effort: Option<String>,
     pub options: Option<&'a ChatOptions>,
@@ -125,7 +127,7 @@ impl OpenAIResponsesRequest {
         let ResponsesRequestConfig {
             model_name,
             messages,
-            custom_tools,
+            tool_declarations,
             native_tools,
             reasoning_effort,
             options,
@@ -162,10 +164,13 @@ impl OpenAIResponsesRequest {
 
         // Build tools list
         let mut tools_list = Vec::new();
-        if let Some(ct) = custom_tools {
-            let declarations = ct.json().map_err(|e| ChatError::Other(e.to_string()))?;
-            if let Value::Array(funcs) = declarations {
-                for mut func in funcs {
+        if let Some(decls) = tool_declarations {
+            let value = decls
+                .json()
+                .map_err(|e| ChatError::Other(e.to_string()))?;
+            if let Value::Array(funcs) = value {
+                for func in funcs {
+                    let mut func = func;
                     func["type"] = json!("function");
                     tools_list.push(func);
                 }
@@ -182,15 +187,43 @@ impl OpenAIResponsesRequest {
         if let Some(prev_id) = previous_response_id {
             req.previous_response_id = Some(prev_id);
 
-            // Only send messages after the last model response
-            let tail_start = messages
+            // OpenAI's stored response already contains everything up to
+            // and including the last Model message. We need to send any
+            // *new* information since then: tool results that resolve
+            // function_calls in that boundary Model message, plus any
+            // user/system content the caller appended afterwards.
+            let boundary = messages
                 .0
                 .iter()
-                .rposition(|c| c.role == RoleEnum::Model)
-                .map(|i| i + 1)
-                .unwrap_or(0);
+                .rposition(|c| c.role == RoleEnum::Model);
 
             let mut input = Vec::new();
+
+            if let Some(idx) = boundary {
+                // Boundary Model message: emit only function_call_output
+                // items for tools that now have a response. Skip
+                // function_call items themselves — those live in the
+                // stored response and re-sending them confuses the API.
+                for part in &messages.0[idx].parts.0 {
+                    if let PartEnum::Tool(tool) = part {
+                        let (_fc, maybe_fr) = tool.to_tuple();
+                        if let Some(fr) = maybe_fr {
+                            let output = if fr.result.is_string() {
+                                fr.result.as_str().unwrap().to_string()
+                            } else {
+                                fr.result.to_string()
+                            };
+                            input.push(json!({
+                                "type": "function_call_output",
+                                "call_id": fr.id.clone().map(String::from).unwrap_or_default(),
+                                "output": output,
+                            }));
+                        }
+                    }
+                }
+            }
+
+            let tail_start = boundary.map(|i| i + 1).unwrap_or(0);
             for content in &messages.0[tail_start..] {
                 content_to_input_items(content, &mut input);
             }
@@ -239,25 +272,26 @@ fn content_to_input_items(content: &Content, items: &mut Vec<Value>) {
             PartEnum::Reasoning(r) => {
                 message_parts.push(json!({ "type": "input_text", "text": r.text }));
             }
-            PartEnum::FunctionCall(fc) => {
+            PartEnum::Tool(tool) => {
+                let (fc, maybe_fr) = tool.to_tuple();
                 items.push(json!({
                     "type": "function_call",
                     "call_id": fc.id.clone().map(String::from).unwrap_or_default(),
                     "name": fc.name,
                     "arguments": serde_json::to_string(&fc.arguments).unwrap_or_default(),
                 }));
-            }
-            PartEnum::FunctionResponse(fr) => {
-                let output = if fr.result.is_string() {
-                    fr.result.as_str().unwrap().to_string()
-                } else {
-                    fr.result.to_string()
-                };
-                items.push(json!({
-                    "type": "function_call_output",
-                    "call_id": fr.id.clone().map(String::from).unwrap_or_default(),
-                    "output": output,
-                }));
+                if let Some(fr) = maybe_fr {
+                    let output = if fr.result.is_string() {
+                        fr.result.as_str().unwrap().to_string()
+                    } else {
+                        fr.result.to_string()
+                    };
+                    items.push(json!({
+                        "type": "function_call_output",
+                        "call_id": fr.id.clone().map(String::from).unwrap_or_default(),
+                        "output": output,
+                    }));
+                }
             }
             PartEnum::File(File::Url(u)) => {
                 message_parts.push(json!({

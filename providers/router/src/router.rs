@@ -4,7 +4,7 @@ use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
 use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::response::ChatResponse;
-use tools_rs::ToolCollection;
+use chat_core::types::tools::ToolDeclarations;
 
 use crate::circuit_breaker::CircuitBreaker;
 use crate::strategy::RoutingStrategy;
@@ -34,7 +34,7 @@ impl CompletionProvider for Router {
     async fn complete(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
@@ -75,7 +75,7 @@ impl CompletionProvider for Router {
             tried_any = true;
 
             match provider
-                .complete(messages, tools, options, structured_output)
+                .complete(messages, tool_declarations, options, structured_output)
                 .await
             {
                 Ok(response) => {
@@ -99,7 +99,7 @@ impl CompletionProvider for Router {
                 if let Some(idx) = cb.longest_open() {
                     if let Some(provider) = self.providers.get_mut(idx) {
                         match provider
-                            .complete(messages, tools, options, structured_output)
+                            .complete(messages, tool_declarations, options, structured_output)
                             .await
                         {
                             Ok(response) => {

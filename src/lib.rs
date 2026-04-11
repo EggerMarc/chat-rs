@@ -21,11 +21,13 @@ pub use chat_core::{
             Messages,
             content::Content,
             parts::{PartEnum, Parts},
+            tool::{Tool, ToolStatus},
         },
         metadata::Metadata,
         options::ChatOptions,
         provider_meta::ProviderMeta,
-        response::{ChatResponse, EmbeddingsResponse},
+        response::{ChatOutcome, ChatResponse, EmbeddingsResponse, PauseReason},
+        tools::{Action, ScopedCollection, TypedCollection},
     },
 };
 

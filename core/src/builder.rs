@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use tools_rs::ToolCollection;
@@ -13,6 +15,7 @@ use crate::{
     types::{
         callback::{CallbackStrategy, RetryStrategy},
         options::ChatOptions,
+        tools::{ScopedCollection, TypedCollection},
     },
 };
 
@@ -28,7 +31,7 @@ pub struct ChatBuilder<CP: CompletionProvider, Output = Unstructured> {
     retry_strategy: Option<RetryStrategy>,
     before_strategy: Option<CallbackStrategy>,
     after_strategy: Option<CallbackStrategy>,
-    tools: Option<ToolCollection>,
+    scoped_collections: Vec<Box<dyn TypedCollection>>,
     _output: std::marker::PhantomData<Output>,
 }
 
@@ -54,7 +57,7 @@ impl<CP: CompletionProvider> ChatBuilder<CP, Unstructured> {
             before_strategy: self.before_strategy,
             after_strategy: self.after_strategy,
             output_shape: Some(shape),
-            tools: self.tools,
+            scoped_collections: self.scoped_collections,
             model_options: self.model_options,
             _output: std::marker::PhantomData,
         }
@@ -78,8 +81,8 @@ impl<CP: CompletionProvider> ChatBuilder<CP, Unstructured> {
             retry_strategy: self.retry_strategy,
             before_strategy: self.before_strategy,
             after_strategy: self.after_strategy,
-            output_shape: None, // No shape for pure streaming
-            tools: self.tools,
+            output_shape: None,
+            scoped_collections: self.scoped_collections,
             model_options: self.model_options,
             _output: std::marker::PhantomData,
         }
@@ -99,7 +102,7 @@ impl<CP: CompletionProvider> ChatBuilder<CP, Unstructured> {
             before_strategy: self.before_strategy,
             after_strategy: self.after_strategy,
             output_shape: None,
-            tools: None,
+            scoped_collections: Vec::new(),
             max_steps: None,
             model_options: self.model_options,
             _output: std::marker::PhantomData,
@@ -118,8 +121,27 @@ impl<CP: CompletionProvider, Output> ChatBuilder<CP, Output> {
         self
     }
 
+    /// Convenience: wrap a plain `ToolCollection<NoMeta>` with an
+    /// always-execute strategy. Equivalent to
+    /// `.with_scoped_tools(ScopedCollection::auto_execute(tools))`.
     pub fn with_tools(mut self, tools: ToolCollection) -> Self {
-        self.tools = Some(tools);
+        self.scoped_collections
+            .push(Box::new(ScopedCollection::auto_execute(tools)));
+        self
+    }
+
+    /// Attach a typed tool collection with a user-defined strategy.
+    /// Multiple calls are additive — the resulting `Chat` routes each
+    /// tool call to the collection that owns its name.
+    pub fn with_scoped_tools<M, F>(mut self, scoped: ScopedCollection<M, F>) -> Self
+    where
+        M: Send + Sync + 'static,
+        F: Fn(&tools_rs::FunctionCall, &M) -> crate::types::tools::Action
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.scoped_collections.push(Box::new(scoped));
         self
     }
 
@@ -139,6 +161,24 @@ impl<CP: CompletionProvider, Output> ChatBuilder<CP, Output> {
     }
 
     pub fn build(self) -> Chat<CP, Output> {
+        // Build routing table: tool name → index into scoped_collections.
+        // Collisions across collections are a programming error — we
+        // keep the first and ignore later ones with a warning. (Could
+        // be promoted to a hard error via a builder method later.)
+        let mut routing: HashMap<String, usize> = HashMap::new();
+        for (idx, coll) in self.scoped_collections.iter().enumerate() {
+            for name in coll.names() {
+                if routing.contains_key(name) {
+                    eprintln!(
+                        "chat-rs: tool name `{name}` is registered in multiple scoped \
+                         collections; keeping the first registration."
+                    );
+                    continue;
+                }
+                routing.insert(name.to_string(), idx);
+            }
+        }
+
         Chat {
             model: self.model.expect("Need to set a model"),
             output_shape: self.output_shape,
@@ -147,7 +187,8 @@ impl<CP: CompletionProvider, Output> ChatBuilder<CP, Output> {
             retry_strategy: self.retry_strategy,
             before_strategy: self.before_strategy,
             after_strategy: self.after_strategy,
-            tools: self.tools,
+            scoped_collections: self.scoped_collections,
+            routing,
             model_options: self.model_options,
             _output: std::marker::PhantomData,
         }
@@ -165,7 +206,7 @@ impl<CP: CompletionProvider> Default for ChatBuilder<CP, Unstructured> {
             retry_strategy: None,
             before_strategy: None,
             after_strategy: None,
-            tools: None,
+            scoped_collections: Vec::new(),
             _output: std::marker::PhantomData,
         }
     }

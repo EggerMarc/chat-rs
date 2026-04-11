@@ -4,11 +4,11 @@ use chat_core::{
     types::{
         messages::{Messages, content::RoleEnum, file::File, parts::PartEnum},
         options::ChatOptions,
+        tools::ToolDeclarations,
     },
 };
 use serde::Serialize;
 use serde_json::{Value, json};
-use tools_rs::ToolCollection;
 
 pub(crate) const STRUCTURED_OUTPUT_TOOL_NAME: &str = "__structured_output__";
 const DEFAULT_MAX_TOKENS: u32 = 4096;
@@ -58,7 +58,7 @@ impl ClaudeRequest {
     pub fn from_core(
         model_name: &str,
         messages: &Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
         stream: bool,
@@ -83,18 +83,23 @@ impl ClaudeRequest {
                 continue;
             }
 
-            let role = match content.role {
+            let assistant_role = match content.role {
                 RoleEnum::User => "user",
                 RoleEnum::Model => "assistant",
                 RoleEnum::System => unreachable!(),
             };
 
-            let mut blocks: Vec<Value> = Vec::new();
+            // Claude requires tool_use blocks to live in assistant turns
+            // and tool_result blocks to live in following user turns. A
+            // single core Content can carry both — we split into two
+            // sequential Claude messages.
+            let mut assistant_blocks: Vec<Value> = Vec::new();
+            let mut tool_result_blocks: Vec<Value> = Vec::new();
 
             for part in &content.parts.0 {
                 match part {
                     PartEnum::Text(t) => {
-                        blocks.push(json!({"type": "text", "text": t.0}));
+                        assistant_blocks.push(json!({"type": "text", "text": t.0}));
                     }
                     PartEnum::Reasoning(r) => {
                         let mut block = json!({
@@ -107,44 +112,44 @@ impl ClaudeRequest {
                                 .unwrap()
                                 .insert("signature".to_string(), json!(sig));
                         }
-                        blocks.push(block);
+                        assistant_blocks.push(block);
                     }
-                    PartEnum::FunctionCall(fc) => {
+                    PartEnum::Tool(tool) => {
+                        let (fc, maybe_fr) = tool.to_tuple();
                         let id = fc
                             .id
                             .as_ref()
                             .map(|id| id.to_string())
                             .unwrap_or_default();
-                        blocks.push(json!({
+                        assistant_blocks.push(json!({
                             "type": "tool_use",
                             "id": id,
                             "name": fc.name,
                             "input": fc.arguments,
                         }));
-                    }
-                    PartEnum::FunctionResponse(fr) => {
-                        let tool_use_id = fr
-                            .id
-                            .as_ref()
-                            .map(|id| id.to_string())
-                            .unwrap_or_default();
 
-                        let content_val = if fr.result.is_string() {
-                            fr.result.as_str().unwrap().to_string()
-                        } else {
-                            fr.result.to_string()
-                        };
-
-                        blocks.push(json!({
-                            "type": "tool_result",
-                            "tool_use_id": tool_use_id,
-                            "content": content_val,
-                        }));
+                        if let Some(fr) = maybe_fr {
+                            let tool_use_id = fr
+                                .id
+                                .as_ref()
+                                .map(|id| id.to_string())
+                                .unwrap_or_default();
+                            let content_val = if fr.result.is_string() {
+                                fr.result.as_str().unwrap().to_string()
+                            } else {
+                                fr.result.to_string()
+                            };
+                            tool_result_blocks.push(json!({
+                                "type": "tool_result",
+                                "tool_use_id": tool_use_id,
+                                "content": content_val,
+                            }));
+                        }
                     }
                     PartEnum::File(file) => match file {
                         File::Bytes(raw_data) => {
                             let encoded = STANDARD.encode(&raw_data.bytes);
-                            blocks.push(json!({
+                            assistant_blocks.push(json!({
                                 "type": "image",
                                 "source": {
                                     "type": "base64",
@@ -154,7 +159,7 @@ impl ClaudeRequest {
                             }));
                         }
                         File::Url(url_data) => {
-                            blocks.push(json!({
+                            assistant_blocks.push(json!({
                                 "type": "image",
                                 "source": {
                                     "type": "url",
@@ -164,65 +169,61 @@ impl ClaudeRequest {
                         }
                     },
                     PartEnum::Structured(v) => {
-                        blocks.push(json!({"type": "text", "text": v.to_string()}));
+                        assistant_blocks.push(json!({"type": "text", "text": v.to_string()}));
                     }
                     PartEnum::Embeddings(_) => continue,
                 }
             }
 
-            if blocks.is_empty() {
-                continue;
-            }
-
-            // Claude requires tool_result blocks to be in user messages
-            let effective_role =
-                if blocks.iter().any(|b| b.get("type") == Some(&json!("tool_result"))) {
-                    "user"
-                } else {
-                    role
-                };
-
-            // Merge consecutive messages with the same role
-            if let Some(last) = claude_messages.last_mut() {
-                if last.role == effective_role {
-                    last.content.extend(blocks);
-                    continue;
+            let push_message = |msgs: &mut Vec<ClaudeMessage>, role: &str, blocks: Vec<Value>| {
+                if blocks.is_empty() {
+                    return;
                 }
-            }
+                if let Some(last) = msgs.last_mut()
+                    && last.role == role
+                {
+                    last.content.extend(blocks);
+                    return;
+                }
+                msgs.push(ClaudeMessage {
+                    role: role.to_string(),
+                    content: blocks,
+                });
+            };
 
-            claude_messages.push(ClaudeMessage {
-                role: effective_role.to_string(),
-                content: blocks,
-            });
+            push_message(&mut claude_messages, assistant_role, assistant_blocks);
+            push_message(&mut claude_messages, "user", tool_result_blocks);
         }
 
         // Build tools list
         let mut tools_list: Vec<ClaudeTool> = Vec::new();
 
-        if let Some(tc) = tools {
-            let decls = tc.json().map_err(|e| ChatError::Other(e.to_string()))?;
-            if let Value::Array(arr) = decls {
+        if let Some(decls) = tool_declarations {
+            let value = decls
+                .json()
+                .map_err(|e| ChatError::Other(e.to_string()))?;
+            if let Value::Array(arr) = value {
                 for decl in arr {
-                    let name = decl
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    let description = decl
-                        .get("description")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    let input_schema = decl
-                        .get("parameters")
-                        .cloned()
-                        .unwrap_or_else(|| json!({"type": "object"}));
+                let name = decl
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let description = decl
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let input_schema = decl
+                    .get("parameters")
+                    .cloned()
+                    .unwrap_or_else(|| json!({"type": "object"}));
 
-                    tools_list.push(ClaudeTool {
-                        name,
-                        description,
-                        input_schema,
-                    });
+                tools_list.push(ClaudeTool {
+                    name,
+                    description,
+                    input_schema,
+                });
                 }
             }
         }

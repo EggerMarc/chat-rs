@@ -8,14 +8,14 @@ use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
 use chat_core::types::response::ChatResponse;
-use tools_rs::ToolCollection;
+use chat_core::types::tools::ToolDeclarations;
 
 #[async_trait::async_trait]
 impl CompletionProvider for GeminiClient {
     async fn complete(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
@@ -26,7 +26,7 @@ impl CompletionProvider for GeminiClient {
 
         let request_body = GeminiRequest::from_core(
             messages,
-            tools,
+            tool_declarations,
             Some(self.native_tools.as_slice()),
             self.function_config.as_ref(),
             options,

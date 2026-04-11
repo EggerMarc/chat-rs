@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut messages = messages::from_user(vec!["Hey there!"]);
 
-    let res = chat.complete(&mut messages).await?;
+    let res = chat.complete(&mut messages).await?.expect_complete();
     println!("Model: {:#?}", res.content);
 
     Ok(())

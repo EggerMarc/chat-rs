@@ -1,6 +1,5 @@
 use async_stream::try_stream;
 use futures::{StreamExt, stream::BoxStream};
-use tools_rs::ToolCollection;
 
 use chat_core::{
     error::ChatError,
@@ -15,6 +14,7 @@ use chat_core::{
         },
         options::ChatOptions,
         response::{ChatResponse, SseParser, StreamEvent},
+        tools::ToolDeclarations,
     },
 };
 use serde_json::Value;
@@ -34,13 +34,13 @@ impl StreamProvider for ClaudeClient {
     async fn stream(
         &mut self,
         messages: &mut Messages,
-        tools: Option<&ToolCollection>,
+        tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
         let request_body = ClaudeRequest::from_core(
             &self.model_name,
             messages,
-            tools,
+            tool_declarations,
             options,
             None,
             true,
@@ -136,7 +136,7 @@ fn sse_event_to_part(event_type: &str, json_str: &str) -> Result<Option<PartEnum
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string();
-                    Ok(Some(PartEnum::FunctionCall(FunctionCall {
+                    Ok(Some(PartEnum::from_function_call(FunctionCall {
                         id: Some(CallId::from(id)),
                         name,
                         arguments: Value::Null,
@@ -224,14 +224,14 @@ fn parse_claude_sse_stream(
                         }
                     }
                     "content_block_stop" => {
-                        // If we were accumulating tool input, finalize the FunctionCall
+                        // If we were accumulating tool input, finalize the Tool part's
+                        // call arguments and emit the ToolCall event.
                         if !tool_input_buffer.is_empty() {
                             let input: Value = serde_json::from_str(&tool_input_buffer)
                                 .unwrap_or(Value::Object(Default::default()));
-                            // Update the last FunctionCall part's arguments
-                            if let Some(PartEnum::FunctionCall(fc)) = final_parts.0.last_mut() {
-                                fc.arguments = input;
-                                let event = StreamEvent::ToolCall(fc.clone());
+                            if let Some(PartEnum::Tool(tool)) = final_parts.0.last_mut() {
+                                tool.call.arguments = input;
+                                let event = StreamEvent::ToolCall(tool.call.clone());
                                 yield event;
                             }
                             tool_input_buffer.clear();

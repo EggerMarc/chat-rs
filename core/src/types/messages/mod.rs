@@ -4,8 +4,11 @@ pub mod file;
 pub mod parts;
 pub mod reasoning;
 pub mod text;
+pub mod tool;
 
 use content::Content;
+use tool::Tool;
+use tools_rs::CallId;
 
 /// Create a `Messages` containing a single user message produced from the provided prompts.
 ///
@@ -136,5 +139,31 @@ impl Messages {
     /// ```
     pub fn last(&self) -> Option<&Content> {
         self.0.last()
+    }
+
+    /// Walk every `Content` and return the first `Tool` part whose id
+    /// matches. Used by HITL callers to mutate a pending tool's status
+    /// in place (`tool.approve(...)`, `tool.reject(...)`, etc) before
+    /// calling `Chat::resume`.
+    pub fn find_tool_mut(&mut self, id: &CallId) -> Option<&mut Tool> {
+        for content in self.0.iter_mut() {
+            for tool in content.parts.tools_mut() {
+                if &tool.id == id {
+                    return Some(tool);
+                }
+            }
+        }
+        None
+    }
+
+    pub fn find_tool(&self, id: &CallId) -> Option<&Tool> {
+        for content in self.0.iter() {
+            for tool in content.parts.tools() {
+                if &tool.id == id {
+                    return Some(tool);
+                }
+            }
+        }
+        None
     }
 }

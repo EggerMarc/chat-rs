@@ -1,6 +1,6 @@
 [package]
 name = "chat-core"
-version = "0.0.6"
+version = "0.0.8"
 description = "Core library for chat-rs"
 edition.workspace = true
 authors.workspace = true
@@ -13,6 +13,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tools-rs.workspace = true
+tools_core.workspace = true
 async-stream = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 url.workspace = true

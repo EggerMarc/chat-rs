@@ -1,15 +1,17 @@
-use tools_rs::ToolCollection;
+use std::collections::HashMap;
+
+use serde_json::Value;
+use tools_rs::ToolError;
 
 use crate::{
     chat::state::Unstructured,
     error::ChatError,
     types::{
         callback::{CallbackStrategy, RetryStrategy},
-        messages::{
-            content::Content,
-            parts::{PartEnum, Parts},
-        },
+        messages::{content::Content, tool::ToolStatus},
         options::ChatOptions,
+        response::PauseReason,
+        tools::{Action, ToolDeclarations, TypedCollection},
     },
 };
 
@@ -29,25 +31,207 @@ pub struct Chat<CP, Output = Unstructured> {
     pub(crate) retry_strategy: Option<RetryStrategy>,
     pub(crate) before_strategy: Option<CallbackStrategy>,
     pub(crate) after_strategy: Option<CallbackStrategy>,
-    pub(crate) tools: Option<ToolCollection>,
+    pub(crate) scoped_collections: Vec<Box<dyn TypedCollection>>,
+    pub(crate) routing: HashMap<String, usize>,
     pub(crate) _output: std::marker::PhantomData<Output>,
 }
 
-impl<P, Output> Chat<P, Output> {
-    pub(crate) async fn tool_call(&self, content: &Content) -> Result<Parts, ChatError> {
-        let mut frs: Parts = Parts::default();
-        for fc in content.parts.function_calls() {
-            frs.push(PartEnum::from_function_response(
-                self.tools
-                    .as_ref()
-                    .ok_or(ChatError::InvalidResponse(
-                        "Attempted to call tool but no tool collection has been set.".to_string(),
-                    ))?
-                    .call(fc.clone())
-                    .await
-                    .map_err(|_err| ChatError::InvalidResponse("Tools error".to_string()))?,
-            ));
+/// Outcome of a single `tool_call` pass over the most recent Content.
+///
+/// - `executed`: at least one tool was run and populated (Completed/Failed/
+///   Rejected). Drives the continue-vs-stop decision in the chat loop.
+/// - `pause`: the strategy put at least one tool into a state that
+///   requires the caller to act. If `Some`, the loop returns
+///   `ChatOutcome::Paused` with this reason.
+#[derive(Debug, Default)]
+pub(crate) struct ToolCallPass {
+    pub executed: bool,
+    pub pause: Option<PauseReason>,
+}
+
+/// Aggregates every scoped collection's declarations into a single
+/// `ToolDeclarations` implementation that providers consume.
+///
+/// Borrowed against `&Chat` — lives only for the duration of a single
+/// request. Concatenation is lazy: `.json()` walks the collections on
+/// demand, so there's no per-request allocation beyond the resulting
+/// JSON array.
+pub(crate) struct AggregatedDeclarations<'a> {
+    collections: &'a [Box<dyn TypedCollection>],
+}
+
+impl<'a> ToolDeclarations for AggregatedDeclarations<'a> {
+    fn json(&self) -> Result<Value, ToolError> {
+        let mut all = Vec::new();
+        for coll in self.collections {
+            if let Value::Array(arr) = coll.declarations()? {
+                all.extend(arr);
+            }
         }
-        Ok(frs)
+        Ok(Value::Array(all))
+    }
+}
+
+/// Build an `AggregatedDeclarations` view directly from a slice. Used
+/// by the chat loop so the borrow is scoped to `scoped_collections` and
+/// not the whole `Chat` — lets callers still borrow `self.model`
+/// mutably.
+pub(crate) fn tool_declarations_from(
+    collections: &[Box<dyn TypedCollection>],
+) -> Option<AggregatedDeclarations<'_>> {
+    if collections.is_empty() {
+        None
+    } else {
+        Some(AggregatedDeclarations { collections })
+    }
+}
+
+impl<P, Output> Chat<P, Output> {
+
+    /// Look up which scoped collection owns a given tool name.
+    fn collection_for(&self, name: &str) -> Option<&dyn TypedCollection> {
+        self.routing
+            .get(name)
+            .and_then(|&idx| self.scoped_collections.get(idx).map(|b| b.as_ref()))
+    }
+
+    /// Run one pass over the tools in `content`: consult each tool's
+    /// strategy, execute the ones that say `Execute`, leave the ones
+    /// that require human approval or deferral in a non-resolved state
+    /// and accumulate them into a `PauseReason`.
+    pub(crate) async fn tool_call(
+        &self,
+        content: &mut Content,
+    ) -> Result<ToolCallPass, ChatError> {
+        let mut pass = ToolCallPass::default();
+
+        // Phase 1: strategy decisions + execution. Walk tools in order;
+        // every unresolved, non-approved tool gets its strategy consulted.
+        // Tools already in `Approved` state (typically from a resume
+        // after human review) skip straight to execution.
+        let mut idx = 0;
+        while idx < content.parts.0.len() {
+            let part = &mut content.parts.0[idx];
+            let tool = match part {
+                crate::types::messages::parts::PartEnum::Tool(t) => t,
+                _ => {
+                    idx += 1;
+                    continue;
+                }
+            };
+
+            if tool.is_resolved() {
+                idx += 1;
+                continue;
+            }
+
+            // Approved either by human review on resume, or programmatically.
+            // Skip strategy — execute directly.
+            let already_approved = matches!(tool.status, ToolStatus::Approved { .. });
+
+            let action = if already_approved {
+                Action::Execute
+            } else {
+                let coll = self.collection_for(&tool.call.name).ok_or_else(|| {
+                    ChatError::InvalidResponse(format!(
+                        "no scoped collection owns tool `{}`",
+                        tool.call.name
+                    ))
+                })?;
+                coll.decide(&tool.call)
+            };
+
+            match action {
+                Action::Execute => {
+                    // Run the tool via its owning collection.
+                    let coll = self.collection_for(&tool.call.name).ok_or_else(|| {
+                        ChatError::InvalidResponse(format!(
+                            "no scoped collection owns tool `{}`",
+                            tool.call.name
+                        ))
+                    })?;
+                    tool.mark_running();
+                    let call = tool.effective_call().clone();
+                    match coll.call(call).await {
+                        Ok(response) => tool.complete(response),
+                        Err(ToolError::Runtime(msg)) => tool.fail(msg),
+                        Err(e) => tool.fail(format!("{e:?}")),
+                    }
+                    pass.executed = true;
+                }
+                Action::RequireApproval => {
+                    // Leave Pending. Collect id for pause.
+                    match &mut pass.pause {
+                        None => {
+                            pass.pause = Some(PauseReason::AwaitingApproval {
+                                tool_ids: vec![tool.id.clone()],
+                            });
+                        }
+                        Some(PauseReason::AwaitingApproval { tool_ids }) => {
+                            tool_ids.push(tool.id.clone());
+                        }
+                        Some(PauseReason::Scheduled { .. }) => {
+                            let prev = std::mem::replace(
+                                &mut pass.pause,
+                                Some(PauseReason::AwaitingApproval { tool_ids: vec![] }),
+                            );
+                            if let Some(PauseReason::Scheduled {
+                                tool_ids: sch_ids,
+                                earliest,
+                            }) = prev
+                            {
+                                pass.pause = Some(PauseReason::Mixed {
+                                    approvals: vec![tool.id.clone()],
+                                    scheduled: sch_ids
+                                        .into_iter()
+                                        .map(|id| (id, earliest))
+                                        .collect(),
+                                });
+                            }
+                        }
+                        Some(PauseReason::Mixed { approvals, .. }) => {
+                            approvals.push(tool.id.clone());
+                        }
+                    }
+                }
+                Action::Defer { at } => {
+                    match &mut pass.pause {
+                        None => {
+                            pass.pause = Some(PauseReason::Scheduled {
+                                tool_ids: vec![tool.id.clone()],
+                                earliest: at,
+                            });
+                        }
+                        Some(PauseReason::Scheduled {
+                            tool_ids,
+                            earliest,
+                        }) => {
+                            tool_ids.push(tool.id.clone());
+                            if at < *earliest {
+                                *earliest = at;
+                            }
+                        }
+                        Some(PauseReason::AwaitingApproval { tool_ids }) => {
+                            let approvals = std::mem::take(tool_ids);
+                            pass.pause = Some(PauseReason::Mixed {
+                                approvals,
+                                scheduled: vec![(tool.id.clone(), at)],
+                            });
+                        }
+                        Some(PauseReason::Mixed { scheduled, .. }) => {
+                            scheduled.push((tool.id.clone(), at));
+                        }
+                    }
+                }
+                Action::Reject { reason } => {
+                    tool.reject(Some(reason));
+                    pass.executed = true;
+                }
+            }
+
+            idx += 1;
+        }
+
+        Ok(pass)
     }
 }

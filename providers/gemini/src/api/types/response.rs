@@ -98,7 +98,7 @@ impl GeminiCompletionResponse {
                         core_parts.push(PartEnum::from_function_call(FunctionCall {
                             name: fc.name,
                             arguments: args,
-                            id: thought_signature.map(Into::into),
+                            id: thought_signature.clone().map(Into::into),
                         }));
                     }
                 }
