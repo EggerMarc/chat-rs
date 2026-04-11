@@ -148,7 +148,7 @@ required-features = ["claude"]
 [[example]]
 name = "claude-hitl"
 path = "./examples/claude/hitl.rs"
-required-features = ["claude"]
+required-features = ["claude", "stream"]
 
 [[example]]
 name = "claude-stream"

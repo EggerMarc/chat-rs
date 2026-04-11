@@ -123,11 +123,18 @@ pub struct EmbeddingsResponse {
 
 #[cfg(feature = "stream")]
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum StreamEvent {
     TextChunk(String),
     ReasoningChunk(String),
     ToolCall(FunctionCall),
     ToolResult(FunctionResponse),
+    /// The chat loop paused because one or more tools need caller
+    /// action (approval, scheduling, etc). This is the streaming
+    /// equivalent of `ChatOutcome::Paused`. After receiving this event
+    /// the stream terminates; the caller resolves pending tools on the
+    /// `Messages` and calls `Chat::stream` again to continue.
+    Paused(PauseReason),
     Done(ChatResponse),
 }
 
@@ -143,6 +150,7 @@ impl fmt::Display for StreamEvent {
             StreamEvent::ToolResult(res) => {
                 writeln!(f, "[System: Tool '{}' executed successfully]\n", res.name)
             }
+            StreamEvent::Paused(_) => write!(f, "\n[System: Paused — caller action required]\n"),
             StreamEvent::Done(_) => write!(f, ""),
         }
     }

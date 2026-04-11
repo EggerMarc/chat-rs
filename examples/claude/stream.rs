@@ -82,6 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     StreamEvent::Done(_) => {
                         // Stream is fully complete for this turn
                     }
+                    _ => {}
                 },
                 Err(failure) => {
                     eprintln!("\n[Stream Error]: {:?}", failure);
