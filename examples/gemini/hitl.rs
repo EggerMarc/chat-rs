@@ -116,8 +116,10 @@ fn ask_user(tool_name: &str, args: &serde_json::Value) -> Decision {
             .unwrap_or_default()
             .as_str()
         {
-            "y" | "Y" | "yes" => return Decision::Approve,
-            "n" | "N" | "no" => return Decision::Reject("denied by user".into()),
+            "y" | "Y" | "yes" | "Yes" | "YES" | "yess" => return Decision::Approve,
+            "n" | "N" | "no" | "No" | "NO" | "noo" => {
+                return Decision::Reject("denied by user".into());
+            }
             other if !other.is_empty() => return Decision::Reject(other.into()),
             _ => println!("  (enter 'y', 'n', or a reason)"),
         }

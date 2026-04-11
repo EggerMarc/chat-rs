@@ -112,7 +112,7 @@ required-features = ["gemini"]
 
 [[example]]
 name = "gemini-hitl"
-path = "./examples/gemini/human_in_the_loop.rs"
+path = "./examples/gemini/hitl.rs"
 required-features = ["gemini"]
 
 [[example]]
@@ -143,6 +143,11 @@ required-features = ["gemini"]
 [[example]]
 name = "claude-completion"
 path = "./examples/claude/completion.rs"
+required-features = ["claude"]
+
+[[example]]
+name = "claude-hitl"
+path = "./examples/claude/hitl.rs"
 required-features = ["claude"]
 
 [[example]]
