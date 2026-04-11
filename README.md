@@ -13,6 +13,7 @@ A multi-provider LLM framework for Rust. Build type-safe chat clients with tool 
 - **Tool calling** — define tools with `#[tool]`, the framework handles the call loop automatically
 - **Structured output** — deserialize model responses directly into your Rust types via `schemars`
 - **Streaming** — real-time token-by-token output with tool call support
+- **Human in the loop** — pause mid-turn on sensitive tool calls, let a human approve or reject, then resume the stream
 - **Embeddings** — generate vector embeddings through the same unified API
 - **Retry & callbacks** — configurable retry strategies with before/after hooks
 - **Native tools** — provider-specific features like Google Search, code execution, web search
@@ -23,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-chat-rs = { version = "0.0.13", features = ["openai"] }
+chat-rs = { version = "0.0.16", features = ["openai"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -51,11 +52,11 @@ Enable providers via feature flags:
 
 ```toml
 # Pick one or more
-chat-rs = { version = "0.0.13", features = ["gemini"] }
-chat-rs = { version = "0.0.13", features = ["claude"] }
-chat-rs = { version = "0.0.13", features = ["openai"] }
-chat-rs = { version = "0.0.13", features = ["router", "gemini", "claude"] }
-chat-rs = { version = "0.0.13", features = ["gemini", "claude", "openai", "stream"] }
+chat-rs = { version = "0.0.16", features = ["gemini"] }
+chat-rs = { version = "0.0.16", features = ["claude"] }
+chat-rs = { version = "0.0.16", features = ["openai"] }
+chat-rs = { version = "0.0.16", features = ["router", "gemini", "claude"] }
+chat-rs = { version = "0.0.16", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
 | Provider | Feature | API Key Env Var | Builder |
@@ -153,7 +154,7 @@ println!("Name: {}, Likes: {:?}", response.content.name, response.content.likes)
 Enable the `stream` feature flag:
 
 ```toml
-chat-rs = { version = "0.0.13", features = ["gemini", "stream"] }
+chat-rs = { version = "0.0.16", features = ["gemini", "stream"] }
 ```
 
 ```rust
@@ -176,6 +177,57 @@ while let Some(chunk) = stream.next().await {
     }
 }
 ```
+
+## Human in the Loop
+
+Mark tools that need human approval via `#[tool]` metadata and supply a strategy closure. When the model calls such a tool, `chat.stream()` yields `StreamEvent::Paused(PauseReason)` and terminates. Resolve the pending tools on `messages` (approve or reject), then call `stream()` again — the core loop picks up where it left off.
+
+```rust
+use chat_rs::{Action, ChatBuilder, ScopedCollection, StreamEvent, PauseReason};
+use tools_rs::{FunctionCall, ToolCollection, tool};
+use serde::Deserialize;
+
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(default)]
+struct ApprovalMeta { requires_approval: bool }
+
+#[tool(requires_approval = true)]
+/// Sends an email.
+async fn send_email(to: String, subject: String) -> String {
+    format!("sent to {to}: {subject}")
+}
+
+fn strategy(_call: &FunctionCall, meta: &ApprovalMeta) -> Action {
+    if meta.requires_approval { Action::RequireApproval } else { Action::Execute }
+}
+
+let tools: ToolCollection<ApprovalMeta> = ToolCollection::collect_tools()?;
+let scoped = ScopedCollection::new(tools, strategy);
+
+let mut chat = ChatBuilder::new()
+    .with_model(client)
+    .with_scoped_tools(scoped)
+    .build();
+
+let mut stream = chat.stream(&mut messages).await?;
+while let Some(evt) = stream.next().await {
+    match evt? {
+        StreamEvent::TextChunk(t) => print!("{t}"),
+        StreamEvent::Paused(PauseReason::AwaitingApproval { tool_ids }) => {
+            for id in tool_ids {
+                if let Some(tool) = messages.find_tool_mut(&id) {
+                    tool.approve(None); // or tool.reject(Some("denied".into()))
+                }
+            }
+            break;
+        }
+        _ => {}
+    }
+}
+// Call chat.stream(&mut messages) again to resume the same turn.
+```
+
+See `examples/claude/hitl.rs`, `examples/openai/hitl.rs`, and `examples/gemini/hitl.rs` for full interactive REPLs.
 
 ## Embeddings
 
@@ -312,16 +364,19 @@ cargo run --example gemini-embeddings --features gemini
 cargo run --example gemini-code-execution --features gemini
 cargo run --example gemini-google-maps --features gemini
 cargo run --example gemini-image-understanding --features gemini
+cargo run --example gemini-hitl --features gemini,stream
 
 # Claude
 cargo run --example claude-completion --features claude
 cargo run --example claude-stream --features claude,stream
+cargo run --example claude-hitl --features claude,stream
 
 # OpenAI
 cargo run --example openai-completion --features openai
 cargo run --example openai-stream --features openai,stream
 cargo run --example openai-structured --features openai
 cargo run --example openai-embeddings --features openai
+cargo run --example openai-hitl --features openai,stream
 
 # Router
 cargo run --example router-keyword --features router,gemini,claude

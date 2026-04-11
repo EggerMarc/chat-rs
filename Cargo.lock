@@ -151,7 +151,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chat-claude"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -168,7 +168,7 @@ dependencies = [
 
 [[package]]
 name = "chat-core"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -185,7 +185,7 @@ dependencies = [
 
 [[package]]
 name = "chat-gemini"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -201,7 +201,7 @@ dependencies = [
 
 [[package]]
 name = "chat-openai"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -217,7 +217,7 @@ dependencies = [
 
 [[package]]
 name = "chat-router"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "async-trait",
  "chat-core",
@@ -228,7 +228,7 @@ dependencies = [
 
 [[package]]
 name = "chat-rs"
-version = "0.0.15"
+version = "0.0.16"
 dependencies = [
  "async-trait",
  "chat-claude",

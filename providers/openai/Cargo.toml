@@ -1,6 +1,6 @@
 [package]
 name = "chat-openai"
-version = "0.0.6"
+version = "0.0.7"
 description = "Provider implementation of OpenAI for chat-rs"
 edition.workspace = true
 authors.workspace = true
@@ -8,7 +8,7 @@ license.workspace = true
 
 
 [dependencies]
-chat-core = { path = "../../core", version = "0.0.8" }
+chat-core = { path = "../../core", version = "0.0.9" }
 
 async-trait.workspace = true
 reqwest = { workspace = true, features = ["json", "stream"] }

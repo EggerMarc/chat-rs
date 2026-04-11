@@ -6,11 +6,11 @@ Tracking upcoming providers and features for chat-rs.
 
 ### Implemented
 
-| Provider | Crate | Completion | Streaming | Embeddings | Native Tools |
-|---|---|---|---|---|---|
-| Google Gemini | `chat-gemini` | Yes | Yes | Yes | Google Search, Code Execution, Google Maps |
-| Anthropic Claude | `chat-claude` | Yes | Yes | N/A | Extended Thinking |
-| OpenAI | `chat-openai` | Yes | Yes | Yes | Web Search |
+| Provider | Crate | Completion | SSE Streaming | WebSocket | Embeddings | Native Tools | HITL |
+|---|---|---|---|---|---|---|---|
+| Google Gemini | `chat-gemini` | Yes | Yes | Planned (Live API) | Yes | Google Search, Code Execution, Google Maps | Yes |
+| Anthropic Claude | `chat-claude` | Yes | Yes | — (HTTP-only upstream) | N/A | Extended Thinking | Yes |
+| OpenAI | `chat-openai` | Yes | Yes | Planned (Realtime API) | Yes | Web Search | Yes |
 
 ### Planned Providers
 
@@ -41,6 +41,8 @@ Tracking upcoming providers and features for chat-rs.
 ### Short Term
 
 - [x] **Anthropic provider** — implemented as `chat-claude`
+- [x] **Human in the loop** — pause/resume flows via `ScopedCollection` strategies, `StreamEvent::Paused`, and `Messages::find_tool_mut`
+- [ ] **WebSocket-first transport** — add a `WsStreamProvider` trait and make WebSocket the primary transport where upstream supports it. Target OpenAI Realtime and Gemini Live first; fall back to SSE for providers that are HTTP-only (Claude today). Goal: bidirectional streaming for audio/video parts, barge-in, and lower-latency turn-taking without changing the user-facing `chat.stream()` API.
 - [ ] **Image generation** — support image output parts from models that can generate images
 
 ### Medium Term
@@ -58,7 +60,7 @@ Tracking upcoming providers and features for chat-rs.
 - [ ] **AWS Bedrock provider**
 - [ ] **Azure OpenAI provider**
 - [ ] **Ollama native provider**
-- [ ] **Multi-modal output** — audio, video parts
+- [ ] **Multi-modal output** — audio, video parts (depends on WebSocket transport for low-latency realtime)
 - [ ] **Batch API support** — for providers that support batch/async completions
 - [ ] **Token counting** — client-side token estimation before sending requests
 

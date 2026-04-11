@@ -33,6 +33,6 @@ Set `CLAUDE_API_KEY` in your environment or call `.with_api_key()` on the builde
 ## Feature Flags
 
 ```toml
-chat-rs = { version = "0.0.10", features = ["claude"] }
-chat-rs = { version = "0.0.10", features = ["claude", "stream"] }
+chat-rs = { version = "0.0.16", features = ["claude"] }
+chat-rs = { version = "0.0.16", features = ["claude", "stream"] }
 ```
