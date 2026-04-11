@@ -4,6 +4,7 @@ pub mod file;
 pub mod parts;
 pub mod reasoning;
 pub mod text;
+pub mod tool;
 
 use content::Content;
 

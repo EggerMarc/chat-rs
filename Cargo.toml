@@ -36,7 +36,7 @@ url                 = { version = "2.5.8", features = ["serde"] }
 
 [package]
 name         = "chat-rs"
-version      = "0.0.13"
+version      = "0.0.14"
 description  = "Build LLM clients with ease, attach them to your tools"
 autoexamples = false
 authors.workspace = true
@@ -50,11 +50,11 @@ name = "chat_rs"
 path = "src/lib.rs"
 
 [dependencies]
-chat-core   = { path = "core", version = "0.0.6" }
-chat-gemini = { path = "providers/gemini", version = "0.0.5", optional = true }
-chat-openai = { path = "providers/openai", version = "0.0.4", optional = true }
-chat-claude = { path = "providers/claude", version = "0.0.3", optional = true }
-chat-router = { path = "providers/router", version = "0.0.4", optional = true }
+chat-core   = { path = "core", version = "0.0.7" }
+chat-gemini = { path = "providers/gemini", version = "0.0.6", optional = true }
+chat-openai = { path = "providers/openai", version = "0.0.5", optional = true }
+chat-claude = { path = "providers/claude", version = "0.0.4", optional = true }
+chat-router = { path = "providers/router", version = "0.0.5", optional = true }
 tokio.workspace = true
 schemars.workspace = true
 serde.workspace = true

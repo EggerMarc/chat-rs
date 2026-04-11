@@ -136,7 +136,7 @@ fn sse_event_to_part(event_type: &str, json_str: &str) -> Result<Option<PartEnum
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string();
-                    Ok(Some(PartEnum::FunctionCall(FunctionCall {
+                    Ok(Some(PartEnum::from_function_call(FunctionCall {
                         id: Some(CallId::from(id)),
                         name,
                         arguments: Value::Null,
@@ -224,14 +224,14 @@ fn parse_claude_sse_stream(
                         }
                     }
                     "content_block_stop" => {
-                        // If we were accumulating tool input, finalize the FunctionCall
+                        // If we were accumulating tool input, finalize the Tool part's
+                        // call arguments and emit the ToolCall event.
                         if !tool_input_buffer.is_empty() {
                             let input: Value = serde_json::from_str(&tool_input_buffer)
                                 .unwrap_or(Value::Object(Default::default()));
-                            // Update the last FunctionCall part's arguments
-                            if let Some(PartEnum::FunctionCall(fc)) = final_parts.0.last_mut() {
-                                fc.arguments = input;
-                                let event = StreamEvent::ToolCall(fc.clone());
+                            if let Some(PartEnum::Tool(tool)) = final_parts.0.last_mut() {
+                                tool.call.arguments = input;
+                                let event = StreamEvent::ToolCall(tool.call.clone());
                                 yield event;
                             }
                             tool_input_buffer.clear();

@@ -239,25 +239,26 @@ fn content_to_input_items(content: &Content, items: &mut Vec<Value>) {
             PartEnum::Reasoning(r) => {
                 message_parts.push(json!({ "type": "input_text", "text": r.text }));
             }
-            PartEnum::FunctionCall(fc) => {
+            PartEnum::Tool(tool) => {
+                let (fc, maybe_fr) = tool.to_tuple();
                 items.push(json!({
                     "type": "function_call",
                     "call_id": fc.id.clone().map(String::from).unwrap_or_default(),
                     "name": fc.name,
                     "arguments": serde_json::to_string(&fc.arguments).unwrap_or_default(),
                 }));
-            }
-            PartEnum::FunctionResponse(fr) => {
-                let output = if fr.result.is_string() {
-                    fr.result.as_str().unwrap().to_string()
-                } else {
-                    fr.result.to_string()
-                };
-                items.push(json!({
-                    "type": "function_call_output",
-                    "call_id": fr.id.clone().map(String::from).unwrap_or_default(),
-                    "output": output,
-                }));
+                if let Some(fr) = maybe_fr {
+                    let output = if fr.result.is_string() {
+                        fr.result.as_str().unwrap().to_string()
+                    } else {
+                        fr.result.to_string()
+                    };
+                    items.push(json!({
+                        "type": "function_call_output",
+                        "call_id": fr.id.clone().map(String::from).unwrap_or_default(),
+                        "output": output,
+                    }));
+                }
             }
             PartEnum::File(File::Url(u)) => {
                 message_parts.push(json!({

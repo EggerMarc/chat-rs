@@ -144,7 +144,7 @@ pub fn output_items_to_parts(output: &[ResponsesOutputItem]) -> (Parts, bool) {
                     .map(|s| serde_json::from_str(s).unwrap_or_default())
                     .unwrap_or_default();
 
-                parts.push(PartEnum::FunctionCall(FunctionCall {
+                parts.push(PartEnum::from_function_call(FunctionCall {
                     id: fc.call_id.clone().map(Into::into),
                     name: fc.name.clone().unwrap_or_default(),
                     arguments,

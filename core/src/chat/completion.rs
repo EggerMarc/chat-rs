@@ -85,12 +85,14 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
 
             messages.push(response.content.clone());
 
-            if let Ok(frs) = self.tool_call(&response.content).await
-                && !frs.is_empty()
-            {
-                let mut tool_message = Content::default();
-                tool_message.parts.extend(frs);
-                messages.push(tool_message);
+            // Execute any unresolved tools in place on the just-pushed
+            // Content. If anything ran, loop again so the model sees the
+            // results.
+            let executed = match messages.0.last_mut() {
+                Some(last) => self.tool_call(last).await.unwrap_or(false),
+                None => false,
+            };
+            if executed {
                 continue;
             }
 

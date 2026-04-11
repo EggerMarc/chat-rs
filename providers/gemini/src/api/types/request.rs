@@ -161,95 +161,112 @@ impl GeminiRequest {
         let mut system_parts = Vec::new();
 
         for content in &messages.0 {
-            let mut parts = Vec::new();
+            // A single core Content can carry both Tool calls (assistant
+            // side) and their responses (Gemini "function" role). We split
+            // them into two gemini_contents entries.
+            let mut assistant_parts: Vec<GeminiPart> = Vec::new();
+            let mut function_parts: Vec<GeminiPart> = Vec::new();
 
             for core_part in &content.parts.0 {
-                let mut gemini_part = GeminiPart::default();
                 match core_part {
                     PartEnum::Text(t) => {
-                        gemini_part.text = Some(t.0.clone());
+                        let mut gp = GeminiPart::default();
+                        gp.text = Some(t.0.clone());
+                        assistant_parts.push(gp);
                     }
                     PartEnum::Reasoning(r) => {
-                        gemini_part.text = Some(r.text.clone());
-                        gemini_part.thought = true;
-                        gemini_part.thought_signature = r.signature.clone();
+                        let mut gp = GeminiPart::default();
+                        gp.text = Some(r.text.clone());
+                        gp.thought = true;
+                        gp.thought_signature = r.signature.clone();
+                        assistant_parts.push(gp);
                     }
-                    PartEnum::FunctionCall(fc) => {
-                        gemini_part.function_call = Some(GeminiFunctionCall {
+                    PartEnum::Tool(tool) => {
+                        let (fc, maybe_fr) = tool.to_tuple();
+                        let mut call_part = GeminiPart::default();
+                        call_part.function_call = Some(GeminiFunctionCall {
                             name: fc.name.clone(),
                             args: fc.arguments.clone(),
                             id: fc.id.clone().map(Into::into),
                         });
-                        gemini_part.thought_signature = fc.id.clone().map(Into::into);
-                    }
-                    PartEnum::FunctionResponse(fr) => {
-                        gemini_part.function_response = Some(GeminiFunctionResponse {
-                            name: fr.name.clone(),
-                            response: if fr.result.is_object() {
-                                fr.result.clone()
-                            } else {
-                                json!({ "content": fr.result })
-                            },
-                        });
-                    }
-                    PartEnum::File(file) => match file {
-                        File::Bytes(raw_data) => {
-                            let encoded_data = STANDARD.encode(&raw_data.bytes);
-                            gemini_part.inline_data = Some(GeminiInlineData {
-                                mime_type: Some(raw_data.mimetype.to_string()),
-                                data: encoded_data,
+                        call_part.thought_signature = fc.id.clone().map(Into::into);
+                        assistant_parts.push(call_part);
+
+                        if let Some(fr) = maybe_fr {
+                            let mut resp_part = GeminiPart::default();
+                            resp_part.function_response = Some(GeminiFunctionResponse {
+                                name: fr.name.clone(),
+                                response: if fr.result.is_object() {
+                                    fr.result.clone()
+                                } else {
+                                    json!({ "content": fr.result })
+                                },
                             });
+                            function_parts.push(resp_part);
                         }
-                        File::Url(url_data) => {
-                            gemini_part.file_data = Some(GeminiFileData {
-                                file_uri: url_data.url.to_string(),
-                                mime_type: url_data.mimetype.as_ref().map(|m| m.to_string()),
-                            });
+                    }
+                    PartEnum::File(file) => {
+                        let mut gp = GeminiPart::default();
+                        match file {
+                            File::Bytes(raw_data) => {
+                                let encoded_data = STANDARD.encode(&raw_data.bytes);
+                                gp.inline_data = Some(GeminiInlineData {
+                                    mime_type: Some(raw_data.mimetype.to_string()),
+                                    data: encoded_data,
+                                });
+                            }
+                            File::Url(url_data) => {
+                                gp.file_data = Some(GeminiFileData {
+                                    file_uri: url_data.url.to_string(),
+                                    mime_type: url_data
+                                        .mimetype
+                                        .as_ref()
+                                        .map(|m| m.to_string()),
+                                });
+                            }
                         }
-                    },
+                        assistant_parts.push(gp);
+                    }
                     PartEnum::Structured(json_val) => {
-                        gemini_part.text = Some(json_val.to_string());
+                        let mut gp = GeminiPart::default();
+                        gp.text = Some(json_val.to_string());
+                        assistant_parts.push(gp);
                     }
                     PartEnum::Embeddings(_) => {
                         println!("Skipping Embeddings part in Gemini completion request.");
-                        continue;
                     }
                 }
-                parts.push(gemini_part);
             }
 
             if content.role == RoleEnum::System {
-                system_parts.extend(parts);
-            } else {
-                let role_str = match content.role {
-                    RoleEnum::User => "user",
-                    _ => "model",
-                };
-                let is_func_response = content
-                    .parts
-                    .0
-                    .iter()
-                    .any(|p| matches!(p, PartEnum::FunctionResponse(_)));
+                system_parts.extend(assistant_parts);
+                // System messages should not carry function responses.
+                continue;
+            }
 
-                let effective_role = if is_func_response {
-                    "function"
-                } else {
-                    role_str
-                };
+            let assistant_role = match content.role {
+                RoleEnum::User => "user",
+                _ => "model",
+            };
 
-                // Merge consecutive messages with the same role
-                if let Some(last) = gemini_contents.last_mut() {
-                    if last.role == effective_role {
-                        last.parts.extend(parts);
-                        continue;
-                    }
+            let push_entry = |contents: &mut Vec<GeminiContent>, role: &str, parts: Vec<GeminiPart>| {
+                if parts.is_empty() {
+                    return;
                 }
-
-                gemini_contents.push(GeminiContent {
-                    role: effective_role.to_string(),
+                if let Some(last) = contents.last_mut()
+                    && last.role == role
+                {
+                    last.parts.extend(parts);
+                    return;
+                }
+                contents.push(GeminiContent {
+                    role: role.to_string(),
                     parts,
                 });
-            }
+            };
+
+            push_entry(&mut gemini_contents, assistant_role, assistant_parts);
+            push_entry(&mut gemini_contents, "function", function_parts);
         }
 
         req.contents = gemini_contents;

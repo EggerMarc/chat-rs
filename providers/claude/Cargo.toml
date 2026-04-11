@@ -1,13 +1,13 @@
 [package]
 name = "chat-claude"
-version = "0.0.3"
+version = "0.0.4"
 description = "Provider implementation of Claude for chat-rs"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
 [dependencies]
-chat-core = { path = "../../core", version = "0.0.6" }
+chat-core = { path = "../../core", version = "0.0.7" }
 async-trait.workspace = true
 reqwest = { workspace = true, features = ["json", "stream"] }
 serde.workspace = true

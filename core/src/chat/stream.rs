@@ -6,7 +6,7 @@ use crate::{
     error::ChatFailure,
     traits::StreamProvider,
     types::{
-        messages::{Messages, content::Content, parts::PartEnum},
+        messages::Messages,
         metadata::Metadata,
         response::{ChatResponse, StreamEvent},
     },
@@ -60,18 +60,20 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
 
                     messages.push(response.content.clone());
 
-                    if let Ok(frs) = self.tool_call(&response.content).await &&!frs.is_empty() {
-                            let mut tool_message = Content::default();
+                    let executed = match messages.0.last_mut() {
+                        Some(last) => self.tool_call(last).await.unwrap_or(false),
+                        None => false,
+                    };
 
-                            for part in frs.0 {
-                                if let PartEnum::FunctionResponse(ref fr) = part {
+                    if executed {
+                        if let Some(last) = messages.0.last() {
+                            for tool in last.parts.tools() {
+                                if let Some(fr) = tool.response() {
                                     yield StreamEvent::ToolResult(fr.clone());
                                 }
-                                tool_message.parts.push(part);
                             }
-
-                            messages.push(tool_message);
-                            continue;
+                        }
+                        continue;
                     }
 
                     if let Some(strategy) = self.after_strategy.as_mut() {
