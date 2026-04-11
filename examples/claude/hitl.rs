@@ -199,10 +199,15 @@ async fn run_turn<CP: StreamProvider>(
 
 fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
-        s.to_string()
-    } else {
-        format!("{}…", &s[..max])
+        return s.to_string();
     }
+    let end = s
+        .char_indices()
+        .map(|(i, _)| i)
+        .take_while(|&i| i <= max)
+        .last()
+        .unwrap_or(0);
+    format!("{}…", &s[..end])
 }
 
 // ── 6. Main REPL ──────────────────────────────────────────────────────────
