@@ -332,11 +332,45 @@ let router = RouterBuilder::new()
 
 Streaming is also supported via `StreamRouterBuilder` — enable the `stream` feature flag and use providers that implement `ChatProvider`.
 
+## Transport Layer
+
+Providers are generic over a pluggable `Transport` trait. The default transport is `ReqwestTransport` (HTTP via reqwest) — it's used automatically when you call `.build()` on any builder.
+
+To share an HTTP client across providers:
+
+```rust
+use chat_rs::openai::{OpenAIBuilder, ReqwestTransport};
+
+let http = ReqwestTransport::from(my_reqwest_client);
+let client = OpenAIBuilder::new()
+    .with_model("gpt-4o")
+    .with_transport(http.clone()) // Clone shares the connection pool
+    .build();
+```
+
+To use a custom transport (e.g. WebSocket, tower, or your own):
+
+```rust
+use chat_rs::Transport;
+
+struct MyTransport { /* ... */ }
+impl Transport for MyTransport { /* ... */ }
+
+let client = OpenAIBuilder::new()
+    .with_model("gpt-4o")
+    .with_transport(MyTransport::new())
+    .build();
+```
+
+Transport implementations live in separate crates under `transports/`. See [`core/AGENTS.md`](core/AGENTS.md) for the `Transport` trait definition.
+
 ## Architecture
 
 ```
 chat-rs (root)              ← Re-exports + feature flags
-├── core/                   ← Traits, types, Chat engine, builder
+├── core/                   ← Traits, types, Chat engine, builder, Transport trait
+├── transports/
+│   └── reqwest/            ← Default HTTP transport (ReqwestTransport)
 ├── providers/
 │   ├── gemini/             ← Google Gemini provider
 │   ├── claude/             ← Anthropic Claude provider

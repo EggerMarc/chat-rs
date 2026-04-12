@@ -4,6 +4,7 @@ use futures::{StreamExt, stream::BoxStream};
 use chat_core::{
     error::ChatError,
     traits::StreamProvider,
+    transport::Transport,
     types::{
         messages::{
             Messages,
@@ -13,7 +14,7 @@ use chat_core::{
             text::Text,
         },
         options::ChatOptions,
-        response::{ChatResponse, SseParser, StreamEvent},
+        response::{ChatResponse, StreamEvent},
         tools::ToolDeclarations,
     },
 };
@@ -21,16 +22,14 @@ use serde_json::Value;
 use tools_rs::{CallId, FunctionCall};
 
 use crate::{
-    api::types::error::handle_claude_error,
     api::types::request::ClaudeRequest,
     client::ClaudeClient,
 };
 
-const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
 const THINKING_BETA_HEADER: &str = "interleaved-thinking-2025-05-14";
 
 #[async_trait::async_trait]
-impl StreamProvider for ClaudeClient {
+impl<T: Transport> StreamProvider for ClaudeClient<T> {
     async fn stream(
         &mut self,
         messages: &mut Messages,
@@ -47,26 +46,34 @@ impl StreamProvider for ClaudeClient {
             self.thinking_budget,
         )?;
 
-        let mut req = self
-            .http_client
-            .post(CLAUDE_API_URL)
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", &self.api_version)
-            .header("content-type", "application/json");
+        let body = serde_json::to_vec(&request_body)
+            .map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
+
+        let mut headers = vec![
+            ("x-api-key".into(), self.api_key.clone()),
+            ("anthropic-version".into(), self.api_version.clone()),
+            ("content-type".into(), "application/json".into()),
+        ];
 
         if self.include_thoughts {
-            req = req.header("anthropic-beta", THINKING_BETA_HEADER);
+            headers.push(("anthropic-beta".into(), THINKING_BETA_HEADER.into()));
         }
 
-        let res = req
-            .json(&request_body)
-            .send()
+        let req = chat_core::transport::Request {
+            scheme: self.scheme.clone(),
+            host: self.host.clone(),
+            path: format!("{}/messages", self.base_path),
+            headers,
+            body,
+        };
+
+        let event_stream = self
+            .transport
+            .stream(req)
             .await
-            .map_err(|e| ChatError::Network(e.to_string()))?;
+            .map_err(ChatError::from)?;
 
-        let res = handle_claude_error(res).await.map_err(|f| f.err)?;
-
-        Ok(parse_claude_sse_stream(res))
+        Ok(parse_claude_event_stream(event_stream))
     }
 }
 
@@ -149,12 +156,11 @@ fn sse_event_to_part(event_type: &str, json_str: &str) -> Result<Option<PartEnum
     }
 }
 
-fn parse_claude_sse_stream(
-    res: reqwest::Response,
+fn parse_claude_event_stream(
+    event_stream: chat_core::transport::EventStream,
 ) -> BoxStream<'static, Result<StreamEvent, ChatError>> {
     let stream = try_stream! {
-        let mut byte_stream = res.bytes_stream();
-        let mut sse_parser = SseParser::default();
+        let mut events = event_stream;
 
         let mut final_parts = Parts::default();
         let mut final_reason = CompleteReasonEnum::None;
@@ -166,11 +172,10 @@ fn parse_claude_sse_stream(
         // For accumulating tool input JSON across deltas
         let mut tool_input_buffer = String::new();
 
-        while let Some(chunk_res) = byte_stream.next().await {
-            let chunk = chunk_res.map_err(|e| ChatError::Network(e.to_string()))?;
-            sse_parser.push(&chunk);
+        while let Some(event_res) = events.next().await {
+            let (event_type, json_str) = event_res.map_err(ChatError::from)?;
 
-            while let Some((event_type, json_str)) = sse_parser.next_event() {
+            {
                 match event_type.as_str() {
                     "message_start" => {
                         if let Ok(data) = serde_json::from_str::<Value>(&json_str) {

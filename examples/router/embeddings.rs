@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chat_rs::{
     ChatBuilder, EmbeddingsProvider, Messages, ProviderMeta,
     claude::ClaudeBuilder,
-    gemini::{GeminiBuilder, client::GeminiClient},
+    gemini::{GeminiBuilder, client::GeminiClient, ReqwestTransport},
     router::RouterBuilder,
     router::RoutingStrategy,
     router::StrategyError,
@@ -33,7 +33,7 @@ async fn embed_text(
 }
 
 struct EmbeddingRouter {
-    embedder: GeminiClient,
+    embedder: GeminiClient<ReqwestTransport>,
 }
 
 #[async_trait]

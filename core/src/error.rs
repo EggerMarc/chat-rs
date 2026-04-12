@@ -1,3 +1,4 @@
+use crate::transport::TransportError;
 use crate::types::metadata::Metadata;
 use thiserror::Error;
 
@@ -42,6 +43,19 @@ pub struct ChatFailure {
     pub metadata: Option<Metadata>,
     #[source]
     pub err: ChatError,
+}
+
+impl From<TransportError> for ChatError {
+    fn from(err: TransportError) -> Self {
+        match err {
+            TransportError::Connection(msg) => ChatError::Network(msg),
+            TransportError::Stream(msg) => ChatError::Network(msg),
+            TransportError::Request { status, message } => match status {
+                Some(429 | 529) => ChatError::RateLimited,
+                _ => ChatError::Provider(message),
+            },
+        }
+    }
 }
 
 impl ChatFailure {

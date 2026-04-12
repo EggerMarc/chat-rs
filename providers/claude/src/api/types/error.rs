@@ -1,5 +1,5 @@
 use chat_core::error::{ChatError, ChatFailure};
-use reqwest::Response;
+use chat_core::transport::Response;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -14,18 +14,18 @@ pub struct ClaudeErrorDetail {
     pub message: String,
 }
 
-pub async fn handle_claude_error(res: Response) -> Result<Response, ChatFailure> {
-    let status = res.status();
+pub fn handle_claude_error(res: Response) -> Result<Response, ChatFailure> {
+    let status = res.status;
 
-    if status.is_success() {
+    if (200..300).contains(&status) {
         return Ok(res);
     }
 
-    if status.as_u16() == 429 || status.as_u16() == 529 {
+    if status == 429 || status == 529 {
         return Err(ChatFailure::from_err(ChatError::RateLimited));
     }
 
-    let err_text = res.text().await.unwrap_or_default();
+    let err_text = String::from_utf8_lossy(&res.body).into_owned();
 
     if let Ok(claude_err) = serde_json::from_str::<ClaudeErrorResponse>(&err_text) {
         let error_msg = format!(
@@ -36,8 +36,6 @@ pub async fn handle_claude_error(res: Response) -> Result<Response, ChatFailure>
     }
 
     Err(ChatFailure::from_err(ChatError::Provider(format!(
-        "HTTP {} Error: {}",
-        status.as_u16(),
-        err_text
+        "HTTP {status} Error: {err_text}",
     ))))
 }

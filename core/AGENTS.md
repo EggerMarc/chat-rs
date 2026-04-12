@@ -9,9 +9,14 @@ src/
 ├── lib.rs              # Public re-exports
 ├── traits.rs           # CompletionProvider, StreamProvider, EmbeddingsProvider, ChatProvider
 ├── builder.rs          # ChatBuilder (type-state pattern)
-├── error.rs            # ChatError, ChatFailure
-├── macros/mod.rs       # Procedural macros (retry_strategy!)
+├── error.rs            # ChatError, ChatFailure, From<TransportError>
+��── macros/mod.rs       # Procedural macros (retry_strategy!)
 ├── utils.rs            # Internal helpers
+├── transport/
+│   ├── mod.rs          # Public re-exports
+│   ├── traits.rs       # Transport trait (send, stream)
+│   ├── types.rs        # Request, Response, Event, EventStream, TransportError
+│   └── sse.rs          # SseParser (shared utility for HTTP transports)
 ├── chat/
 │   ├── mod.rs          # Chat<CP, Output> struct, scoped-tool dispatch, tool_call pre/post steps
 │   ├── completion.rs   # Unstructured + Structured completion loop
@@ -77,9 +82,34 @@ Any type implementing both `CompletionProvider` and `StreamProvider` automatical
 ```rust
 #[async_trait]
 pub trait EmbeddingsProvider: Send + Sync {
-    async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;
+    async fn embed(&mut self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;
 }
 ```
+
+## Transport
+
+The `Transport` trait (`transport/traits.rs`) abstracts over how requests are delivered and responses received. Providers are generic over `T: Transport`, so the same provider code works over HTTP, WebSocket, or any custom protocol.
+
+```rust
+pub trait Transport: Send + Sync {
+    fn send(&mut self, req: Request)
+        -> impl Future<Output = Result<Response, TransportError>> + Send;
+
+    fn stream(&mut self, req: Request)
+        -> impl Future<Output = Result<EventStream, TransportError>> + Send;
+}
+```
+
+- **`Request`** — url, headers, body bytes. Providers serialize their wire format into this.
+- **`Response`** — status code, headers, body bytes. Providers deserialize from this.
+- **`Event`** — `(event_type, data)` tuple. HTTP transports parse SSE; WebSocket transports extract the `type` field from JSON frames. Providers consume these uniformly.
+- **`SseParser`** — incremental SSE parser in `transport/sse.rs`, shared by HTTP transports.
+
+`TransportError` variants map to `ChatError` via `From`:
+- `Connection` / `Stream` → `ChatError::Network` (retryable)
+- `Request` → `ChatError::Provider` (not retryable)
+
+Transport implementations live in separate crates (`transports/reqwest/`, etc.) — core only defines the trait and types.
 
 ## Type-State Builder
 
@@ -147,10 +177,13 @@ In streaming mode (`chat::stream.rs`), a pause yields `StreamEvent::Paused(Pause
 
 - `ChatError` — enum of error variants (Network, Provider, RateLimited, MaxStepsExceeded, InvalidResponse, Callback, Other)
 - `ChatFailure` — wraps `ChatError` with optional `Metadata`, so partial token usage is preserved even on failure
+- `TransportError` → `ChatError` conversion via `From`: `Connection`/`Stream` map to `Network` (retryable), `Request` maps to `Provider` (not retryable). Providers use `ChatFailure::from_err` on transport errors to get correct retry semantics automatically.
 
 ## Caveats
 
 - `Messages::push()` silently merges consecutive same-role messages. Intentional for tool call flows; can be surprising if you expect separate entries.
 - Only resolved `ToolStatus` states (`Completed`, `Rejected`, `Failed`) serialize to the wire via `Tool::to_tuple`. Providers never see `Pending`/`Approved`/`Running`.
 - Feature flag `stream` must be enabled at every layer: `chat-core/stream`, and propagated through `chat-rs/stream` to each provider.
+- The `Transport` trait lives in `core/src/transport/`. Implementations (e.g., `transport-reqwest`) are separate workspace crates under `transports/`.
+- `Transport: Send + Sync` — the `Sync` bound is required because `CompletionProvider: Send + Sync`. WASM transports using non-`Sync` browser types will need the provider trait bounds relaxed first.
 - Metadata is provider-specific (`HashMap<String, Value>` on `specific`) — no schema enforcement.

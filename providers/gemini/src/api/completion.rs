@@ -4,6 +4,7 @@ use crate::api::types::response::GeminiCompletionResponse;
 use crate::client::GeminiClient;
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::traits::CompletionProvider;
+use chat_core::transport::Transport;
 use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
@@ -11,7 +12,7 @@ use chat_core::types::response::ChatResponse;
 use chat_core::types::tools::ToolDeclarations;
 
 #[async_trait::async_trait]
-impl CompletionProvider for GeminiClient {
+impl<T: Transport> CompletionProvider for GeminiClient<T> {
     async fn complete(
         &mut self,
         messages: &mut Messages,
@@ -19,9 +20,9 @@ impl CompletionProvider for GeminiClient {
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
-            self.model_name
+        let path = format!(
+            "{}/models/{}:generateContent",
+            self.base_path, self.model_name
         );
 
         let request_body = GeminiRequest::from_core(
@@ -35,20 +36,29 @@ impl CompletionProvider for GeminiClient {
         )
         .map_err(ChatFailure::from_err)?;
 
+        let body = serde_json::to_vec(&request_body)
+            .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
+
+        let req = chat_core::transport::Request {
+            scheme: self.scheme.clone(),
+            host: self.host.clone(),
+            path,
+            headers: vec![
+                ("x-goog-api-key".into(), self.api_key.clone()),
+                ("Content-Type".into(), "application/json".into()),
+            ],
+            body,
+        };
+
         let res = self
-            .http_client
-            .post(&url)
-            .header("x-goog-api-key", &self.api_key)
-            .json(&request_body)
-            .send()
+            .transport
+            .send(req)
             .await
-            .map_err(|e| ChatFailure::from_err(ChatError::Network(e.to_string())))?;
+            .map_err(ChatFailure::from_err)?;
 
-        let res = handle_gemini_error(res).await?;
+        let res = handle_gemini_error(res)?;
 
-        let gemini_data: GeminiCompletionResponse = res
-            .json()
-            .await
+        let gemini_data: GeminiCompletionResponse = serde_json::from_slice(&res.body)
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
         gemini_data

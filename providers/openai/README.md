@@ -30,6 +30,17 @@ Set `OPENAI_API_KEY` in your environment or call `.with_api_key()` on the builde
 
 - **Web Search** — `.with_web_search(context_size, user_location)`
 
+## Custom Transport
+
+Supply a custom transport via `.with_transport()` to use something other than the default HTTP (reqwest):
+
+```rust
+let client = OpenAIBuilder::new()
+    .with_model("gpt-4o")
+    .with_transport(my_transport)
+    .build();
+```
+
 ## Custom Endpoints
 
 Use local or proxy servers that implement the Responses API:

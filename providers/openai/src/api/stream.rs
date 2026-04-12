@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use async_stream::try_stream;
-use futures::{StreamExt, stream::BoxStream};
+use futures::stream::BoxStream;
+use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::Value;
 use tools_rs::FunctionCall;
@@ -9,6 +10,7 @@ use tools_rs::FunctionCall;
 use chat_core::{
     error::ChatError,
     traits::StreamProvider,
+    transport::Transport,
     types::{
         messages::{
             Messages,
@@ -17,14 +19,13 @@ use chat_core::{
         },
         metadata::{Metadata, usage::Usage},
         options::ChatOptions,
-        response::{ChatResponse, SseParser, StreamEvent},
+        response::{ChatResponse, StreamEvent},
         tools::ToolDeclarations,
     },
 };
 
 use crate::{
     api::types::{
-        error::handle_openai_error,
         request::OpenAIResponsesRequest,
         response::{OpenAIUsage, ResponsesOutputItem, output_items_to_parts},
     },
@@ -32,15 +33,13 @@ use crate::{
 };
 
 #[async_trait::async_trait]
-impl StreamProvider for OpenAIClient {
+impl<T: Transport> StreamProvider for OpenAIClient<T> {
     async fn stream(
         &mut self,
         messages: &mut Messages,
         tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
-        let url = format!("{}/responses", self.base_url);
-
         let previous_response_id = if self.use_previous_response_id {
             self.last_response_id.clone()
         } else {
@@ -62,17 +61,27 @@ impl StreamProvider for OpenAIClient {
         )?;
         request_body.stream = Some(true);
 
-        let res = self
-            .http_client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", &self.api_key))
-            .json(&request_body)
-            .send()
-            .await
-            .map_err(|e| ChatError::Network(e.to_string()))?;
-        let res = handle_openai_error(res).await.map_err(|f| f.err)?;
+        let body = serde_json::to_vec(&request_body)
+            .map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
 
-        Ok(parse_responses_sse_stream(res))
+        let req = chat_core::transport::Request {
+            scheme: self.scheme.clone(),
+            host: self.host.clone(),
+            path: format!("{}/responses", self.base_path),
+            headers: vec![
+                ("Authorization".into(), format!("Bearer {}", self.api_key)),
+                ("Content-Type".into(), "application/json".into()),
+            ],
+            body,
+        };
+
+        let event_stream = self
+            .transport
+            .stream(req)
+            .await
+            .map_err(ChatError::from)?;
+
+        Ok(parse_transport_event_stream(event_stream))
     }
 
     fn on_stream_done(&mut self, response: &ChatResponse) {
@@ -269,22 +278,18 @@ impl StreamState {
     }
 }
 
-fn parse_responses_sse_stream(
-    res: reqwest::Response,
+fn parse_transport_event_stream(
+    event_stream: chat_core::transport::EventStream,
 ) -> BoxStream<'static, Result<StreamEvent, ChatError>> {
     let stream = try_stream! {
-        let mut byte_stream = res.bytes_stream();
-        let mut sse_parser = SseParser::default();
+        let mut events = event_stream;
         let mut state = StreamState::default();
 
-        while let Some(chunk_res) = byte_stream.next().await {
-            let chunk = chunk_res.map_err(|e| ChatError::Network(e.to_string()))?;
-            sse_parser.push(&chunk);
+        while let Some(event_res) = events.next().await {
+            let (event_type, data) = event_res.map_err(ChatError::from)?;
 
-            while let Some((event_type, data)) = sse_parser.next_event() {
-                if let Some(event) = state.handle_event(&event_type, &data)? {
-                    yield event;
-                }
+            if let Some(event) = state.handle_event(&event_type, &data)? {
+                yield event;
             }
         }
 

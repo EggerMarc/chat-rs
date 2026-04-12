@@ -1,5 +1,5 @@
 use chat_core::error::{ChatError, ChatFailure};
-use reqwest::Response;
+use chat_core::transport::Response;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -9,27 +9,31 @@ pub struct OpenAIErrorResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct OpenAIErrorDetail {
-    pub code: Option<i32>,
+    pub code: Option<String>,
     pub message: String,
     pub status: Option<String>,
 }
 
-pub async fn handle_openai_error(res: Response) -> Result<Response, ChatFailure> {
-    let status = res.status();
+pub fn handle_openai_error(res: Response) -> Result<Response, ChatFailure> {
+    let status = res.status;
 
-    if status.is_success() {
+    if (200..300).contains(&status) {
         return Ok(res);
     }
-    let err_text = res.text().await.unwrap_or_default();
 
-    if status.as_u16() == 429 {
+    let err_text = String::from_utf8_lossy(&res.body).into_owned();
+
+    if status == 429 {
         return Err(ChatFailure::from_err(ChatError::RateLimited));
     }
 
     if let Ok(openai_err) = serde_json::from_str::<OpenAIErrorResponse>(&err_text) {
+        let code = openai_err
+            .error
+            .code
+            .unwrap_or_else(|| status.to_string());
         let error_msg = format!(
-            "OpenAI API Error[{}] ({}): {}",
-            openai_err.error.code.unwrap_or(status.as_u16() as i32),
+            "OpenAI API Error[{code}] ({}): {}",
             openai_err.error.status.as_deref().unwrap_or("UNKNOWN"),
             openai_err.error.message
         );
@@ -37,8 +41,6 @@ pub async fn handle_openai_error(res: Response) -> Result<Response, ChatFailure>
     }
 
     Err(ChatFailure::from_err(ChatError::Provider(format!(
-        "HTTP {} Error: {}",
-        status.as_u16(),
-        err_text
+        "HTTP {status} Error: {err_text}",
     ))))
 }

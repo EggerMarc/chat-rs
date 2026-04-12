@@ -8,12 +8,17 @@
 
 pub use chat_core::retry_strategy;
 
+pub mod transport {
+    pub use chat_core::transport::*;
+}
+
 pub use chat_core::{
     builder::ChatBuilder,
     chat::Chat,
     chat::state::{Structured, Unstructured},
     error::{ChatError, ChatFailure},
     traits::{CompletionProvider, EmbeddingsProvider},
+    transport::Transport,
     types,
     types::{
         callback::{CallbackRetryContext, CallbackStrategy, RetryStrategy},
