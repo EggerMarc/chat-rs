@@ -24,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-chat-rs = { version = "0.0.16", features = ["openai"] }
+chat-rs = { version = "0.1.0", features = ["openai"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -52,11 +52,11 @@ Enable providers via feature flags:
 
 ```toml
 # Pick one or more
-chat-rs = { version = "0.0.16", features = ["gemini"] }
-chat-rs = { version = "0.0.16", features = ["claude"] }
-chat-rs = { version = "0.0.16", features = ["openai"] }
-chat-rs = { version = "0.0.16", features = ["router", "gemini", "claude"] }
-chat-rs = { version = "0.0.16", features = ["gemini", "claude", "openai", "stream"] }
+chat-rs = { version = "0.1.0", features = ["gemini"] }
+chat-rs = { version = "0.1.0", features = ["claude"] }
+chat-rs = { version = "0.1.0", features = ["openai"] }
+chat-rs = { version = "0.1.0", features = ["router", "gemini", "claude"] }
+chat-rs = { version = "0.1.0", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
 | Provider | Feature | API Key Env Var | Builder |
@@ -154,7 +154,7 @@ println!("Name: {}, Likes: {:?}", response.content.name, response.content.likes)
 Enable the `stream` feature flag:
 
 ```toml
-chat-rs = { version = "0.0.16", features = ["gemini", "stream"] }
+chat-rs = { version = "0.1.0", features = ["gemini", "stream"] }
 ```
 
 ```rust

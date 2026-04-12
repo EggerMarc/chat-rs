@@ -82,7 +82,7 @@ Any type implementing both `CompletionProvider` and `StreamProvider` automatical
 ```rust
 #[async_trait]
 pub trait EmbeddingsProvider: Send + Sync {
-    async fn embed(&mut self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;
+    async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;
 }
 ```
 
@@ -92,15 +92,15 @@ The `Transport` trait (`transport/traits.rs`) abstracts over how requests are de
 
 ```rust
 pub trait Transport: Send + Sync {
-    fn send(&mut self, req: Request)
+    fn send(&self, req: Request)
         -> impl Future<Output = Result<Response, TransportError>> + Send;
 
-    fn stream(&mut self, req: Request)
+    fn stream(&self, req: Request)
         -> impl Future<Output = Result<EventStream, TransportError>> + Send;
 }
 ```
 
-- **`Request`** — url, headers, body bytes. Providers serialize their wire format into this.
+- **`Request`** — scheme, host, path, headers, body bytes. The transport assembles the URL from these. Providers set the scheme (e.g. `"https"`); transports may override it (e.g. a WebSocket transport uses `wss://`).
 - **`Response`** — status code, headers, body bytes. Providers deserialize from this.
 - **`Event`** — `(event_type, data)` tuple. HTTP transports parse SSE; WebSocket transports extract the `type` field from JSON frames. Providers consume these uniformly.
 - **`SseParser`** — incremental SSE parser in `transport/sse.rs`, shared by HTTP transports.
@@ -185,5 +185,5 @@ In streaming mode (`chat::stream.rs`), a pause yields `StreamEvent::Paused(Pause
 - Only resolved `ToolStatus` states (`Completed`, `Rejected`, `Failed`) serialize to the wire via `Tool::to_tuple`. Providers never see `Pending`/`Approved`/`Running`.
 - Feature flag `stream` must be enabled at every layer: `chat-core/stream`, and propagated through `chat-rs/stream` to each provider.
 - The `Transport` trait lives in `core/src/transport/`. Implementations (e.g., `transport-reqwest`) are separate workspace crates under `transports/`.
-- `Transport: Send + Sync` — the `Sync` bound is required because `CompletionProvider: Send + Sync`. WASM transports using non-`Sync` browser types will need the provider trait bounds relaxed first.
+- `Transport: Send + Sync` with `&self` methods — transports that need internal mutation (e.g. WebSocket connections) use interior mutability. This matches the `reqwest::Client` convention.
 - Metadata is provider-specific (`HashMap<String, Value>` on `specific`) — no schema enforcement.

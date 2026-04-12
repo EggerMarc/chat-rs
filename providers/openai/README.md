@@ -56,6 +56,6 @@ let client = OpenAIBuilder::new()
 ## Feature Flags
 
 ```toml
-chat-rs = { version = "0.0.16", features = ["openai"] }
-chat-rs = { version = "0.0.16", features = ["openai", "stream"] }
+chat-rs = { version = "0.1.0", features = ["openai"] }
+chat-rs = { version = "0.1.0", features = ["openai", "stream"] }
 ```

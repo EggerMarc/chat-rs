@@ -46,6 +46,6 @@ let client = GeminiBuilder::new()
 ## Feature Flags
 
 ```toml
-chat-rs = { version = "0.0.16", features = ["gemini"] }
-chat-rs = { version = "0.0.16", features = ["gemini", "stream"] }
+chat-rs = { version = "0.1.0", features = ["gemini"] }
+chat-rs = { version = "0.1.0", features = ["gemini", "stream"] }
 ```

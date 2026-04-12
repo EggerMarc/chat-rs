@@ -70,7 +70,7 @@ When a provider's circuit opens, the router skips it until the recovery timeout 
 Enable the `stream` feature to use `StreamRouterBuilder`, which wraps providers implementing `ChatProvider`:
 
 ```toml
-chat-rs = { version = "0.0.16", features = ["router", "claude", "gemini", "stream"] }
+chat-rs = { version = "0.1.0", features = ["router", "claude", "gemini", "stream"] }
 ```
 
 ## Scope
@@ -82,5 +82,5 @@ The router supports completions and streaming. Embeddings are not supported — 
 Enable via the root crate:
 
 ```toml
-chat-rs = { version = "0.0.16", features = ["router", "claude", "gemini"] }
+chat-rs = { version = "0.1.0", features = ["router", "claude", "gemini"] }
 ```
