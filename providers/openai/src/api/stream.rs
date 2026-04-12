@@ -79,7 +79,7 @@ impl<T: Transport> StreamProvider for OpenAIClient<T> {
             .transport
             .stream(req)
             .await
-            .map_err(|e| ChatError::Network(e.to_string()))?;
+            .map_err(ChatError::from)?;
 
         Ok(parse_transport_event_stream(event_stream))
     }
@@ -286,7 +286,7 @@ fn parse_transport_event_stream(
         let mut state = StreamState::default();
 
         while let Some(event_res) = events.next().await {
-            let (event_type, data) = event_res.map_err(|e| ChatError::Network(e.to_string()))?;
+            let (event_type, data) = event_res.map_err(ChatError::from)?;
 
             if let Some(event) = state.handle_event(&event_type, &data)? {
                 yield event;

@@ -63,7 +63,7 @@ impl<T: Transport> StreamProvider for GeminiClient<T> {
             .transport
             .stream(req)
             .await
-            .map_err(|e| ChatError::Network(e.to_string()))?;
+            .map_err(ChatError::from)?;
 
         Ok(parse_gemini_event_stream(event_stream))
     }
@@ -80,7 +80,7 @@ fn parse_gemini_event_stream(
         let mut final_metadata = None;
 
         while let Some(event_res) = events.next().await {
-            let (_, json_str) = event_res.map_err(|e| ChatError::Network(e.to_string()))?;
+            let (_, json_str) = event_res.map_err(ChatError::from)?;
 
             let gemini_chunk = serde_json::from_str::<GeminiCompletionResponse>(&json_str)
                 .map_err(|e| {

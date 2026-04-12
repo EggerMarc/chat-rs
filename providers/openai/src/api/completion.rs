@@ -59,7 +59,7 @@ impl<T: Transport> CompletionProvider for OpenAIClient<T> {
             .transport
             .send(req)
             .await
-            .map_err(|e| ChatFailure::from_err(ChatError::Network(e.to_string())))?;
+            .map_err(ChatFailure::from_err)?;
 
         let res = handle_openai_error(res)?;
 

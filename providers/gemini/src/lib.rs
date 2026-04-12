@@ -53,7 +53,7 @@ impl GeminiBuilder<WithoutModel, BaseConfig, ReqwestTransport> {
             function_config: None,
             embeddings_config: None,
             include_thoughts: false,
-            transport: None,
+            transport: Some(ReqwestTransport::default()),
             meta: ProviderMeta::default(),
             _m: PhantomData,
             _c: PhantomData,
@@ -236,14 +236,16 @@ impl<M, T: Transport> GeminiBuilder<M, EmbeddingConfig, T> {
     }
 }
 
-impl<C, T: Transport + Default> GeminiBuilder<WithModel, C, T> {
+impl<C, T: Transport> GeminiBuilder<WithModel, C, T> {
     pub fn build(self) -> GeminiClient<T> {
         GeminiClient {
             model_name: self.model_name.unwrap(),
             api_key: self.api_key.unwrap_or_else(|| {
                 env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY not found in environment")
             }),
-            transport: self.transport.unwrap_or_default(),
+            transport: self.transport.expect(
+                "No transport provided. Call .with_transport() or use the default GeminiBuilder (which provides ReqwestTransport).",
+            ),
             native_tools: self.native_tools,
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,

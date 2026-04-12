@@ -41,7 +41,7 @@ impl ClaudeBuilder<WithoutModel, ReqwestTransport> {
             api_version: None,
             include_thoughts: true,
             thinking_budget: None,
-            transport: None,
+            transport: Some(ReqwestTransport::default()),
             meta: ProviderMeta::default(),
             _m: PhantomData,
         }
@@ -113,7 +113,7 @@ impl<T: Transport> ClaudeBuilder<WithoutModel, T> {
     }
 }
 
-impl<T: Transport + Default> ClaudeBuilder<WithModel, T> {
+impl<T: Transport> ClaudeBuilder<WithModel, T> {
     pub fn build(self) -> ClaudeClient<T> {
         ClaudeClient {
             model_name: self.model_name.unwrap(),
@@ -123,7 +123,9 @@ impl<T: Transport + Default> ClaudeBuilder<WithModel, T> {
             api_version: self
                 .api_version
                 .unwrap_or_else(|| DEFAULT_API_VERSION.to_string()),
-            transport: self.transport.unwrap_or_default(),
+            transport: self.transport.expect(
+                "No transport provided. Call .with_transport() or use the default ClaudeBuilder (which provides ReqwestTransport).",
+            ),
             include_thoughts: self.include_thoughts,
             thinking_budget: if self.include_thoughts {
                 Some(self.thinking_budget.unwrap_or(DEFAULT_THINKING_BUDGET))

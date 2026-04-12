@@ -56,7 +56,7 @@ impl OpenAIBuilder<WithoutModel, BaseEndpoint, BaseConfig, ReqwestTransport> {
             reasoning_effort: None,
             use_previous_response_id: true,
             store: None,
-            transport: None,
+            transport: Some(ReqwestTransport::default()),
             meta: ProviderMeta::default(),
             _m: PhantomData,
             _u: PhantomData,
@@ -289,21 +289,26 @@ impl<M, U, T: Transport> OpenAIBuilder<M, U, BaseConfig, T> {
     }
 }
 
-impl<U, C, T: Transport + Default> OpenAIBuilder<WithModel, U, C, T> {
-    /// Build the client. When no transport was explicitly provided via
-    /// `.with_transport()`, the default for `T` is used (e.g.
-    /// `ReqwestTransport::default()`).
+impl<U, C, T: Transport> OpenAIBuilder<WithModel, U, C, T> {
+    /// Build the client.
+    ///
+    /// Panics if no transport was provided via `.with_transport()` and
+    /// `T` is not the default `ReqwestTransport`.
     pub fn build(self) -> OpenAIClient<T> {
         let api_key = self
             .api_key
             .or_else(|| env::var("OPENAI_API_KEY").ok())
             .expect("No api key found");
 
+        let transport = self.transport.expect(
+            "No transport provided. Call .with_transport() or use the default OpenAIBuilder (which provides ReqwestTransport).",
+        );
+
         OpenAIClient {
             model_name: self.model_name.unwrap(),
             api_key,
             base_url: self.base_url,
-            transport: self.transport.unwrap_or_default(),
+            transport,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -313,3 +318,4 @@ impl<U, C, T: Transport + Default> OpenAIBuilder<WithModel, U, C, T> {
         }
     }
 }
+

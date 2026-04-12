@@ -70,7 +70,7 @@ impl<T: Transport> StreamProvider for ClaudeClient<T> {
             .transport
             .stream(req)
             .await
-            .map_err(|e| ChatError::Network(e.to_string()))?;
+            .map_err(ChatError::from)?;
 
         Ok(parse_claude_event_stream(event_stream))
     }
@@ -172,7 +172,7 @@ fn parse_claude_event_stream(
         let mut tool_input_buffer = String::new();
 
         while let Some(event_res) = events.next().await {
-            let (event_type, json_str) = event_res.map_err(|e| ChatError::Network(e.to_string()))?;
+            let (event_type, json_str) = event_res.map_err(ChatError::from)?;
 
             {
                 match event_type.as_str() {
