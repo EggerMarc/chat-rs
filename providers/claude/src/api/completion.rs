@@ -47,6 +47,7 @@ impl<T: Transport> CompletionProvider for ClaudeClient<T> {
         }
 
         let req = chat_core::transport::Request {
+            scheme: self.scheme.clone(),
             host: self.host.clone(),
             path: format!("{}/messages", self.base_path),
             headers,

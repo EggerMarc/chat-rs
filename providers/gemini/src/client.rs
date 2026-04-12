@@ -9,6 +9,7 @@ use crate::{
 pub struct GeminiClient<T: Transport> {
     pub(crate) model_name: String,
     pub(crate) api_key: String,
+    pub(crate) scheme: String,
     pub(crate) host: String,
     pub(crate) base_path: String,
     pub(crate) transport: T,

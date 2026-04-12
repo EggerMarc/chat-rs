@@ -65,6 +65,7 @@ impl<T: Transport> StreamProvider for OpenAIClient<T> {
             .map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
 
         let req = chat_core::transport::Request {
+            scheme: self.scheme.clone(),
             host: self.host.clone(),
             path: format!("{}/responses", self.base_path),
             headers: vec![

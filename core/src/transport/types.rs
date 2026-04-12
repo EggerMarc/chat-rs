@@ -2,9 +2,14 @@ use futures::stream::BoxStream;
 
 /// An outbound request to be sent by a transport.
 ///
-/// Providers set `host` and `path`; the transport owns the scheme
-/// (`https://`, `wss://`, etc.) and assembles the final URL.
+/// Providers set `scheme`, `host`, and `path`. The transport assembles
+/// the final URL — but may override the scheme when the protocol
+/// requires it (e.g. a WebSocket transport uses `wss://` regardless of
+/// the provider-supplied scheme).
 pub struct Request {
+    /// URL scheme, e.g. `"https"` or `"http"`. Transports may override
+    /// this (e.g. a WebSocket transport ignores it and uses `wss://`).
+    pub scheme: String,
     /// Host (and optional port), e.g. `"api.openai.com"` or `"localhost:11434"`.
     pub host: String,
     /// Absolute path, e.g. `"/v1/responses"`.

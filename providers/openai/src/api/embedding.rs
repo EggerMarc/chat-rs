@@ -19,6 +19,7 @@ impl<T: Transport> EmbeddingsProvider for OpenAIClient<T> {
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
         let req = chat_core::transport::Request {
+            scheme: self.scheme.clone(),
             host: self.host.clone(),
             path: format!("{}/embeddings", self.base_path),
             headers: vec![

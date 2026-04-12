@@ -40,6 +40,7 @@ impl<T: Transport> CompletionProvider for GeminiClient<T> {
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
         let req = chat_core::transport::Request {
+            scheme: self.scheme.clone(),
             host: self.host.clone(),
             path,
             headers: vec![
