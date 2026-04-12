@@ -25,6 +25,17 @@ Set `CLAUDE_API_KEY` in your environment or call `.with_api_key()` on the builde
 - **Streaming** — token-by-token output (requires `stream` feature)
 - **Extended thinking** — enabled by default, configurable with `.with_thoughts(bool)` and `.with_thinking_budget(u32)`
 
+## Custom Transport
+
+Supply a custom transport via `.with_transport()` to use something other than the default HTTP (reqwest):
+
+```rust
+let client = ClaudeBuilder::new()
+    .with_model("claude-sonnet-4-20250514".to_string())
+    .with_transport(my_transport)
+    .build();
+```
+
 ## Configuration
 
 - `.with_api_version(version)` — API version (default: `2023-06-01`)

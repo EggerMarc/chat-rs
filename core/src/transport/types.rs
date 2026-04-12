@@ -34,8 +34,12 @@ pub enum TransportError {
     #[error("connection error: {0}")]
     Connection(String),
 
-    #[error("request error: {0}")]
-    Request(String),
+    #[error("request error: {message}")]
+    Request {
+        /// HTTP status code, when available.
+        status: Option<u16>,
+        message: String,
+    },
 
     #[error("stream error: {0}")]
     Stream(String),

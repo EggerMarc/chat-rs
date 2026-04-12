@@ -26,6 +26,17 @@ Set `GEMINI_API_KEY` in your environment or call `.with_api_key()` on the builde
 - **Embeddings** — vector embeddings via `.with_embeddings(dimensions)`
 - **Extended thinking** — enable with `.with_thoughts(true)`
 
+## Custom Transport
+
+Supply a custom transport via `.with_transport()` to use something other than the default HTTP (reqwest):
+
+```rust
+let client = GeminiBuilder::new()
+    .with_model("gemini-2.5-flash".to_string())
+    .with_transport(my_transport)
+    .build();
+```
+
 ## Native Tools
 
 - **Google Search** — `.with_google_search()` or `.with_google_search_threshold(f32)`

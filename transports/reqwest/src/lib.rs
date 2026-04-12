@@ -65,7 +65,10 @@ impl Transport for ReqwestTransport {
         let body = res
             .bytes()
             .await
-            .map_err(|e| TransportError::Request(e.to_string()))?
+            .map_err(|e| TransportError::Request {
+                status: None,
+                message: e.to_string(),
+            })?
             .to_vec();
 
         Ok(Response {
@@ -90,9 +93,10 @@ impl Transport for ReqwestTransport {
         if !res.status().is_success() {
             let status = res.status().as_u16();
             let body = res.text().await.unwrap_or_default();
-            return Err(TransportError::Request(format!(
-                "HTTP {status}: {body}"
-            )));
+            return Err(TransportError::Request {
+                status: Some(status),
+                message: format!("HTTP {status}: {body}"),
+            });
         }
 
         let stream = try_stream! {

@@ -50,7 +50,10 @@ impl From<TransportError> for ChatError {
         match err {
             TransportError::Connection(msg) => ChatError::Network(msg),
             TransportError::Stream(msg) => ChatError::Network(msg),
-            TransportError::Request(msg) => ChatError::Provider(msg),
+            TransportError::Request { status, message } => match status {
+                Some(429 | 529) => ChatError::RateLimited,
+                _ => ChatError::Provider(message),
+            },
         }
     }
 }
