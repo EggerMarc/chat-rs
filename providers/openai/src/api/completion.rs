@@ -1,8 +1,10 @@
+use crate::api::types::error::handle_openai_error;
 use crate::api::types::request::OpenAIResponsesRequest;
 use crate::api::types::response::ResponsesApiResponse;
 use crate::client::OpenAIClient;
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::traits::CompletionProvider;
+use chat_core::transport::Transport;
 use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
@@ -10,7 +12,7 @@ use chat_core::types::response::ChatResponse;
 use chat_core::types::tools::ToolDeclarations;
 
 #[async_trait::async_trait]
-impl CompletionProvider for OpenAIClient {
+impl<T: Transport> CompletionProvider for OpenAIClient<T> {
     async fn complete(
         &mut self,
         messages: &mut Messages,
@@ -41,21 +43,27 @@ impl CompletionProvider for OpenAIClient {
         )
         .map_err(ChatFailure::from_err)?;
 
+        let body = serde_json::to_vec(&request_body)
+            .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
+
+        let req = chat_core::transport::Request {
+            url,
+            headers: vec![
+                ("Authorization".into(), format!("Bearer {}", self.api_key)),
+                ("Content-Type".into(), "application/json".into()),
+            ],
+            body,
+        };
+
         let res = self
-            .http_client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", &self.api_key))
-            .json(&request_body)
-            .send()
+            .transport
+            .send(req)
             .await
             .map_err(|e| ChatFailure::from_err(ChatError::Network(e.to_string())))?;
-        let res = res
-            .error_for_status()
-            .map_err(|e| ChatFailure::from_err(ChatError::Provider(e.to_string())))?;
 
-        let oai_data: ResponsesApiResponse = res
-            .json()
-            .await
+        let res = handle_openai_error(res)?;
+
+        let oai_data: ResponsesApiResponse = serde_json::from_slice(&res.body)
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
         let (response, response_id) = oai_data

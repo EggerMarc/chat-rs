@@ -4,9 +4,11 @@ pub mod client;
 use std::env;
 use std::marker::PhantomData;
 
+use chat_core::transport::Transport;
 use chat_core::types::provider_meta::ProviderMeta;
 
-use crate::client::ClaudeClient;
+pub use crate::client::ClaudeClient;
+pub use transport_reqwest::ReqwestTransport;
 
 const DEFAULT_API_VERSION: &str = "2023-06-01";
 const DEFAULT_THINKING_BUDGET: u32 = 10000;
@@ -14,23 +16,24 @@ const DEFAULT_THINKING_BUDGET: u32 = 10000;
 pub struct WithoutModel;
 pub struct WithModel;
 
-pub struct ClaudeBuilder<M = WithoutModel> {
+pub struct ClaudeBuilder<M = WithoutModel, T: Transport = ReqwestTransport> {
     model_name: Option<String>,
     api_key: Option<String>,
     api_version: Option<String>,
     include_thoughts: bool,
     thinking_budget: Option<u32>,
+    transport: Option<T>,
     meta: ProviderMeta,
     _m: PhantomData<M>,
 }
 
-impl Default for ClaudeBuilder<WithoutModel> {
+impl Default for ClaudeBuilder<WithoutModel, ReqwestTransport> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ClaudeBuilder<WithoutModel> {
+impl ClaudeBuilder<WithoutModel, ReqwestTransport> {
     pub fn new() -> Self {
         Self {
             model_name: None,
@@ -38,13 +41,14 @@ impl ClaudeBuilder<WithoutModel> {
             api_version: None,
             include_thoughts: true,
             thinking_budget: None,
+            transport: None,
             meta: ProviderMeta::default(),
             _m: PhantomData,
         }
     }
 }
 
-impl<M> ClaudeBuilder<M> {
+impl<M, T: Transport> ClaudeBuilder<M, T> {
     pub fn with_api_key(mut self, api_key: String) -> Self {
         self.api_key = Some(api_key);
         self
@@ -78,24 +82,39 @@ impl<M> ClaudeBuilder<M> {
         self.meta.data.insert(key.into(), Box::new(value));
         self
     }
-}
 
-impl ClaudeBuilder<WithoutModel> {
-    pub fn with_model(self, model_name: String) -> ClaudeBuilder<WithModel> {
+    /// Supply a custom transport, replacing the default.
+    pub fn with_transport<T2: Transport>(self, transport: T2) -> ClaudeBuilder<M, T2> {
         ClaudeBuilder {
-            model_name: Some(model_name),
+            model_name: self.model_name,
             api_key: self.api_key,
             api_version: self.api_version,
             include_thoughts: self.include_thoughts,
             thinking_budget: self.thinking_budget,
+            transport: Some(transport),
             meta: self.meta,
             _m: PhantomData,
         }
     }
 }
 
-impl ClaudeBuilder<WithModel> {
-    pub fn build(self) -> ClaudeClient {
+impl<T: Transport> ClaudeBuilder<WithoutModel, T> {
+    pub fn with_model(self, model_name: String) -> ClaudeBuilder<WithModel, T> {
+        ClaudeBuilder {
+            model_name: Some(model_name),
+            api_key: self.api_key,
+            api_version: self.api_version,
+            include_thoughts: self.include_thoughts,
+            thinking_budget: self.thinking_budget,
+            transport: self.transport,
+            meta: self.meta,
+            _m: PhantomData,
+        }
+    }
+}
+
+impl<T: Transport + Default> ClaudeBuilder<WithModel, T> {
+    pub fn build(self) -> ClaudeClient<T> {
         ClaudeClient {
             model_name: self.model_name.unwrap(),
             api_key: self.api_key.unwrap_or_else(|| {
@@ -104,7 +123,7 @@ impl ClaudeBuilder<WithModel> {
             api_version: self
                 .api_version
                 .unwrap_or_else(|| DEFAULT_API_VERSION.to_string()),
-            http_client: reqwest::Client::new(),
+            transport: self.transport.unwrap_or_default(),
             include_thoughts: self.include_thoughts,
             thinking_budget: if self.include_thoughts {
                 Some(self.thinking_budget.unwrap_or(DEFAULT_THINKING_BUDGET))

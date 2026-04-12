@@ -1,15 +1,15 @@
+use chat_core::transport::Transport;
 use chat_core::types::provider_meta::ProviderMeta;
-use reqwest::Client;
 
 use crate::{
     api::types::request::{GeminiEmbeddingsConfig, GeminiFunctionCallingConfig},
     tools::GeminiNativeTool,
 };
 
-pub struct GeminiClient {
+pub struct GeminiClient<T: Transport> {
     pub(crate) model_name: String,
     pub(crate) api_key: String,
-    pub(crate) http_client: Client,
+    pub(crate) transport: T,
     pub(crate) native_tools: Vec<Box<dyn GeminiNativeTool>>,
     pub(crate) function_config: Option<GeminiFunctionCallingConfig>,
     pub(crate) embeddings_config: Option<GeminiEmbeddingsConfig>,

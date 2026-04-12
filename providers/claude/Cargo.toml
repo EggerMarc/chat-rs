@@ -8,12 +8,14 @@ license.workspace = true
 
 [dependencies]
 chat-core = { path = "../../core", version = "0.0.9" }
+transport-reqwest.workspace = true
 async-trait.workspace = true
-reqwest = { workspace = true, features = ["json", "stream"] }
 serde.workspace = true
 serde_json.workspace = true
 tools-rs.workspace = true
 schemars.workspace = true
+futures.workspace = true
+async-stream = { workspace = true, optional = true }
 base64 = "0.22.1"
 
 [dev-dependencies]
@@ -21,12 +23,4 @@ tokio.workspace = true
 
 [features]
 default = []
-stream = ["chat-core/stream", "dep:futures", "dep:async-stream"]
-
-[dependencies.futures]
-workspace = true
-optional = true
-
-[dependencies.async-stream]
-workspace = true
-optional = true
+stream = ["chat-core/stream", "dep:async-stream"]

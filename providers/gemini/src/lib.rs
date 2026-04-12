@@ -7,13 +7,16 @@ use std::marker::PhantomData;
 use crate::api::types::request::{
     EmbeddingsTask, GeminiEmbeddingsConfig, GeminiFunctionCallingConfig,
 };
+use chat_core::transport::Transport;
 use chat_core::types::provider_meta::ProviderMeta;
 
-use crate::client::GeminiClient;
+pub use crate::client::GeminiClient;
 use crate::tools::GeminiNativeTool;
 use crate::tools::code_execution::CodeExecutionTool;
 use crate::tools::google_maps::GoogleMapsTool;
 use crate::tools::google_search::GoogleSearchTool;
+
+pub use transport_reqwest::ReqwestTransport;
 
 pub struct WithoutModel;
 pub struct WithModel;
@@ -22,25 +25,26 @@ pub struct BaseConfig;
 pub struct CompletionConfig;
 pub struct EmbeddingConfig;
 
-pub struct GeminiBuilder<M = WithoutModel, C = BaseConfig> {
+pub struct GeminiBuilder<M = WithoutModel, C = BaseConfig, T: Transport = ReqwestTransport> {
     model_name: Option<String>,
     api_key: Option<String>,
     native_tools: Vec<Box<dyn GeminiNativeTool>>,
     function_config: Option<GeminiFunctionCallingConfig>,
     embeddings_config: Option<GeminiEmbeddingsConfig>,
     include_thoughts: bool,
+    transport: Option<T>,
     meta: ProviderMeta,
     _m: PhantomData<M>,
     _c: PhantomData<C>,
 }
 
-impl Default for GeminiBuilder<WithoutModel, BaseConfig> {
+impl Default for GeminiBuilder<WithoutModel, BaseConfig, ReqwestTransport> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl GeminiBuilder<WithoutModel, BaseConfig> {
+impl GeminiBuilder<WithoutModel, BaseConfig, ReqwestTransport> {
     pub fn new() -> Self {
         Self {
             model_name: None,
@@ -49,6 +53,7 @@ impl GeminiBuilder<WithoutModel, BaseConfig> {
             function_config: None,
             embeddings_config: None,
             include_thoughts: false,
+            transport: None,
             meta: ProviderMeta::default(),
             _m: PhantomData,
             _c: PhantomData,
@@ -56,7 +61,7 @@ impl GeminiBuilder<WithoutModel, BaseConfig> {
     }
 }
 
-impl<M, C> GeminiBuilder<M, C> {
+impl<M, C, T: Transport> GeminiBuilder<M, C, T> {
     pub fn with_api_key(mut self, api_key: String) -> Self {
         self.api_key = Some(api_key);
         self
@@ -75,26 +80,9 @@ impl<M, C> GeminiBuilder<M, C> {
         self.meta.data.insert(key.into(), Box::new(value));
         self
     }
-}
 
-impl<C> GeminiBuilder<WithoutModel, C> {
-    pub fn with_model(self, model_name: String) -> GeminiBuilder<WithModel, C> {
-        GeminiBuilder {
-            model_name: Some(model_name),
-            api_key: self.api_key,
-            native_tools: self.native_tools,
-            function_config: self.function_config,
-            embeddings_config: self.embeddings_config,
-            include_thoughts: self.include_thoughts,
-            meta: self.meta,
-            _m: PhantomData,
-            _c: PhantomData,
-        }
-    }
-}
-
-impl<M> GeminiBuilder<M, BaseConfig> {
-    fn into_completion(self) -> GeminiBuilder<M, CompletionConfig> {
+    /// Supply a custom transport, replacing the default.
+    pub fn with_transport<T2: Transport>(self, transport: T2) -> GeminiBuilder<M, C, T2> {
         GeminiBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
@@ -102,17 +90,52 @@ impl<M> GeminiBuilder<M, BaseConfig> {
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
             include_thoughts: self.include_thoughts,
+            transport: Some(transport),
+            meta: self.meta,
+            _m: PhantomData,
+            _c: PhantomData,
+        }
+    }
+}
+
+impl<C, T: Transport> GeminiBuilder<WithoutModel, C, T> {
+    pub fn with_model(self, model_name: String) -> GeminiBuilder<WithModel, C, T> {
+        GeminiBuilder {
+            model_name: Some(model_name),
+            api_key: self.api_key,
+            native_tools: self.native_tools,
+            function_config: self.function_config,
+            embeddings_config: self.embeddings_config,
+            include_thoughts: self.include_thoughts,
+            transport: self.transport,
+            meta: self.meta,
+            _m: PhantomData,
+            _c: PhantomData,
+        }
+    }
+}
+
+impl<M, T: Transport> GeminiBuilder<M, BaseConfig, T> {
+    fn into_completion(self) -> GeminiBuilder<M, CompletionConfig, T> {
+        GeminiBuilder {
+            model_name: self.model_name,
+            api_key: self.api_key,
+            native_tools: self.native_tools,
+            function_config: self.function_config,
+            embeddings_config: self.embeddings_config,
+            include_thoughts: self.include_thoughts,
+            transport: self.transport,
             meta: self.meta,
             _m: PhantomData,
             _c: PhantomData,
         }
     }
 
-    pub fn with_code_execution(self) -> GeminiBuilder<M, CompletionConfig> {
+    pub fn with_code_execution(self) -> GeminiBuilder<M, CompletionConfig, T> {
         self.into_completion().with_code_execution()
     }
 
-    pub fn with_google_search(self) -> GeminiBuilder<M, CompletionConfig> {
+    pub fn with_google_search(self) -> GeminiBuilder<M, CompletionConfig, T> {
         self.into_completion().with_google_search()
     }
 
@@ -125,7 +148,7 @@ impl<M> GeminiBuilder<M, BaseConfig> {
         self,
         lat_lng: Option<(f32, f32)>,
         widget: bool,
-    ) -> GeminiBuilder<M, CompletionConfig> {
+    ) -> GeminiBuilder<M, CompletionConfig, T> {
         self.into_completion().with_google_maps(lat_lng, widget)
     }
 
@@ -133,13 +156,13 @@ impl<M> GeminiBuilder<M, BaseConfig> {
         self,
         mode: &str,
         allowed: Option<Vec<String>>,
-    ) -> GeminiBuilder<M, CompletionConfig> {
+    ) -> GeminiBuilder<M, CompletionConfig, T> {
         self.into_completion()
             .with_function_calling_mode(mode, allowed)
     }
 }
 
-impl<M> GeminiBuilder<M, CompletionConfig> {
+impl<M, T: Transport> GeminiBuilder<M, CompletionConfig, T> {
     pub fn with_code_execution(mut self) -> Self {
         self.native_tools.push(Box::new(CodeExecutionTool));
         self
@@ -176,8 +199,8 @@ impl<M> GeminiBuilder<M, CompletionConfig> {
     }
 }
 
-impl<M> GeminiBuilder<M, BaseConfig> {
-    fn into_embedding(self) -> GeminiBuilder<M, EmbeddingConfig> {
+impl<M, T: Transport> GeminiBuilder<M, BaseConfig, T> {
+    fn into_embedding(self) -> GeminiBuilder<M, EmbeddingConfig, T> {
         GeminiBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
@@ -185,18 +208,19 @@ impl<M> GeminiBuilder<M, BaseConfig> {
             function_config: None,
             embeddings_config: self.embeddings_config,
             include_thoughts: false,
+            transport: self.transport,
             meta: self.meta,
             _m: PhantomData,
             _c: PhantomData,
         }
     }
 
-    pub fn with_embeddings(self, dimensions: Option<usize>) -> GeminiBuilder<M, EmbeddingConfig> {
+    pub fn with_embeddings(self, dimensions: Option<usize>) -> GeminiBuilder<M, EmbeddingConfig, T> {
         self.into_embedding().with_embeddings(dimensions)
     }
 }
 
-impl<M> GeminiBuilder<M, EmbeddingConfig> {
+impl<M, T: Transport> GeminiBuilder<M, EmbeddingConfig, T> {
     pub fn with_embeddings(mut self, dimensions: Option<usize>) -> Self {
         let mut config = self.embeddings_config.unwrap_or_default();
         config.dimensions = dimensions;
@@ -212,14 +236,14 @@ impl<M> GeminiBuilder<M, EmbeddingConfig> {
     }
 }
 
-impl<C> GeminiBuilder<WithModel, C> {
-    pub fn build(self) -> GeminiClient {
+impl<C, T: Transport + Default> GeminiBuilder<WithModel, C, T> {
+    pub fn build(self) -> GeminiClient<T> {
         GeminiClient {
             model_name: self.model_name.unwrap(),
             api_key: self.api_key.unwrap_or_else(|| {
                 env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY not found in environment")
             }),
-            http_client: reqwest::Client::new(),
+            transport: self.transport.unwrap_or_default(),
             native_tools: self.native_tools,
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
