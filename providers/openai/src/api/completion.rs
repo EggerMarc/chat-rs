@@ -20,8 +20,6 @@ impl<T: Transport> CompletionProvider for OpenAIClient<T> {
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
-        let url = format!("{}/responses", self.base_url);
-
         let previous_response_id = if self.use_previous_response_id {
             self.last_response_id.clone()
         } else {
@@ -47,7 +45,8 @@ impl<T: Transport> CompletionProvider for OpenAIClient<T> {
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
         let req = chat_core::transport::Request {
-            url,
+            host: self.host.clone(),
+            path: format!("{}/responses", self.base_path),
             headers: vec![
                 ("Authorization".into(), format!("Bearer {}", self.api_key)),
                 ("Content-Type".into(), "application/json".into()),

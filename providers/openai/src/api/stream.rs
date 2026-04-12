@@ -40,8 +40,6 @@ impl<T: Transport> StreamProvider for OpenAIClient<T> {
         tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
-        let url = format!("{}/responses", self.base_url);
-
         let previous_response_id = if self.use_previous_response_id {
             self.last_response_id.clone()
         } else {
@@ -67,7 +65,8 @@ impl<T: Transport> StreamProvider for OpenAIClient<T> {
             .map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
 
         let req = chat_core::transport::Request {
-            url,
+            host: self.host.clone(),
+            path: format!("{}/responses", self.base_path),
             headers: vec![
                 ("Authorization".into(), format!("Bearer {}", self.api_key)),
                 ("Content-Type".into(), "application/json".into()),

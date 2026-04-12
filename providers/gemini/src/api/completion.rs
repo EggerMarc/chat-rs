@@ -20,9 +20,9 @@ impl<T: Transport> CompletionProvider for GeminiClient<T> {
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
-            self.model_name
+        let path = format!(
+            "{}/models/{}:generateContent",
+            self.base_path, self.model_name
         );
 
         let request_body = GeminiRequest::from_core(
@@ -40,7 +40,8 @@ impl<T: Transport> CompletionProvider for GeminiClient<T> {
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
         let req = chat_core::transport::Request {
-            url,
+            host: self.host.clone(),
+            path,
             headers: vec![
                 ("x-goog-api-key".into(), self.api_key.clone()),
                 ("Content-Type".into(), "application/json".into()),

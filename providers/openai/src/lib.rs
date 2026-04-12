@@ -28,7 +28,8 @@ pub struct EmbeddingConfig;
 pub struct OpenAIBuilder<M = WithoutModel, U = BaseEndpoint, C = BaseConfig, T: Transport = ReqwestTransport> {
     model_name: Option<String>,
     api_key: Option<String>,
-    base_url: String,
+    host: String,
+    base_path: String,
     native_tools: Vec<Box<dyn OpenAINativeTool>>,
     reasoning_effort: Option<String>,
     use_previous_response_id: bool,
@@ -51,7 +52,8 @@ impl OpenAIBuilder<WithoutModel, BaseEndpoint, BaseConfig, ReqwestTransport> {
         Self {
             model_name: None,
             api_key: None,
-            base_url: "https://api.openai.com/v1".to_string(),
+            host: "api.openai.com".to_string(),
+            base_path: "/v1".to_string(),
             native_tools: Vec::new(),
             reasoning_effort: None,
             use_previous_response_id: true,
@@ -70,7 +72,8 @@ impl<U, C, T: Transport> OpenAIBuilder<WithoutModel, U, C, T> {
         OpenAIBuilder {
             model_name: Some(model_name.into()),
             api_key: self.api_key,
-            base_url: self.base_url,
+            host: self.host.clone(),
+            base_path: self.base_path.clone(),
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -119,7 +122,8 @@ impl<M, U, C, T: Transport> OpenAIBuilder<M, U, C, T> {
         OpenAIBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            base_url: self.base_url,
+            host: self.host.clone(),
+            base_path: self.base_path.clone(),
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -135,10 +139,15 @@ impl<M, U, C, T: Transport> OpenAIBuilder<M, U, C, T> {
 
 impl<M, C, T: Transport> OpenAIBuilder<M, BaseEndpoint, C, T> {
     pub fn with_custom_url(self, base_url: String) -> OpenAIBuilder<M, CustomEndpoint, C, T> {
+        let parsed = url::Url::parse(&base_url).expect("Invalid URL");
+        let host = parsed.host_str().expect("No host in URL").to_string()
+            + &parsed.port().map(|p| format!(":{p}")).unwrap_or_default();
+        let base_path = parsed.path().trim_end_matches('/').to_string();
         OpenAIBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            base_url: base_url.trim_end_matches('/').to_string(),
+            host,
+            base_path,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -157,7 +166,8 @@ impl<M, T: Transport> OpenAIBuilder<M, BaseEndpoint, BaseConfig, T> {
         OpenAIBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            base_url: self.base_url,
+            host: self.host.clone(),
+            base_path: self.base_path.clone(),
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -192,7 +202,8 @@ impl<M, T: Transport> OpenAIBuilder<M, CustomEndpoint, BaseConfig, T> {
         OpenAIBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            base_url: self.base_url,
+            host: self.host.clone(),
+            base_path: self.base_path.clone(),
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -271,7 +282,8 @@ impl<M, U, T: Transport> OpenAIBuilder<M, U, BaseConfig, T> {
         OpenAIBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            base_url: self.base_url,
+            host: self.host.clone(),
+            base_path: self.base_path.clone(),
             native_tools: vec![],
             reasoning_effort: None,
             use_previous_response_id: false,
@@ -307,7 +319,8 @@ impl<U, C, T: Transport> OpenAIBuilder<WithModel, U, C, T> {
         OpenAIClient {
             model_name: self.model_name.unwrap(),
             api_key,
-            base_url: self.base_url,
+            host: self.host.clone(),
+            base_path: self.base_path.clone(),
             transport,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,

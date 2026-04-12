@@ -11,8 +11,6 @@ use chat_core::types::response::EmbeddingsResponse;
 #[async_trait::async_trait]
 impl<T: Transport> EmbeddingsProvider for OpenAIClient<T> {
     async fn embed(&mut self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure> {
-        let url = format!("{}/embeddings", self.base_url);
-
         let request_body =
             OpenAIEmbeddingRequest::from_core(&self.model_name, messages)
                 .map_err(ChatFailure::from_err)?;
@@ -21,7 +19,8 @@ impl<T: Transport> EmbeddingsProvider for OpenAIClient<T> {
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
         let req = chat_core::transport::Request {
-            url,
+            host: self.host.clone(),
+            path: format!("{}/embeddings", self.base_path),
             headers: vec![
                 ("Authorization".into(), format!("Bearer {}", self.api_key)),
                 ("Content-Type".into(), "application/json".into()),

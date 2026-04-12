@@ -2,10 +2,13 @@ use futures::stream::BoxStream;
 
 /// An outbound request to be sent by a transport.
 ///
-/// Providers build this from their wire-format types; the transport
-/// decides *how* to deliver it (HTTP POST, WebSocket frame, gRPC call, …).
+/// Providers set `host` and `path`; the transport owns the scheme
+/// (`https://`, `wss://`, etc.) and assembles the final URL.
 pub struct Request {
-    pub url: String,
+    /// Host (and optional port), e.g. `"api.openai.com"` or `"localhost:11434"`.
+    pub host: String,
+    /// Absolute path, e.g. `"/v1/responses"`.
+    pub path: String,
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
 }

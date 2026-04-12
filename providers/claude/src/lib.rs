@@ -123,6 +123,8 @@ impl<T: Transport> ClaudeBuilder<WithModel, T> {
             api_version: self
                 .api_version
                 .unwrap_or_else(|| DEFAULT_API_VERSION.to_string()),
+            host: "api.anthropic.com".to_string(),
+            base_path: "/v1".to_string(),
             transport: self.transport.expect(
                 "No transport provided. Call .with_transport() or use the default ClaudeBuilder (which provides ReqwestTransport).",
             ),

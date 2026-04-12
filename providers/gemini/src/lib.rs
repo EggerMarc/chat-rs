@@ -243,6 +243,8 @@ impl<C, T: Transport> GeminiBuilder<WithModel, C, T> {
             api_key: self.api_key.unwrap_or_else(|| {
                 env::var("GEMINI_API_KEY").expect("GEMINI_API_KEY not found in environment")
             }),
+            host: "generativelanguage.googleapis.com".to_string(),
+            base_path: "/v1beta".to_string(),
             transport: self.transport.expect(
                 "No transport provided. Call .with_transport() or use the default GeminiBuilder (which provides ReqwestTransport).",
             ),

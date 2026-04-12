@@ -9,6 +9,8 @@ use crate::{
 pub struct GeminiClient<T: Transport> {
     pub(crate) model_name: String,
     pub(crate) api_key: String,
+    pub(crate) host: String,
+    pub(crate) base_path: String,
     pub(crate) transport: T,
     pub(crate) native_tools: Vec<Box<dyn GeminiNativeTool>>,
     pub(crate) function_config: Option<GeminiFunctionCallingConfig>,

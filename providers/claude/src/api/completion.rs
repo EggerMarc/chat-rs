@@ -11,7 +11,6 @@ use chat_core::types::options::ChatOptions;
 use chat_core::types::response::ChatResponse;
 use chat_core::types::tools::ToolDeclarations;
 
-const CLAUDE_API_URL: &str = "https://api.anthropic.com/v1/messages";
 const THINKING_BETA_HEADER: &str = "interleaved-thinking-2025-05-14";
 
 #[async_trait::async_trait]
@@ -48,7 +47,8 @@ impl<T: Transport> CompletionProvider for ClaudeClient<T> {
         }
 
         let req = chat_core::transport::Request {
-            url: CLAUDE_API_URL.to_string(),
+            host: self.host.clone(),
+            path: format!("{}/messages", self.base_path),
             headers,
             body,
         };

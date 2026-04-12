@@ -32,9 +32,9 @@ impl<T: Transport> StreamProvider for GeminiClient<T> {
         tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:streamGenerateContent?alt=sse",
-            self.model_name
+        let path = format!(
+            "{}/models/{}:streamGenerateContent?alt=sse",
+            self.base_path, self.model_name
         );
 
         let request_body = GeminiRequest::from_core(
@@ -51,7 +51,8 @@ impl<T: Transport> StreamProvider for GeminiClient<T> {
             .map_err(|e| ChatError::InvalidResponse(e.to_string()))?;
 
         let req = chat_core::transport::Request {
-            url,
+            host: self.host.clone(),
+            path,
             headers: vec![
                 ("x-goog-api-key".into(), self.api_key.clone()),
                 ("Content-Type".into(), "application/json".into()),

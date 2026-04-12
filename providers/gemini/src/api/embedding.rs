@@ -11,9 +11,9 @@ use chat_core::types::response::EmbeddingsResponse;
 #[async_trait::async_trait]
 impl<T: Transport> EmbeddingsProvider for GeminiClient<T> {
     async fn embed(&mut self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure> {
-        let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/{}:embedContent",
-            self.model_name
+        let path = format!(
+            "{}/models/{}:embedContent",
+            self.base_path, self.model_name
         );
 
         let request_body =
@@ -24,7 +24,8 @@ impl<T: Transport> EmbeddingsProvider for GeminiClient<T> {
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
         let req = chat_core::transport::Request {
-            url,
+            host: self.host.clone(),
+            path,
             headers: vec![
                 ("x-goog-api-key".into(), self.api_key.clone()),
                 ("Content-Type".into(), "application/json".into()),
