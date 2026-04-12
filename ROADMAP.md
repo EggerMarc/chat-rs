@@ -10,7 +10,7 @@ Tracking upcoming providers and features for chat-rs.
 |---|---|---|---|---|---|---|---|
 | Google Gemini | `chat-gemini` | Yes | Yes | Planned (Live API) | Yes | Google Search, Code Execution, Google Maps | Yes |
 | Anthropic Claude | `chat-claude` | Yes | Yes | — (HTTP-only upstream) | N/A | Extended Thinking | Yes |
-| OpenAI | `chat-openai` | Yes | Yes | Planned (Realtime API) | Yes | Web Search | Yes |
+| OpenAI | `chat-openai` | Yes | Yes | Planned (Responses API WS) | Yes | Web Search | Yes |
 
 ### Planned Providers
 
@@ -42,7 +42,14 @@ Tracking upcoming providers and features for chat-rs.
 
 - [x] **Anthropic provider** — implemented as `chat-claude`
 - [x] **Human in the loop** — pause/resume flows via `ScopedCollection` strategies, `StreamEvent::Paused`, and `Messages::find_tool_mut`
-- [ ] **WebSocket-first transport** — add a `WsStreamProvider` trait and make WebSocket the primary transport where upstream supports it. Target OpenAI Realtime and Gemini Live first; fall back to SSE for providers that are HTTP-only (Claude today). Goal: bidirectional streaming for audio/video parts, barge-in, and lower-latency turn-taking without changing the user-facing `chat.stream()` API.
+- [ ] **Pluggable transport layer** — introduce a `Transport` trait in `chat-core` with `send()` and `stream()` methods that normalize request/response across protocols. Transport implementations live in separate crates under `/transports/`:
+  - `transport-reqwest` — HTTP via reqwest (default, `Clone`-able, ships with the library)
+  - `transport-tungstenite` — WebSocket via tokio-tungstenite (stateful connection, not `Clone`)
+  - BYO: users implement `Transport` for their own stack (tower, hyper, WASM `web-sys`, etc.)
+  - Providers become generic over `T: Transport` — one impl per provider, transport is an internal detail
+  - SSE parsing (`SseParser`) moves to `core/src/transport/sse.rs` as a shared utility for HTTP transports
+  - Uses RPITIT (no `async_trait` overhead)
+- [ ] **OpenAI WebSocket streaming** — connect to `wss://api.openai.com/v1/responses`, authenticate once on handshake, send `response.create` events, receive the same streaming events as SSE. Continuation via `previous_response_id` with server-side in-memory caching. 60-min connection limit with auto-reconnect.
 - [ ] **Image generation** — support image output parts from models that can generate images
 
 ### Medium Term
@@ -52,7 +59,6 @@ Tracking upcoming providers and features for chat-rs.
 - [ ] **AI21 provider**
 - [ ] **Mistral provider**
 - [ ] **Cohere provider**
-- [ ] **Configurable HTTP client** — allow users to pass a pre-configured `reqwest::Client` (for proxies, custom TLS, timeouts)
 - [ ] **Middleware / interceptors** — hook into request/response lifecycle for logging, metrics, or transformation
 
 ### Long Term
@@ -60,6 +66,8 @@ Tracking upcoming providers and features for chat-rs.
 - [ ] **AWS Bedrock provider**
 - [ ] **Azure OpenAI provider**
 - [ ] **Ollama native provider**
+- [ ] **WASM support** — `transport-wasm` crate using `web-sys` fetch/WebSocket APIs, enabled by the pluggable transport layer
+- [ ] **gRPC transport** — `transport-tonic` for providers that support it (Gemini)
 - [ ] **Multi-modal output** — audio, video parts (depends on WebSocket transport for low-latency realtime)
 - [ ] **Batch API support** — for providers that support batch/async completions
 - [ ] **Token counting** — client-side token estimation before sending requests
