@@ -20,12 +20,12 @@ use super::types::{EventStream, Request, Response, TransportError};
 ///   WebSocket transports yield individual frames.
 pub trait Transport: Send + Sync {
     fn send(
-        &mut self,
+        &self,
         req: Request,
     ) -> impl Future<Output = Result<Response, TransportError>> + Send;
 
     fn stream(
-        &mut self,
+        &self,
         req: Request,
     ) -> impl Future<Output = Result<EventStream, TransportError>> + Send;
 }

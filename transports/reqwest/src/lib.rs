@@ -37,7 +37,7 @@ impl From<reqwest::Client> for ReqwestTransport {
 }
 
 impl Transport for ReqwestTransport {
-    async fn send(&mut self, req: Request) -> Result<Response, TransportError> {
+    async fn send(&self, req: Request) -> Result<Response, TransportError> {
         let url = format!("{}://{}{}", req.scheme, req.host, req.path);
         let mut builder = self.client.post(&url);
         for (key, value) in &req.headers {
@@ -79,7 +79,7 @@ impl Transport for ReqwestTransport {
         })
     }
 
-    async fn stream(&mut self, req: Request) -> Result<EventStream, TransportError> {
+    async fn stream(&self, req: Request) -> Result<EventStream, TransportError> {
         let url = format!("{}://{}{}", req.scheme, req.host, req.path);
         let mut builder = self.client.post(&url);
         for (key, value) in &req.headers {

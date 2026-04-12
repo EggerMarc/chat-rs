@@ -8,7 +8,6 @@ use chat_rs::{
     router::StrategyError,
     types::messages::content,
 };
-use tokio::sync::Mutex;
 
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     let (dot, norm_a, norm_b) = a
@@ -24,7 +23,7 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 }
 
 async fn embed_text(
-    embedder: &mut impl EmbeddingsProvider,
+    embedder: &impl EmbeddingsProvider,
     text: &str,
 ) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
     let mut msgs = Messages::default();
@@ -34,7 +33,7 @@ async fn embed_text(
 }
 
 struct EmbeddingRouter {
-    embedder: Mutex<GeminiClient<ReqwestTransport>>,
+    embedder: GeminiClient<ReqwestTransport>,
 }
 
 #[async_trait]
@@ -56,7 +55,7 @@ impl RoutingStrategy for EmbeddingRouter {
             return Ok((0..providers.len()).collect());
         }
 
-        let query_emb = embed_text(&mut *self.embedder.lock().await, &query).await?;
+        let query_emb = embed_text(&self.embedder, &query).await?;
 
         let mut ranked: Vec<(usize, f32)> = providers
             .iter()
@@ -79,7 +78,7 @@ impl RoutingStrategy for EmbeddingRouter {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let mut embedder = GeminiBuilder::new()
+    let embedder = GeminiBuilder::new()
         .with_model("gemini-embedding-001".to_string())
         .with_embeddings(Some(256))
         .build();
@@ -87,8 +86,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let claude_desc = "Best for complex reasoning, planning, and nuanced analysis.";
     let gemini_desc = "Fast model for simple questions, quick answers, and web search.";
 
-    let claude_emb = embed_text(&mut embedder, claude_desc).await?;
-    let gemini_emb = embed_text(&mut embedder, gemini_desc).await?;
+    let claude_emb = embed_text(&embedder, claude_desc).await?;
+    let gemini_emb = embed_text(&embedder, gemini_desc).await?;
 
     let claude = ClaudeBuilder::new()
         .with_model("claude-sonnet-4-20250514".to_string())
@@ -104,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .with_google_maps(None, false)
         .build();
 
-    let strategy = EmbeddingRouter { embedder: Mutex::new(embedder) };
+    let strategy = EmbeddingRouter { embedder };
 
     let router = RouterBuilder::new()
         .add_provider(claude)

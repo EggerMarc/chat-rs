@@ -68,5 +68,5 @@ impl<T: CompletionProvider + StreamProvider> ChatProvider for T {}
 
 #[async_trait]
 pub trait EmbeddingsProvider: Send + Sync {
-    async fn embed(&mut self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;
+    async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;
 }

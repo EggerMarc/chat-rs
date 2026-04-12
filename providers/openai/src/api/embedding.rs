@@ -10,7 +10,7 @@ use chat_core::types::response::EmbeddingsResponse;
 
 #[async_trait::async_trait]
 impl<T: Transport> EmbeddingsProvider for OpenAIClient<T> {
-    async fn embed(&mut self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure> {
+    async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure> {
         let request_body =
             OpenAIEmbeddingRequest::from_core(&self.model_name, messages)
                 .map_err(ChatFailure::from_err)?;
