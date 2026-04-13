@@ -172,7 +172,7 @@ required-features = ["openai"]
 [[example]]
 name = "openai-stream"
 path = "./examples/openai/stream.rs"
-required-features = ["openai", "stream", "tokio-tungstenite"]
+required-features = ["openai", "stream"]
 
 [[example]]
 name = "openai-websocket"
