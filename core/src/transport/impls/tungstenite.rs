@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use futures::StreamExt;
 use tungstenite::client::IntoClientRequest;
 use tungstenite::{Message, WebSocket, connect};
 use tungstenite::stream::MaybeTlsStream;
@@ -79,15 +80,27 @@ fn connect_ws(
     Ok(socket)
 }
 
-fn ensure_connected(
-    conn: &Mutex<Option<WsConn>>,
+async fn ensure_connected(
+    conn: &Arc<Mutex<Option<WsConn>>>,
     url: &str,
     headers: &[(String, String)],
 ) -> Result<(), TransportError> {
-    let mut guard = conn.lock().map_err(|e| TransportError::Connection(e.to_string()))?;
-    if guard.is_none() {
-        *guard = Some(connect_ws(url, headers)?);
+    {
+        let guard = conn.lock().map_err(|e| TransportError::Connection(e.to_string()))?;
+        if guard.is_some() {
+            return Ok(());
+        }
     }
+
+    let url = url.to_string();
+    let headers = headers.to_vec();
+    let ws = tokio::task::spawn_blocking(move || connect_ws(&url, &headers))
+        .await
+        .map_err(|e| TransportError::Connection(format!("spawn_blocking failed: {e}")))?
+        ?;
+
+    let mut guard = conn.lock().map_err(|e| TransportError::Connection(e.to_string()))?;
+    *guard = Some(ws);
     Ok(())
 }
 
@@ -103,7 +116,8 @@ fn send_and_collect(
     ws.send(Message::Text(text.into()))
         .map_err(|e| TransportError::Request { status: None, message: e.to_string() })?;
 
-    let mut last_frame = String::new();
+    #[allow(unused_assignments)]
+    let mut last_frame = None::<String>;
 
     loop {
         match ws.read() {
@@ -121,17 +135,21 @@ fn send_and_collect(
                         return Err(TransportError::Request { status, message: msg.to_string() });
                     }
 
-                    last_frame = text;
+                    last_frame = Some(text);
 
                     if is_terminal_event(event_type) {
                         break;
                     }
                 }
             }
-            Ok(Message::Close(_)) => break,
+            Ok(Message::Close(_)) | Err(tungstenite::Error::ConnectionClosed) => {
+                *guard = None;
+                return Err(TransportError::Stream(
+                    "WebSocket closed before terminal event".to_string(),
+                ));
+            }
             Ok(Message::Ping(data)) => { let _ = ws.send(Message::Pong(data)); }
             Ok(_) => {}
-            Err(tungstenite::Error::ConnectionClosed) => break,
             Err(e) => {
                 *guard = None;
                 return Err(TransportError::Stream(e.to_string()));
@@ -142,47 +160,77 @@ fn send_and_collect(
     Ok(Response {
         status: 200,
         headers: vec![],
-        body: last_frame.into_bytes(),
+        body: last_frame.unwrap_or_default().into_bytes(),
     })
 }
 
-fn read_frames(
+/// Blocking reader that sends each frame through a channel as it arrives.
+/// Runs inside `spawn_blocking`.
+fn stream_frames(
     conn: &Mutex<Option<WsConn>>,
     text: String,
-) -> Result<Vec<String>, TransportError> {
-    let mut guard = conn.lock().map_err(|e| TransportError::Connection(e.to_string()))?;
-    let ws = guard.as_mut().ok_or_else(|| {
-        TransportError::Connection("WebSocket not connected".to_string())
-    })?;
+    tx: tokio::sync::mpsc::UnboundedSender<Result<String, TransportError>>,
+) {
+    let send_err = |e: TransportError| { let _ = tx.send(Err(e)); };
 
-    ws.send(Message::Text(text.into()))
-        .map_err(|e| TransportError::Request { status: None, message: e.to_string() })?;
+    let mut guard = match conn.lock() {
+        Ok(g) => g,
+        Err(e) => { send_err(TransportError::Connection(e.to_string())); return; }
+    };
+    let ws = match guard.as_mut() {
+        Some(ws) => ws,
+        None => { send_err(TransportError::Connection("WebSocket not connected".to_string())); return; }
+    };
 
-    let mut frames = Vec::new();
+    if let Err(e) = ws.send(Message::Text(text.into())) {
+        send_err(TransportError::Request { status: None, message: e.to_string() });
+        return;
+    }
+
     loop {
         match ws.read() {
             Ok(Message::Text(text)) => {
                 let text = text.to_string();
-                let is_done = serde_json::from_str::<serde_json::Value>(&text)
-                    .ok()
-                    .and_then(|v| v.get("type")?.as_str().map(|s| is_terminal_event(s)))
-                    .unwrap_or(false);
-                frames.push(text);
+                let parsed = serde_json::from_str::<serde_json::Value>(&text).ok();
+                let event_type = parsed.as_ref()
+                    .and_then(|v| v.get("type")?.as_str())
+                    .unwrap_or("");
+
+                if event_type == "error" {
+                    let status = parsed.as_ref().and_then(|v| v.get("status")?.as_u64()).map(|s| s as u16);
+                    let msg = parsed.as_ref()
+                        .and_then(|v| v.get("error")?.get("message")?.as_str())
+                        .unwrap_or("WebSocket error frame")
+                        .to_string();
+                    *guard = None;
+                    send_err(TransportError::Request { status, message: msg });
+                    return;
+                }
+
+                let is_done = is_terminal_event(event_type);
+                if tx.send(Ok(text)).is_err() {
+                    return; // receiver dropped
+                }
                 if is_done {
-                    break;
+                    return;
                 }
             }
-            Ok(Message::Close(_)) => break,
+            Ok(Message::Close(_)) | Err(tungstenite::Error::ConnectionClosed) => {
+                *guard = None;
+                send_err(TransportError::Stream(
+                    "WebSocket closed before terminal event".to_string(),
+                ));
+                return;
+            }
             Ok(Message::Ping(data)) => { let _ = ws.send(Message::Pong(data)); }
             Ok(_) => {}
-            Err(tungstenite::Error::ConnectionClosed) => break,
             Err(e) => {
                 *guard = None;
-                return Err(TransportError::Stream(e.to_string()));
+                send_err(TransportError::Stream(e.to_string()));
+                return;
             }
         }
     }
-    Ok(frames)
 }
 
 impl Transport for WsTransport {
@@ -190,7 +238,7 @@ impl Transport for WsTransport {
         let url = ws_url(&req.host, &req.path);
         let mut all_headers = self.headers.clone();
         all_headers.extend(req.headers);
-        ensure_connected(&self.conn, &url, &all_headers)?;
+        ensure_connected(&self.conn, &url, &all_headers).await?;
 
         let text = wrap_ws_body(req.body, self.message_type.as_deref())?;
 
@@ -204,18 +252,21 @@ impl Transport for WsTransport {
         let url = ws_url(&req.host, &req.path);
         let mut all_headers = self.headers.clone();
         all_headers.extend(req.headers);
-        ensure_connected(&self.conn, &url, &all_headers)?;
+        ensure_connected(&self.conn, &url, &all_headers).await?;
 
         let text = wrap_ws_body(req.body, self.message_type.as_deref())?;
 
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<String, TransportError>>();
         let conn = Arc::clone(&self.conn);
-        let frames = tokio::task::spawn_blocking(move || read_frames(&conn, text))
-            .await
-            .map_err(|e| TransportError::Connection(format!("spawn_blocking failed: {e}")))??;
 
-        let events: Vec<Result<crate::transport::Event, TransportError>> =
-            frames.iter().map(|f| frame_to_event(f)).collect();
+        tokio::task::spawn_blocking(move || stream_frames(&conn, text, tx));
 
-        Ok(Box::pin(futures::stream::iter(events)))
+        let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(rx)
+            .map(|result| match result {
+                Ok(text) => frame_to_event(&text),
+                Err(e) => Err(e),
+            });
+
+        Ok(Box::pin(stream))
     }
 }

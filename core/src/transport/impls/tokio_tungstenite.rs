@@ -139,7 +139,12 @@ impl Transport for AsyncWsTransport {
                         }
                     }
                 }
-                Ok(Message::Close(_)) => break,
+                Ok(Message::Close(_)) => {
+                    *guard = None;
+                    return Err(TransportError::Stream(
+                        "WebSocket closed before terminal event".to_string(),
+                    ));
+                }
                 Ok(Message::Ping(data)) => {
                     let _ = ws.send(Message::Pong(data)).await;
                 }
@@ -186,6 +191,24 @@ impl Transport for AsyncWsTransport {
                 match msg {
                     Ok(Message::Text(text)) => {
                         let event = frame_to_event(&text)?;
+
+                        if event.0 == "error" {
+                            // Parse server error details from the frame.
+                            let (status, msg) = serde_json::from_str::<serde_json::Value>(&event.1)
+                                .ok()
+                                .map(|v| {
+                                    let status = v.get("status").and_then(|s| s.as_u64()).map(|s| s as u16);
+                                    let msg = v.get("error")
+                                        .and_then(|e| e.get("message"))
+                                        .and_then(|m| m.as_str())
+                                        .unwrap_or("WebSocket error frame")
+                                        .to_string();
+                                    (status, msg)
+                                })
+                                .unwrap_or((None, "WebSocket error frame".to_string()));
+                            Err(TransportError::Request { status, message: msg })?;
+                        }
+
                         let is_done = is_terminal_event(&event.0);
                         yield event;
                         if is_done {
@@ -195,7 +218,11 @@ impl Transport for AsyncWsTransport {
                             return;
                         }
                     }
-                    Ok(Message::Close(_)) => break,
+                    Ok(Message::Close(_)) => {
+                        Err(TransportError::Stream(
+                            "WebSocket closed before terminal event".to_string(),
+                        ))?;
+                    }
                     Ok(Message::Ping(data)) => {
                         let _ = ws.send(Message::Pong(data)).await;
                     }
@@ -205,7 +232,7 @@ impl Transport for AsyncWsTransport {
                     }
                 }
             }
-            // Connection closed by server — don't put it back.
+            // Stream ended without terminal event — connection is gone.
         };
 
         Ok(Box::pin(stream))
