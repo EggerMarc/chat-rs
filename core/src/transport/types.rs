@@ -6,6 +6,7 @@ use futures::stream::BoxStream;
 /// the final URL — but may override the scheme when the protocol
 /// requires it (e.g. a WebSocket transport uses `wss://` regardless of
 /// the provider-supplied scheme).
+#[derive(Clone, Debug)]
 pub struct Request {
     /// URL scheme, e.g. `"https"` or `"http"`. Transports may override
     /// this (e.g. a WebSocket transport ignores it and uses `wss://`).
@@ -19,6 +20,7 @@ pub struct Request {
 }
 
 /// The response returned by a transport for a unary (non-streaming) call.
+#[derive(Clone, Debug)]
 pub struct Response {
     pub status: u16,
     pub headers: Vec<(String, String)>,
