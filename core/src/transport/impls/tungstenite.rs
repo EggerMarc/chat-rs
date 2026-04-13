@@ -14,7 +14,11 @@ type WsConn = WebSocket<MaybeTlsStream<std::net::TcpStream>>;
 ///
 /// Uses `tokio::task::spawn_blocking` to bridge the sync WebSocket
 /// into the async `Transport` trait. Connection is lazily established
-/// and reused across calls.
+/// and reused across calls. Streaming is incremental — a blocking
+/// reader task pushes frames through an `mpsc` channel as they arrive.
+///
+/// For fully async streaming without blocking threads, prefer
+/// [`AsyncWsTransport`](super::tokio_tungstenite::AsyncWsTransport).
 ///
 /// # Message wrapping
 ///
