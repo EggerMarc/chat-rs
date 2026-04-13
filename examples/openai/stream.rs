@@ -1,6 +1,7 @@
 use chat_rs::{
     ChatBuilder, StreamEvent,
     openai::OpenAIBuilder,
+    transport::{AsyncWsTransport, WsTransport},
     types::messages::{self, content},
 };
 use futures::StreamExt;
@@ -20,7 +21,10 @@ async fn get_user_metadata(name: String) -> String {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
 
-    let client = OpenAIBuilder::new().with_model("gpt-4o-mini").build();
+    let client = OpenAIBuilder::new()
+        .with_model("gpt-4o-mini")
+        .with_transport(AsyncWsTransport::new())
+        .build();
 
     let tools = collect_tools();
 
