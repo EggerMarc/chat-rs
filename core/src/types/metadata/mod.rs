@@ -23,7 +23,7 @@ pub struct Metadata {
     /// Gemini "safetyRatings", "citationMetadata", OpenAI "system_fingerprint", etc.
     /// key = "safety_ratings", value = json!([...])
     #[serde(default)]
-    pub specific: HashMap<String, Value>, // TODO: rename to smth else
+    pub provider_specific: HashMap<String, Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<u64>,
 }
@@ -74,8 +74,8 @@ mod tests {
 
     #[test]
     fn test_metadata_serialization() {
-        let mut specific = HashMap::new();
-        specific.insert("key".to_string(), json!("value"));
+        let mut provider_specific = HashMap::new();
+        provider_specific.insert("key".to_string(), json!("value"));
 
         let metadata = Metadata {
             id: Some("test-123".to_string()),
@@ -87,7 +87,7 @@ mod tests {
                 total_tokens: 30,
             },
             duration_ms: Some(500),
-            specific,
+            provider_specific,
             created_at: Some(1234567890),
         };
 
@@ -138,9 +138,9 @@ mod tests {
 
     #[test]
     fn test_metadata_with_all_fields() {
-        let mut specific = HashMap::new();
-        specific.insert("field1".to_string(), json!(42));
-        specific.insert("field2".to_string(), json!("text"));
+        let mut provider_specific = HashMap::new();
+        provider_specific.insert("field1".to_string(), json!(42));
+        provider_specific.insert("field2".to_string(), json!("text"));
 
         let metadata = Metadata {
             id: Some("full-test".to_string()),
@@ -152,7 +152,7 @@ mod tests {
                 total_tokens: 300,
             },
             duration_ms: Some(2000),
-            specific,
+            provider_specific,
             created_at: Some(9999999999),
         };
 
@@ -161,7 +161,7 @@ mod tests {
         assert!(metadata.system_fingerprint.is_some());
         assert_eq!(metadata.usage.total_tokens, 300);
         assert!(metadata.duration_ms.is_some());
-        assert_eq!(metadata.specific.len(), 2);
+        assert_eq!(metadata.provider_specific.len(), 2);
         assert!(metadata.created_at.is_some());
     }
 }

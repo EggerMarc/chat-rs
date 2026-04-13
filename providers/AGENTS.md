@@ -159,4 +159,4 @@ Add to the `prelude` module as well.
 - The OpenAI provider uses the **Responses API** (`/v1/responses`), not the Chat Completions API. Custom endpoints (via `.with_custom_url()`) must support this format.
 - Provider-specific builder options (e.g., `reasoning_effort`, `with_thoughts`) emit warnings when used with custom endpoints that may not support them.
 - Each provider's API key defaults to an environment variable (`GEMINI_API_KEY`, `OPENAI_API_KEY`) and panics if not found. Pass the key explicitly via `.with_api_key()` to avoid this.
-- The `metadata.specific` field in responses is a `HashMap<String, Value>` — providers can put arbitrary data here without schema guarantees.
+- The `metadata.provider_specific` field in responses is a `HashMap<String, Value>` — providers can put arbitrary data here without schema guarantees.
