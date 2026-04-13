@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_stream::try_stream;
 use futures::{SinkExt, StreamExt};
 use tokio::sync::Mutex;
@@ -14,8 +16,8 @@ type WsConn = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 /// Async WebSocket transport backed by [`tokio_tungstenite`].
 ///
 /// Fully async — no blocking. Connection is lazily established
-/// and reused across calls. Uses `tokio::sync::Mutex` for interior
-/// mutability.
+/// and reused across calls (including across `stream()` calls).
+/// Uses `tokio::sync::Mutex` for interior mutability.
 ///
 /// # Message wrapping
 ///
@@ -24,7 +26,7 @@ type WsConn = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 /// `stream` field is removed. This adapts the HTTP request body to the
 /// WebSocket message format without requiring provider changes.
 pub struct AsyncWsTransport {
-    conn: Mutex<Option<WsConn>>,
+    conn: Arc<Mutex<Option<WsConn>>>,
     headers: Vec<(String, String)>,
     message_type: Option<String>,
 }
@@ -32,7 +34,7 @@ pub struct AsyncWsTransport {
 impl AsyncWsTransport {
     pub fn new() -> Self {
         Self {
-            conn: Mutex::new(None),
+            conn: Arc::new(Mutex::new(None)),
             headers: Vec::new(),
             message_type: None,
         }
@@ -165,8 +167,9 @@ impl Transport for AsyncWsTransport {
 
         let text = wrap_ws_body(req.body, self.message_type.as_deref())?;
 
-        // Take the connection out so the stream can own it.
-        // After the stream ends, the connection is put back.
+        // Take the connection so the stream can use it without holding
+        // the lock for the entire duration. It's returned to the mutex
+        // when the stream reaches a terminal event.
         let mut guard = self.conn.lock().await;
         let mut ws = guard.take().ok_or_else(|| {
             TransportError::Connection("WebSocket not connected".to_string())
@@ -177,6 +180,8 @@ impl Transport for AsyncWsTransport {
             .await
             .map_err(|e| TransportError::Request { status: None, message: e.to_string() })?;
 
+        let conn = Arc::clone(&self.conn);
+
         let stream = try_stream! {
             while let Some(msg) = ws.next().await {
                 match msg {
@@ -185,7 +190,10 @@ impl Transport for AsyncWsTransport {
                         let is_done = is_terminal_event(&event.0);
                         yield event;
                         if is_done {
-                            break;
+                            // Return the connection for reuse.
+                            let mut guard = conn.lock().await;
+                            *guard = Some(ws);
+                            return;
                         }
                     }
                     Ok(Message::Close(_)) => break,
@@ -198,6 +206,7 @@ impl Transport for AsyncWsTransport {
                     }
                 }
             }
+            // Connection closed by server — don't put it back.
         };
 
         Ok(Box::pin(stream))
