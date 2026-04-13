@@ -16,7 +16,7 @@ use crate::tools::code_execution::CodeExecutionTool;
 use crate::tools::google_maps::GoogleMapsTool;
 use crate::tools::google_search::GoogleSearchTool;
 
-pub use transport_reqwest::ReqwestTransport;
+pub use chat_core::transport::ReqwestTransport;
 
 pub struct WithoutModel;
 pub struct WithModel;

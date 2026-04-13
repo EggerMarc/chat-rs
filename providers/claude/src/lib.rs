@@ -8,7 +8,7 @@ use chat_core::transport::Transport;
 use chat_core::types::provider_meta::ProviderMeta;
 
 pub use crate::client::ClaudeClient;
-pub use transport_reqwest::ReqwestTransport;
+pub use chat_core::transport::ReqwestTransport;
 
 const DEFAULT_API_VERSION: &str = "2023-06-01";
 const DEFAULT_THINKING_BUDGET: u32 = 10000;

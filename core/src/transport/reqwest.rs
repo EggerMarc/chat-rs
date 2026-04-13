@@ -1,7 +1,7 @@
 use async_stream::try_stream;
 use futures::StreamExt;
 
-use chat_core::transport::{
+use super::{
     EventStream, Request, Response, Transport, TransportError,
     sse::SseParser,
 };

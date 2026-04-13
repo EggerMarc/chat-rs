@@ -163,7 +163,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "tools-rs",
- "transport-reqwest",
 ]
 
 [[package]]
@@ -174,6 +173,7 @@ dependencies = [
  "async-trait",
  "futures",
  "infer",
+ "reqwest",
  "schemars",
  "serde",
  "serde_json",
@@ -196,7 +196,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tools-rs",
- "transport-reqwest",
 ]
 
 [[package]]
@@ -212,7 +211,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tools-rs",
- "transport-reqwest",
  "url",
 ]
 
@@ -1777,16 +1775,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
-]
-
-[[package]]
-name = "transport-reqwest"
-version = "0.1.0"
-dependencies = [
- "async-stream",
- "chat-core",
- "futures",
- "reqwest",
 ]
 
 [[package]]

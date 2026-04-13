@@ -13,7 +13,7 @@ use crate::tools::{
     web_search::WebSearchTool,
 };
 
-pub use transport_reqwest::ReqwestTransport;
+pub use chat_core::transport::ReqwestTransport;
 
 pub struct WithoutModel;
 pub struct WithModel;

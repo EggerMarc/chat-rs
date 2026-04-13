@@ -16,9 +16,11 @@ tools-rs.workspace = true
 tools_core.workspace = true
 futures.workspace = true
 async-stream = { workspace = true, optional = true }
+reqwest = { workspace = true, features = ["json", "stream"], optional = true }
 url.workspace = true
 infer.workspace = true 
 
 [features]
 default = []
 stream = ["dep:async-stream"]
+reqwest-transport = ["dep:reqwest", "dep:async-stream"]
