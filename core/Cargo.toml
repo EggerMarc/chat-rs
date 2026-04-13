@@ -1,6 +1,6 @@
 [package]
 name = "chat-core"
-version = "0.1.0"
+version = "0.1.1"
 description = "Core library for chat-rs"
 edition.workspace = true
 authors.workspace = true
@@ -17,6 +17,10 @@ tools_core.workspace = true
 futures.workspace = true
 async-stream = { workspace = true, optional = true }
 reqwest = { workspace = true, features = ["json", "stream"], optional = true }
+tungstenite = { workspace = true, optional = true }
+tokio-tungstenite = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+tokio-stream = { version = "0.1", optional = true }
 url.workspace = true
 infer.workspace = true 
 
@@ -24,3 +28,5 @@ infer.workspace = true
 default = []
 stream = ["dep:async-stream"]
 reqwest-transport = ["dep:reqwest", "dep:async-stream"]
+tungstenite = ["dep:tungstenite", "dep:tokio", "dep:tokio-stream"]
+tokio-tungstenite = ["dep:tokio-tungstenite", "dep:tokio", "dep:async-stream"]

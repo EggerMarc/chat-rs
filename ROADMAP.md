@@ -10,7 +10,7 @@ Tracking upcoming providers and features for chat-rs.
 |---|---|---|---|---|---|---|---|
 | Google Gemini | `chat-gemini` | Yes | Yes | Planned (Live API) | Yes | Google Search, Code Execution, Google Maps | Yes |
 | Anthropic Claude | `chat-claude` | Yes | Yes | — (HTTP-only upstream) | N/A | Extended Thinking | Yes |
-| OpenAI | `chat-openai` | Yes | Yes | Planned (Responses API WS) | Yes | Web Search | Yes |
+| OpenAI | `chat-openai` | Yes | Yes | Yes (Responses API WS) | Yes | Web Search | Yes |
 
 ### Planned Providers
 
@@ -42,14 +42,8 @@ Tracking upcoming providers and features for chat-rs.
 
 - [x] **Anthropic provider** — implemented as `chat-claude`
 - [x] **Human in the loop** — pause/resume flows via `ScopedCollection` strategies, `StreamEvent::Paused`, and `Messages::find_tool_mut`
-- [ ] **Pluggable transport layer** — introduce a `Transport` trait in `chat-core` with `send()` and `stream()` methods that normalize request/response across protocols. Transport implementations live in separate crates under `/transports/`:
-  - `transport-reqwest` — HTTP via reqwest (default, `Clone`-able, ships with the library)
-  - `transport-tungstenite` — WebSocket via tokio-tungstenite (stateful connection, not `Clone`)
-  - BYO: users implement `Transport` for their own stack (tower, hyper, WASM `web-sys`, etc.)
-  - Providers become generic over `T: Transport` — one impl per provider, transport is an internal detail
-  - SSE parsing (`SseParser`) moves to `core/src/transport/sse.rs` as a shared utility for HTTP transports
-  - Uses RPITIT (no `async_trait` overhead)
-- [ ] **OpenAI WebSocket streaming** — connect to `wss://api.openai.com/v1/responses`, authenticate once on handshake, send `response.create` events, receive the same streaming events as SSE. Continuation via `previous_response_id` with server-side in-memory caching. 60-min connection limit with auto-reconnect.
+- [x] **Pluggable transport layer** — `Transport` trait in `chat-core` with `send()` and `stream()`, `Request` with scheme/host/path separation. Three built-in implementations (feature-gated): `ReqwestTransport` (HTTP/SSE), `AsyncWsTransport` (tokio-tungstenite), `WsTransport` (tungstenite). BYO transports via trait impl. Providers are generic over `T: Transport`.
+- [x] **OpenAI WebSocket streaming** — `AsyncWsTransport` with `.with_message_type("response.create")` connects to `wss://api.openai.com/v1/responses`, authenticates once on handshake, streams events. Connection reuse across calls, terminal event detection, error frame handling.
 - [ ] **Image generation** — support image output parts from models that can generate images
 
 ### Medium Term

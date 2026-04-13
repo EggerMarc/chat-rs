@@ -1,7 +1,7 @@
 use async_stream::try_stream;
 use futures::StreamExt;
 
-use super::{
+use crate::transport::{
     EventStream, Request, Response, Transport, TransportError,
     sse::SseParser,
 };

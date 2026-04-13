@@ -13,10 +13,16 @@ src/
 ��── macros/mod.rs       # Procedural macros (retry_strategy!)
 ├── utils.rs            # Internal helpers
 ├── transport/
-│   ├── mod.rs          # Public re-exports
+│   ├── mod.rs          # Public re-exports, feature-gated impl re-exports
 │   ├── traits.rs       # Transport trait (send, stream)
 │   ├── types.rs        # Request, Response, Event, EventStream, TransportError
-│   └── sse.rs          # SseParser (shared utility for HTTP transports)
+│   ├── sse.rs          # SseParser (shared utility for HTTP transports)
+│   └── impls/
+│       ├── mod.rs      # Feature gates
+│       ├── common.rs   # Shared WS utilities (frame_to_event, ws_url, wrap_ws_body, is_terminal_event)
+│       ├── reqwest.rs  # ReqwestTransport (feature: reqwest-transport)
+│       ├── tungstenite.rs        # WsTransport (feature: tungstenite)
+│       └── tokio_tungstenite.rs  # AsyncWsTransport (feature: tokio-tungstenite)
 ├── chat/
 │   ├── mod.rs          # Chat<CP, Output> struct, scoped-tool dispatch, tool_call pre/post steps
 │   ├── completion.rs   # Unstructured + Structured completion loop
@@ -109,7 +115,12 @@ pub trait Transport: Send + Sync {
 - `Connection` / `Stream` → `ChatError::Network` (retryable)
 - `Request` → `ChatError::Provider` (not retryable)
 
-Transport implementations live in separate crates (`transports/reqwest/`, etc.) — core only defines the trait and types.
+Transport implementations live in `transport/impls/`:
+- **`ReqwestTransport`** — HTTP via reqwest, `Clone`-able (feature: `reqwest-transport`)
+- **`AsyncWsTransport`** — async WebSocket via tokio-tungstenite, connection reuse, fully async (feature: `tokio-tungstenite`)
+- **`WsTransport`** — sync WebSocket via tungstenite, bridged with `spawn_blocking` + mpsc channel (feature: `tungstenite`)
+
+WebSocket transports support `.with_message_type("response.create")` to wrap outgoing bodies in a provider-specific envelope (e.g. OpenAI WS format). They detect terminal events (`response.completed`, `response.failed`, `error`) to end the stream without waiting for a WS close frame.
 
 ## Type-State Builder
 
@@ -184,6 +195,6 @@ In streaming mode (`chat::stream.rs`), a pause yields `StreamEvent::Paused(Pause
 - `Messages::push()` silently merges consecutive same-role messages. Intentional for tool call flows; can be surprising if you expect separate entries.
 - Only resolved `ToolStatus` states (`Completed`, `Rejected`, `Failed`) serialize to the wire via `Tool::to_tuple`. Providers never see `Pending`/`Approved`/`Running`.
 - Feature flag `stream` must be enabled at every layer: `chat-core/stream`, and propagated through `chat-rs/stream` to each provider.
-- The `Transport` trait lives in `core/src/transport/`. Implementations (e.g., `transport-reqwest`) are separate workspace crates under `transports/`.
+- The `Transport` trait lives in `core/src/transport/`. Implementations live in `core/src/transport/impls/`, feature-gated.
 - `Transport: Send + Sync` with `&self` methods — transports that need internal mutation (e.g. WebSocket connections) use interior mutability. This matches the `reqwest::Client` convention.
 - Metadata is provider-specific (`HashMap<String, Value>` on `specific`) — no schema enforcement.
