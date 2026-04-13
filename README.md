@@ -24,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-chat-rs = { version = "0.1.0", features = ["openai"] }
+chat-rs = { version = "0.1.1", features = ["openai"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -52,11 +52,11 @@ Enable providers via feature flags:
 
 ```toml
 # Pick one or more
-chat-rs = { version = "0.1.0", features = ["gemini"] }
-chat-rs = { version = "0.1.0", features = ["claude"] }
-chat-rs = { version = "0.1.0", features = ["openai"] }
-chat-rs = { version = "0.1.0", features = ["router", "gemini", "claude"] }
-chat-rs = { version = "0.1.0", features = ["gemini", "claude", "openai", "stream"] }
+chat-rs = { version = "0.1.1", features = ["gemini"] }
+chat-rs = { version = "0.1.1", features = ["claude"] }
+chat-rs = { version = "0.1.1", features = ["openai"] }
+chat-rs = { version = "0.1.1", features = ["router", "gemini", "claude"] }
+chat-rs = { version = "0.1.1", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
 | Provider | Feature | API Key Env Var | Builder |
@@ -154,7 +154,7 @@ println!("Name: {}, Likes: {:?}", response.content.name, response.content.likes)
 Enable the `stream` feature flag:
 
 ```toml
-chat-rs = { version = "0.1.0", features = ["gemini", "stream"] }
+chat-rs = { version = "0.1.1", features = ["gemini", "stream"] }
 ```
 
 ```rust
@@ -348,7 +348,32 @@ let client = OpenAIBuilder::new()
     .build();
 ```
 
-To use a custom transport (e.g. WebSocket, tower, or your own):
+To use WebSocket transport (e.g. for OpenAI's Responses API over WS):
+
+```toml
+chat-rs = { version = "0.1.1", features = ["openai", "stream", "tokio-tungstenite"] }
+```
+
+```rust
+use chat_rs::{openai::OpenAIBuilder, transport::AsyncWsTransport};
+
+let ws = AsyncWsTransport::new()
+    .with_message_type("response.create"); // OpenAI WS envelope
+
+let client = OpenAIBuilder::new()
+    .with_model("gpt-4o")
+    .with_transport(ws)
+    .build();
+```
+
+Two WebSocket transports are available, feature-gated:
+
+| Transport | Feature | Crate | Notes |
+|---|---|---|---|
+| `AsyncWsTransport` | `tokio-tungstenite` | tokio-tungstenite | Fully async, recommended with tokio |
+| `WsTransport` | `tungstenite` | tungstenite | Sync WS bridged via `spawn_blocking` |
+
+To use a fully custom transport (tower, hyper, WASM, etc.):
 
 ```rust
 use chat_rs::Transport;
@@ -362,15 +387,13 @@ let client = OpenAIBuilder::new()
     .build();
 ```
 
-Transport implementations live in separate crates under `transports/`. See [`core/AGENTS.md`](core/AGENTS.md) for the `Transport` trait definition.
+Transport implementations live in `core/src/transport/impls/`. See [`core/AGENTS.md`](core/AGENTS.md) for the `Transport` trait definition.
 
 ## Architecture
 
 ```
 chat-rs (root)              ← Re-exports + feature flags
-├── core/                   ← Traits, types, Chat engine, builder, Transport trait
-├── transports/
-│   └── reqwest/            ← Default HTTP transport (ReqwestTransport)
+├── core/                   ← Traits, types, Chat engine, builder, Transport trait + impls
 ├── providers/
 │   ├── gemini/             ← Google Gemini provider
 │   ├── claude/             ← Anthropic Claude provider
@@ -411,6 +434,7 @@ cargo run --example openai-stream --features openai,stream
 cargo run --example openai-structured --features openai
 cargo run --example openai-embeddings --features openai
 cargo run --example openai-hitl --features openai,stream
+cargo run --example openai-websocket --features openai,stream,tokio-tungstenite
 
 # Router
 cargo run --example router-keyword --features router,gemini,claude

@@ -30,16 +30,25 @@ Set `OPENAI_API_KEY` in your environment or call `.with_api_key()` on the builde
 
 - **Web Search** — `.with_web_search(context_size, user_location)`
 
-## Custom Transport
+## Transport
 
-Supply a custom transport via `.with_transport()` to use something other than the default HTTP (reqwest):
+The default transport is HTTP/SSE via reqwest. To use WebSocket streaming:
 
 ```rust
+use chat_rs::{openai::OpenAIBuilder, transport::AsyncWsTransport};
+
+let ws = AsyncWsTransport::new()
+    .with_message_type("response.create");
+
 let client = OpenAIBuilder::new()
     .with_model("gpt-4o")
-    .with_transport(my_transport)
+    .with_transport(ws)
     .build();
 ```
+
+Requires the `tokio-tungstenite` feature. A sync variant (`WsTransport`) is available via the `tungstenite` feature.
+
+You can also supply any custom `Transport` implementation via `.with_transport()`.
 
 ## Custom Endpoints
 
@@ -56,6 +65,6 @@ let client = OpenAIBuilder::new()
 ## Feature Flags
 
 ```toml
-chat-rs = { version = "0.1.0", features = ["openai"] }
-chat-rs = { version = "0.1.0", features = ["openai", "stream"] }
+chat-rs = { version = "0.1.1", features = ["openai"] }
+chat-rs = { version = "0.1.1", features = ["openai", "stream"] }
 ```
