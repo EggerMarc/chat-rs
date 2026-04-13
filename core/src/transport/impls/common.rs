@@ -1,4 +1,4 @@
-use super::types::{Event, TransportError};
+use crate::transport::{Event, TransportError};
 
 /// Parse a WebSocket text frame into a transport `Event`.
 ///

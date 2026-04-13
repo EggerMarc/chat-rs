@@ -4,9 +4,8 @@ use tungstenite::client::IntoClientRequest;
 use tungstenite::{Message, WebSocket, connect};
 use tungstenite::stream::MaybeTlsStream;
 
-use super::types::{EventStream, Request, Response, TransportError};
-use super::ws_common::{frame_to_event, is_terminal_event, wrap_ws_body, ws_url};
-use super::Transport;
+use crate::transport::{EventStream, Request, Response, Transport, TransportError};
+use super::common::{frame_to_event, is_terminal_event, wrap_ws_body, ws_url};
 
 type WsConn = WebSocket<MaybeTlsStream<std::net::TcpStream>>;
 
@@ -214,7 +213,7 @@ impl Transport for WsTransport {
             .await
             .map_err(|e| TransportError::Connection(format!("spawn_blocking failed: {e}")))??;
 
-        let events: Vec<Result<super::types::Event, TransportError>> =
+        let events: Vec<Result<crate::transport::Event, TransportError>> =
             frames.iter().map(|f| frame_to_event(f)).collect();
 
         Ok(Box::pin(futures::stream::iter(events)))

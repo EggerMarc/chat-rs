@@ -7,9 +7,8 @@ use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
 
-use super::types::{EventStream, Request, Response, TransportError};
-use super::ws_common::{frame_to_event, is_terminal_event, wrap_ws_body, ws_url};
-use super::Transport;
+use crate::transport::{EventStream, Request, Response, Transport, TransportError};
+use super::common::{frame_to_event, is_terminal_event, wrap_ws_body, ws_url};
 
 type WsConn = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
