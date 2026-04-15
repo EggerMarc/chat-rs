@@ -111,8 +111,7 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
             // Split the borrows manually: `decls` views only
             // `scoped_collections`, leaving `self.model` free to borrow
             // mutably for the `complete()` call.
-            let decls =
-                crate::chat::tool_declarations_from(&self.scoped_collections);
+            let decls = crate::chat::tool_declarations_from(&self.scoped_collections);
             let decls_dyn = decls
                 .as_ref()
                 .map(|d| d as &dyn crate::types::tools::ToolDeclarations);
@@ -298,15 +297,13 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
     {
         match self.call_loop(messages).await? {
             LoopStep::Paused(reason, _) => Ok(ChatOutcome::Paused { reason }),
-            LoopStep::Complete(response) => {
-                match processor(&response) {
-                    Ok(parsed) => Ok(ChatOutcome::Complete(parsed)),
-                    Err(err) => Err(ChatFailure {
-                        err,
-                        metadata: response.metadata,
-                    }),
-                }
-            }
+            LoopStep::Complete(response) => match processor(&response) {
+                Ok(parsed) => Ok(ChatOutcome::Complete(parsed)),
+                Err(err) => Err(ChatFailure {
+                    err,
+                    metadata: response.metadata,
+                }),
+            },
         }
     }
 }

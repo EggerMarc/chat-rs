@@ -5,9 +5,9 @@ use crate::client::OpenAIClient;
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::traits::CompletionProvider;
 use chat_core::transport::Transport;
-use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::messages::Messages;
 use chat_core::types::options::ChatOptions;
+use chat_core::types::provider_meta::ProviderMeta;
 use chat_core::types::response::ChatResponse;
 use chat_core::types::tools::ToolDeclarations;
 
@@ -26,8 +26,8 @@ impl<T: Transport> CompletionProvider for OpenAIClient<T> {
             None
         };
 
-        let request_body = OpenAIResponsesRequest::from_core(
-            crate::api::types::request::ResponsesRequestConfig {
+        let request_body =
+            OpenAIResponsesRequest::from_core(crate::api::types::request::ResponsesRequestConfig {
                 model_name: &self.model_name,
                 messages,
                 tool_declarations,
@@ -37,9 +37,8 @@ impl<T: Transport> CompletionProvider for OpenAIClient<T> {
                 output_shape: structured_output,
                 previous_response_id,
                 store: self.store,
-            },
-        )
-        .map_err(ChatFailure::from_err)?;
+            })
+            .map_err(ChatFailure::from_err)?;
 
         let body = serde_json::to_vec(&request_body)
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;

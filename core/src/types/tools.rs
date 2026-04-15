@@ -188,8 +188,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
     use NoMeta;
+    use serde_json::json;
 
     fn fc(name: &str) -> FunctionCall {
         FunctionCall {

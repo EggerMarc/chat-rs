@@ -71,9 +71,7 @@ impl Tool {
     pub fn is_resolved(&self) -> bool {
         matches!(
             self.status,
-            ToolStatus::Completed { .. }
-                | ToolStatus::Rejected { .. }
-                | ToolStatus::Failed { .. }
+            ToolStatus::Completed { .. } | ToolStatus::Rejected { .. } | ToolStatus::Failed { .. }
         )
     }
 
@@ -147,11 +145,9 @@ impl Tool {
         let call = self.effective_call().clone();
         let response = match &self.status {
             ToolStatus::Completed { response } => Some(response.clone()),
-            ToolStatus::Failed { error } => Some(synth_error(
-                &self.id,
-                &self.call.name,
-                error.clone(),
-            )),
+            ToolStatus::Failed { error } => {
+                Some(synth_error(&self.id, &self.call.name, error.clone()))
+            }
             ToolStatus::Rejected { reason } => Some(synth_error(
                 &self.id,
                 &self.call.name,
@@ -170,9 +166,7 @@ impl Tool {
 
     /// Strict variant: errors if the Tool is not resolved. Use in provider
     /// request builders where sending a non-resolved Tool would be a bug.
-    pub fn try_to_tuple(
-        &self,
-    ) -> Result<(FunctionCall, FunctionResponse), NonResolvedToolError> {
+    pub fn try_to_tuple(&self) -> Result<(FunctionCall, FunctionResponse), NonResolvedToolError> {
         match self.to_tuple() {
             (call, Some(response)) => Ok((call, response)),
             (_, None) => Err(NonResolvedToolError {
@@ -241,7 +235,10 @@ mod tests {
         t.reject(Some("too dangerous".to_string()));
         let (_, resp) = t.to_tuple();
         let resp = resp.expect("rejected should produce a synthesized response");
-        assert_eq!(resp.result["error"].as_str().unwrap(), "User rejected this tool call: too dangerous");
+        assert_eq!(
+            resp.result["error"].as_str().unwrap(),
+            "User rejected this tool call: too dangerous"
+        );
     }
 
     #[test]

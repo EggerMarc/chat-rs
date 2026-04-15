@@ -165,9 +165,7 @@ impl OpenAIResponsesRequest {
         // Build tools list
         let mut tools_list = Vec::new();
         if let Some(decls) = tool_declarations {
-            let value = decls
-                .json()
-                .map_err(|e| ChatError::Other(e.to_string()))?;
+            let value = decls.json().map_err(|e| ChatError::Other(e.to_string()))?;
             if let Value::Array(funcs) = value {
                 for func in funcs {
                     let mut func = func;
@@ -192,10 +190,7 @@ impl OpenAIResponsesRequest {
             // *new* information since then: tool results that resolve
             // function_calls in that boundary Model message, plus any
             // user/system content the caller appended afterwards.
-            let boundary = messages
-                .0
-                .iter()
-                .rposition(|c| c.role == RoleEnum::Model);
+            let boundary = messages.0.iter().rposition(|c| c.role == RoleEnum::Model);
 
             let mut input = Vec::new();
 
@@ -266,7 +261,11 @@ fn content_to_input_items(content: &Content, items: &mut Vec<Value>) {
     for part in &content.parts.0 {
         match part {
             PartEnum::Text(t) => {
-                let part_type = if role == "assistant" { "output_text" } else { "input_text" };
+                let part_type = if role == "assistant" {
+                    "output_text"
+                } else {
+                    "input_text"
+                };
                 message_parts.push(json!({ "type": part_type, "text": t.0 }));
             }
             PartEnum::Reasoning(r) => {

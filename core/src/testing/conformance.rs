@@ -1,7 +1,7 @@
 use crate::error::ChatError;
 use crate::traits::CompletionProvider;
-use crate::types::messages::content::{CompleteReasonEnum, RoleEnum};
 use crate::types::messages::Messages;
+use crate::types::messages::content::{CompleteReasonEnum, RoleEnum};
 use crate::types::messages::tool::ToolStatus;
 use crate::types::metadata::Metadata;
 use crate::types::tools::ToolDeclarations;
@@ -85,10 +85,7 @@ pub async fn assert_tool_roundtrip(
         tool_parts.len(),
         expected_tool_names.len(),
         "number of tool calls should match expected (got {:?})",
-        tool_parts
-            .iter()
-            .map(|t| &t.call.name)
-            .collect::<Vec<_>>()
+        tool_parts.iter().map(|t| &t.call.name).collect::<Vec<_>>()
     );
 
     for (tool, expected_name) in tool_parts.iter().zip(expected_tool_names) {

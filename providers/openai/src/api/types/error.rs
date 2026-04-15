@@ -28,10 +28,7 @@ pub fn handle_openai_error(res: Response) -> Result<Response, ChatFailure> {
     }
 
     if let Ok(openai_err) = serde_json::from_str::<OpenAIErrorResponse>(&err_text) {
-        let code = openai_err
-            .error
-            .code
-            .unwrap_or_else(|| status.to_string());
+        let code = openai_err.error.code.unwrap_or_else(|| status.to_string());
         let error_msg = format!(
             "OpenAI API Error[{code}] ({}): {}",
             openai_err.error.status.as_deref().unwrap_or("UNKNOWN"),

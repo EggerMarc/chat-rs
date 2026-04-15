@@ -19,9 +19,7 @@ use std::io::{self, BufRead, Write};
 
 use chat_rs::{
     Action, Chat, ChatBuilder, Messages, PauseReason, ScopedCollection, StreamEvent,
-    StreamProvider, ToolStatus, Unstructured,
-    claude::ClaudeBuilder,
-    types::messages::content,
+    StreamProvider, ToolStatus, Unstructured, claude::ClaudeBuilder, types::messages::content,
 };
 use futures::StreamExt;
 use serde::Deserialize;
@@ -168,7 +166,11 @@ async fn run_turn<CP: StreamProvider>(
                         println!("\n  [calling {}...]", call.name);
                     }
                     StreamEvent::ToolResult(res) => {
-                        println!("  [{} → {}]", res.name, truncate(&res.result.to_string(), 80));
+                        println!(
+                            "  [{} → {}]",
+                            res.name,
+                            truncate(&res.result.to_string(), 80)
+                        );
                     }
                     StreamEvent::Paused(reason) => {
                         paused_reason = Some(reason);
@@ -201,11 +203,7 @@ fn truncate(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
         return s.to_string();
     }
-    let end = s
-        .char_indices()
-        .nth(max)
-        .map(|(i, _)| i)
-        .unwrap_or(s.len());
+    let end = s.char_indices().nth(max).map(|(i, _)| i).unwrap_or(s.len());
     format!("{}…", &s[..end])
 }
 

@@ -18,9 +18,7 @@ use chat_core::{
 };
 
 use crate::{
-    api::types::{
-        request::GeminiRequest, response::GeminiCompletionResponse,
-    },
+    api::types::{request::GeminiRequest, response::GeminiCompletionResponse},
     client::GeminiClient,
 };
 
@@ -61,11 +59,7 @@ impl<T: Transport> StreamProvider for GeminiClient<T> {
             body,
         };
 
-        let event_stream = self
-            .transport
-            .stream(req)
-            .await
-            .map_err(ChatError::from)?;
+        let event_stream = self.transport.stream(req).await.map_err(ChatError::from)?;
 
         Ok(parse_gemini_event_stream(event_stream))
     }

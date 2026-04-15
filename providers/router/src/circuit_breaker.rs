@@ -38,7 +38,9 @@ pub(crate) struct CircuitBreaker {
 
 impl CircuitBreaker {
     pub fn new(config: CircuitBreakerConfig, provider_count: usize) -> Self {
-        let circuits = (0..provider_count).map(|_| ProviderCircuit::new()).collect();
+        let circuits = (0..provider_count)
+            .map(|_| ProviderCircuit::new())
+            .collect();
         Self { config, circuits }
     }
 

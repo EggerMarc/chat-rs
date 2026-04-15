@@ -6,9 +6,8 @@ use crate::transport::{Event, TransportError};
 /// and passes the full JSON as the data. This matches the SSE
 /// `(event_type, data)` contract used by HTTP transports.
 pub(crate) fn frame_to_event(text: &str) -> Result<Event, TransportError> {
-    let v: serde_json::Value = serde_json::from_str(text).map_err(|e| {
-        TransportError::Stream(format!("invalid JSON in WebSocket frame: {e}"))
-    })?;
+    let v: serde_json::Value = serde_json::from_str(text)
+        .map_err(|e| TransportError::Stream(format!("invalid JSON in WebSocket frame: {e}")))?;
     let event_type = v
         .get("type")
         .and_then(|t| t.as_str())
@@ -39,8 +38,10 @@ pub(crate) fn wrap_ws_body(
     body: Vec<u8>,
     message_type: Option<&str>,
 ) -> Result<String, TransportError> {
-    let text = String::from_utf8(body)
-        .map_err(|e| TransportError::Request { status: None, message: e.to_string() })?;
+    let text = String::from_utf8(body).map_err(|e| TransportError::Request {
+        status: None,
+        message: e.to_string(),
+    })?;
 
     let Some(msg_type) = message_type else {
         return Ok(text);
@@ -52,7 +53,10 @@ pub(crate) fn wrap_ws_body(
             message: format!("body is not a JSON object: {e}"),
         })?;
 
-    obj.insert("type".to_string(), serde_json::Value::String(msg_type.to_string()));
+    obj.insert(
+        "type".to_string(),
+        serde_json::Value::String(msg_type.to_string()),
+    );
     obj.remove("stream");
 
     serde_json::to_string(&obj).map_err(|e| TransportError::Request {

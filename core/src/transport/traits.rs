@@ -19,10 +19,7 @@ use super::types::{EventStream, Request, Response, TransportError};
 ///   [`Event`](super::types::Event) tuples. HTTP transports parse SSE;
 ///   WebSocket transports yield individual frames.
 pub trait Transport: Send + Sync {
-    fn send(
-        &self,
-        req: Request,
-    ) -> impl Future<Output = Result<Response, TransportError>> + Send;
+    fn send(&self, req: Request) -> impl Future<Output = Result<Response, TransportError>> + Send;
 
     fn stream(
         &self,

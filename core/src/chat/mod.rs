@@ -87,7 +87,6 @@ pub(crate) fn tool_declarations_from(
 }
 
 impl<P, Output> Chat<P, Output> {
-
     /// Look up which scoped collection owns a given tool name.
     fn collection_for(&self, name: &str) -> Option<&dyn TypedCollection> {
         self.routing
@@ -99,10 +98,7 @@ impl<P, Output> Chat<P, Output> {
     /// strategy, execute the ones that say `Execute`, leave the ones
     /// that require human approval or deferral in a non-resolved state
     /// and accumulate them into a `PauseReason`.
-    pub(crate) async fn tool_call(
-        &self,
-        content: &mut Content,
-    ) -> Result<ToolCallPass, ChatError> {
+    pub(crate) async fn tool_call(&self, content: &mut Content) -> Result<ToolCallPass, ChatError> {
         let mut pass = ToolCallPass::default();
 
         // Phase 1: strategy decisions + execution. Walk tools in order;
@@ -194,35 +190,30 @@ impl<P, Output> Chat<P, Output> {
                         }
                     }
                 }
-                Action::Defer { at } => {
-                    match &mut pass.pause {
-                        None => {
-                            pass.pause = Some(PauseReason::Scheduled {
-                                tool_ids: vec![tool.id.clone()],
-                                earliest: at,
-                            });
-                        }
-                        Some(PauseReason::Scheduled {
-                            tool_ids,
-                            earliest,
-                        }) => {
-                            tool_ids.push(tool.id.clone());
-                            if at < *earliest {
-                                *earliest = at;
-                            }
-                        }
-                        Some(PauseReason::AwaitingApproval { tool_ids }) => {
-                            let approvals = std::mem::take(tool_ids);
-                            pass.pause = Some(PauseReason::Mixed {
-                                approvals,
-                                scheduled: vec![(tool.id.clone(), at)],
-                            });
-                        }
-                        Some(PauseReason::Mixed { scheduled, .. }) => {
-                            scheduled.push((tool.id.clone(), at));
+                Action::Defer { at } => match &mut pass.pause {
+                    None => {
+                        pass.pause = Some(PauseReason::Scheduled {
+                            tool_ids: vec![tool.id.clone()],
+                            earliest: at,
+                        });
+                    }
+                    Some(PauseReason::Scheduled { tool_ids, earliest }) => {
+                        tool_ids.push(tool.id.clone());
+                        if at < *earliest {
+                            *earliest = at;
                         }
                     }
-                }
+                    Some(PauseReason::AwaitingApproval { tool_ids }) => {
+                        let approvals = std::mem::take(tool_ids);
+                        pass.pause = Some(PauseReason::Mixed {
+                            approvals,
+                            scheduled: vec![(tool.id.clone(), at)],
+                        });
+                    }
+                    Some(PauseReason::Mixed { scheduled, .. }) => {
+                        scheduled.push((tool.id.clone(), at));
+                    }
+                },
                 Action::Reject { reason } => {
                     tool.reject(Some(reason));
                     pass.executed = true;

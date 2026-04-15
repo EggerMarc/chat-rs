@@ -114,16 +114,10 @@ async fn metadata_populated() {
 #[tokio::test]
 async fn request_includes_api_key_header() {
     let (mut client, inspector) = setup();
-    inspector.set_response(
-        200,
-        include_bytes!("fixtures/text_response.json").to_vec(),
-    );
+    inspector.set_response(200, include_bytes!("fixtures/text_response.json").to_vec());
     let mut msgs = messages::from_user(vec!["Hello"]);
 
-    client
-        .complete(&mut msgs, None, None, None)
-        .await
-        .unwrap();
+    client.complete(&mut msgs, None, None, None).await.unwrap();
 
     let req = inspector.last_request().unwrap();
     let has_api_key = req

@@ -136,10 +136,7 @@ impl<CP: CompletionProvider, Output> ChatBuilder<CP, Output> {
     pub fn with_scoped_tools<M, F>(mut self, scoped: ScopedCollection<M, F>) -> Self
     where
         M: Send + Sync + 'static,
-        F: Fn(&tools_rs::FunctionCall, &M) -> crate::types::tools::Action
-            + Send
-            + Sync
-            + 'static,
+        F: Fn(&tools_rs::FunctionCall, &M) -> crate::types::tools::Action + Send + Sync + 'static,
     {
         self.scoped_collections.push(Box::new(scoped));
         self

@@ -29,7 +29,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let user_message = content::from_user(vec![&user_input]);
         messages.push(user_message);
 
-        let response = chat.complete(&mut messages).await.map_err(|err| err.err)?.expect_complete();
+        let response = chat
+            .complete(&mut messages)
+            .await
+            .map_err(|err| err.err)?
+            .expect_complete();
         println!("Model:\t{:?}", response.content.parts.last());
         //println!("Metadata:\t{:?}", response.metadata);
     }

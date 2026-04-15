@@ -109,9 +109,7 @@ impl CompletionProvider for StreamRouter {
         }
 
         Err(last_failure.unwrap_or_else(|| {
-            ChatFailure::from_err(ChatError::Other(
-                "All providers exhausted".to_string(),
-            ))
+            ChatFailure::from_err(ChatError::Other("All providers exhausted".to_string()))
         }))
     }
 }
@@ -197,9 +195,7 @@ impl StreamProvider for StreamRouter {
             }
         }
 
-        Err(last_error.unwrap_or_else(|| {
-            ChatError::Other("All providers exhausted".to_string())
-        }))
+        Err(last_error.unwrap_or_else(|| ChatError::Other("All providers exhausted".to_string())))
     }
 
     fn on_stream_done(&mut self, response: &ChatResponse) {

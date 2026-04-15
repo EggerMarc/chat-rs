@@ -64,11 +64,9 @@ impl CompletionProvider for Router {
             let provider = match self.providers.get_mut(idx) {
                 Some(p) => p,
                 None => {
-                    return Err(ChatFailure::from_err(ChatError::Other(
-                        format!(
-                            "Strategy returned out-of-range index {idx} for {count} providers"
-                        ),
-                    )));
+                    return Err(ChatFailure::from_err(ChatError::Other(format!(
+                        "Strategy returned out-of-range index {idx} for {count} providers"
+                    ))));
                 }
             };
 
@@ -121,9 +119,7 @@ impl CompletionProvider for Router {
         }
 
         Err(last_failure.unwrap_or_else(|| {
-            ChatFailure::from_err(ChatError::Other(
-                "All providers exhausted".to_string(),
-            ))
+            ChatFailure::from_err(ChatError::Other("All providers exhausted".to_string()))
         }))
     }
 }

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chat_rs::{
     ChatBuilder, EmbeddingsProvider, Messages, ProviderMeta,
     claude::ClaudeBuilder,
-    gemini::{GeminiBuilder, client::GeminiClient, ReqwestTransport},
+    gemini::{GeminiBuilder, ReqwestTransport, client::GeminiClient},
     router::RouterBuilder,
     router::RoutingStrategy,
     router::StrategyError,
@@ -132,7 +132,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         std::io::stdin().read_line(&mut user_input)?;
         messages.push(content::from_user(vec![user_input.trim()]));
 
-        let response = chat.complete(&mut messages).await.map_err(|err| err.err)?.expect_complete();
+        let response = chat
+            .complete(&mut messages)
+            .await
+            .map_err(|err| err.err)?
+            .expect_complete();
 
         if let Some(text) = response.content.parts.text_response() {
             println!("Model:\t{}", text);
