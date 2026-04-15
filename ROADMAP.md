@@ -44,7 +44,7 @@ Tracking upcoming providers and features for chat-rs.
 - [x] **Human in the loop** — pause/resume flows via `ScopedCollection` strategies, `StreamEvent::Paused`, and `Messages::find_tool_mut`
 - [x] **Pluggable transport layer** — `Transport` trait in `chat-core` with `send()` and `stream()`, `Request` with scheme/host/path separation. Three built-in implementations (feature-gated): `ReqwestTransport` (HTTP/SSE), `AsyncWsTransport` (tokio-tungstenite), `WsTransport` (tungstenite). BYO transports via trait impl. Providers are generic over `T: Transport`.
 - [x] **OpenAI WebSocket streaming** — `AsyncWsTransport` with `.with_message_type("response.create")` connects to `wss://api.openai.com/v1/responses`, authenticates once on handshake, streams events. Connection reuse across calls, terminal event detection, error frame handling.
-- [ ] **Image generation** — support image output parts from models that can generate images
+- [x] **Image generation** — `File` split into kind/source (`#[non_exhaustive]`). OpenAI `image_generation_call` and Gemini `inlineData` image parts decode into `PartEnum::File(File { kind: Image, .. })`. Claude has no image output upstream.
 
 ### Medium Term
 

@@ -3,6 +3,7 @@ use chat_core::{
     types::{
         messages::{
             content::{CompleteReasonEnum, Content, RoleEnum},
+            file::File,
             parts::{PartEnum, Parts},
             reasoning::Reasoning,
             text::Text,
@@ -44,6 +45,14 @@ pub struct GeminiPartResponse {
     pub function_call: Option<GeminiFunctionCallResponse>,
     pub thought_signature: Option<String>,
     pub thought: Option<bool>,
+    pub inline_data: Option<GeminiInlineDataResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeminiInlineDataResponse {
+    pub mime_type: Option<String>,
+    pub data: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -91,6 +100,19 @@ impl GeminiCompletionResponse {
                         } else {
                             core_parts.push(PartEnum::Text(Text::new(&text)));
                         }
+                    }
+
+                    if let Some(inline) = part.inline_data
+                        && let Ok(bytes) = base64::Engine::decode(
+                            &base64::engine::general_purpose::STANDARD,
+                            &inline.data,
+                        )
+                    {
+                        let mime = inline
+                            .mime_type
+                            .unwrap_or_else(|| "application/octet-stream".to_string());
+                        core_parts
+                            .push(PartEnum::File(File::from_bytes_with_mime(bytes, mime)));
                     }
 
                     if let Some(fc) = part.function_call {
@@ -158,5 +180,48 @@ impl GeminiEmbeddingResponse {
             },
             metadata: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chat_core::types::messages::file::FileSource;
+
+    #[test]
+    fn inline_image_part_decoded_to_file_image() {
+        let body = r#"{
+            "candidates": [
+                {
+                    "content": {
+                        "role": "model",
+                        "parts": [
+                            { "inlineData": { "mimeType": "image/png", "data": "aGk=" } }
+                        ]
+                    },
+                    "finishReason": "STOP"
+                }
+            ]
+        }"#;
+
+        let resp: GeminiCompletionResponse = serde_json::from_str(body).unwrap();
+        let core = resp.into_core_chat_response().unwrap();
+
+        let file = core
+            .content
+            .parts
+            .into_iter()
+            .find_map(|p| match p {
+                PartEnum::File(f) => Some(f),
+                _ => None,
+            })
+            .expect("expected a File part");
+
+        assert!(file.is_image());
+        assert_eq!(file.mime.as_str(), "image/png");
+        match file.source {
+            FileSource::Bytes(bytes) => assert_eq!(bytes, b"hi"),
+            other => panic!("expected Bytes source, got {other:?}"),
+        }
     }
 }

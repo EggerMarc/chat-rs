@@ -2,7 +2,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chat_core::{
     error::ChatError,
     types::{
-        messages::{Messages, content::RoleEnum, file::File, parts::PartEnum},
+        messages::{Messages, content::RoleEnum, file::FileSource, parts::PartEnum},
         options::ChatOptions,
         tools::ToolDeclarations,
     },
@@ -139,24 +139,24 @@ impl ClaudeRequest {
                             }));
                         }
                     }
-                    PartEnum::File(file) => match file {
-                        File::Bytes(raw_data) => {
-                            let encoded = STANDARD.encode(&raw_data.bytes);
+                    PartEnum::File(file) => match &file.source {
+                        FileSource::Bytes(bytes) => {
+                            let encoded = STANDARD.encode(bytes);
                             assistant_blocks.push(json!({
                                 "type": "image",
                                 "source": {
                                     "type": "base64",
-                                    "media_type": raw_data.mimetype.to_string(),
+                                    "media_type": file.mime.to_string(),
                                     "data": encoded,
                                 }
                             }));
                         }
-                        File::Url(url_data) => {
+                        FileSource::Url(url) => {
                             assistant_blocks.push(json!({
                                 "type": "image",
                                 "source": {
                                     "type": "url",
-                                    "url": url_data.url.to_string(),
+                                    "url": url.to_string(),
                                 }
                             }));
                         }

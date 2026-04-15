@@ -1,7 +1,7 @@
 use chat_core::{
     error::ChatError,
     types::{
-        messages::{Messages, content::RoleEnum, file::File, parts::PartEnum},
+        messages::{Messages, content::RoleEnum, file::FileSource, parts::PartEnum},
         options::ChatOptions,
         tools::ToolDeclarations,
     },
@@ -207,18 +207,18 @@ impl GeminiRequest {
                     }
                     PartEnum::File(file) => {
                         let mut gp = GeminiPart::default();
-                        match file {
-                            File::Bytes(raw_data) => {
-                                let encoded_data = STANDARD.encode(&raw_data.bytes);
+                        match &file.source {
+                            FileSource::Bytes(bytes) => {
+                                let encoded_data = STANDARD.encode(bytes);
                                 gp.inline_data = Some(GeminiInlineData {
-                                    mime_type: Some(raw_data.mimetype.to_string()),
+                                    mime_type: Some(file.mime.to_string()),
                                     data: encoded_data,
                                 });
                             }
-                            File::Url(url_data) => {
+                            FileSource::Url(url) => {
                                 gp.file_data = Some(GeminiFileData {
-                                    file_uri: url_data.url.to_string(),
-                                    mime_type: url_data.mimetype.as_ref().map(|m| m.to_string()),
+                                    file_uri: url.to_string(),
+                                    mime_type: Some(file.mime.to_string()),
                                 });
                             }
                         }

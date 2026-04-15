@@ -4,7 +4,7 @@ use std::slice::{Iter, IterMut};
 use tools_rs::{CallId, FunctionCall, FunctionResponse};
 
 use crate::types::messages::embeddings::Embeddings;
-use crate::types::messages::file::File;
+use crate::types::messages::file::{File, FileSource};
 use crate::types::messages::reasoning::Reasoning;
 use crate::types::messages::text::Text;
 use crate::types::messages::tool::{Tool, ToolStatus};
@@ -260,14 +260,10 @@ impl Display for PartEnum {
             PartEnum::Reasoning(text) => write!(f, "{}", text),
             PartEnum::Text(text) => write!(f, "{}", text),
             PartEnum::Tool(tool) => write!(f, "{}", tool.call.name),
-            PartEnum::File(file) => write!(
-                f,
-                "{}",
-                match file {
-                    File::Url(url) => format!("{} {:?}", url.url, url.mimetype),
-                    File::Bytes(raw) => raw.mimetype.to_string(),
-                }
-            ),
+            PartEnum::File(file) => match &file.source {
+                FileSource::Url(url) => write!(f, "{} {}", file.mime, url),
+                FileSource::Bytes(bytes) => write!(f, "{} ({} bytes)", file.mime, bytes.len()),
+            },
             PartEnum::Embeddings(embeddings) => {
                 let content = &embeddings.content;
                 let len = content.len();
