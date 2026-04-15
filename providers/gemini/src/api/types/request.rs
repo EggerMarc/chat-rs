@@ -218,10 +218,7 @@ impl GeminiRequest {
                             File::Url(url_data) => {
                                 gp.file_data = Some(GeminiFileData {
                                     file_uri: url_data.url.to_string(),
-                                    mime_type: url_data
-                                        .mimetype
-                                        .as_ref()
-                                        .map(|m| m.to_string()),
+                                    mime_type: url_data.mimetype.as_ref().map(|m| m.to_string()),
                                 });
                             }
                         }
@@ -249,21 +246,22 @@ impl GeminiRequest {
                 _ => "model",
             };
 
-            let push_entry = |contents: &mut Vec<GeminiContent>, role: &str, parts: Vec<GeminiPart>| {
-                if parts.is_empty() {
-                    return;
-                }
-                if let Some(last) = contents.last_mut()
-                    && last.role == role
-                {
-                    last.parts.extend(parts);
-                    return;
-                }
-                contents.push(GeminiContent {
-                    role: role.to_string(),
-                    parts,
-                });
-            };
+            let push_entry =
+                |contents: &mut Vec<GeminiContent>, role: &str, parts: Vec<GeminiPart>| {
+                    if parts.is_empty() {
+                        return;
+                    }
+                    if let Some(last) = contents.last_mut()
+                        && last.role == role
+                    {
+                        last.parts.extend(parts);
+                        return;
+                    }
+                    contents.push(GeminiContent {
+                        role: role.to_string(),
+                        parts,
+                    });
+                };
 
             push_entry(&mut gemini_contents, assistant_role, assistant_parts);
             push_entry(&mut gemini_contents, "function", function_parts);
@@ -321,9 +319,7 @@ impl GeminiRequest {
         let mut tool_config_extras = serde_json::Map::new();
 
         if let Some(decls) = tool_declarations {
-            let value = decls
-                .json()
-                .map_err(|e| ChatError::Other(e.to_string()))?;
+            let value = decls.json().map_err(|e| ChatError::Other(e.to_string()))?;
             tools_list.push(json!({ "functionDeclarations": value }));
         }
         if let Some(tools) = native_tools {

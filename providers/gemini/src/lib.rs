@@ -215,7 +215,10 @@ impl<M, T: Transport> GeminiBuilder<M, BaseConfig, T> {
         }
     }
 
-    pub fn with_embeddings(self, dimensions: Option<usize>) -> GeminiBuilder<M, EmbeddingConfig, T> {
+    pub fn with_embeddings(
+        self,
+        dimensions: Option<usize>,
+    ) -> GeminiBuilder<M, EmbeddingConfig, T> {
         self.into_embedding().with_embeddings(dimensions)
     }
 }

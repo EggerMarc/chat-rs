@@ -116,11 +116,7 @@ impl ClaudeRequest {
                     }
                     PartEnum::Tool(tool) => {
                         let (fc, maybe_fr) = tool.to_tuple();
-                        let id = fc
-                            .id
-                            .as_ref()
-                            .map(|id| id.to_string())
-                            .unwrap_or_default();
+                        let id = fc.id.as_ref().map(|id| id.to_string()).unwrap_or_default();
                         assistant_blocks.push(json!({
                             "type": "tool_use",
                             "id": id,
@@ -129,11 +125,8 @@ impl ClaudeRequest {
                         }));
 
                         if let Some(fr) = maybe_fr {
-                            let tool_use_id = fr
-                                .id
-                                .as_ref()
-                                .map(|id| id.to_string())
-                                .unwrap_or_default();
+                            let tool_use_id =
+                                fr.id.as_ref().map(|id| id.to_string()).unwrap_or_default();
                             let content_val = if fr.result.is_string() {
                                 fr.result.as_str().unwrap().to_string()
                             } else {
@@ -199,31 +192,29 @@ impl ClaudeRequest {
         let mut tools_list: Vec<ClaudeTool> = Vec::new();
 
         if let Some(decls) = tool_declarations {
-            let value = decls
-                .json()
-                .map_err(|e| ChatError::Other(e.to_string()))?;
+            let value = decls.json().map_err(|e| ChatError::Other(e.to_string()))?;
             if let Value::Array(arr) = value {
                 for decl in arr {
-                let name = decl
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let description = decl
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let input_schema = decl
-                    .get("parameters")
-                    .cloned()
-                    .unwrap_or_else(|| json!({"type": "object"}));
+                    let name = decl
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    let description = decl
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    let input_schema = decl
+                        .get("parameters")
+                        .cloned()
+                        .unwrap_or_else(|| json!({"type": "object"}));
 
-                tools_list.push(ClaudeTool {
-                    name,
-                    description,
-                    input_schema,
-                });
+                    tools_list.push(ClaudeTool {
+                        name,
+                        description,
+                        input_schema,
+                    });
                 }
             }
         }

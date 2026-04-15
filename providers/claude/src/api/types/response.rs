@@ -51,10 +51,7 @@ pub struct ClaudeUsage {
 }
 
 impl ClaudeResponse {
-    pub fn into_core_chat_response(
-        self,
-        is_structured: bool,
-    ) -> Result<ChatResponse, ChatError> {
+    pub fn into_core_chat_response(self, is_structured: bool) -> Result<ChatResponse, ChatError> {
         let mut core_parts = Parts::default();
 
         for block in self.content {

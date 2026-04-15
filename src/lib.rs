@@ -47,7 +47,6 @@ pub mod gemini {
     pub use chat_gemini::*;
 }
 
-
 #[cfg(feature = "claude")]
 pub mod claude {
     pub use chat_claude::*;

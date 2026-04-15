@@ -164,10 +164,7 @@ fn tool_status_state_name_matches_variant() {
         "Rejected"
     );
     assert_eq!(
-        ToolStatus::Failed {
-            error: "".into()
-        }
-        .state_name(),
+        ToolStatus::Failed { error: "".into() }.state_name(),
         "Failed"
     );
 }

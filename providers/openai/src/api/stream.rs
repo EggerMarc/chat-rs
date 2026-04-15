@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use async_stream::try_stream;
-use futures::stream::BoxStream;
 use futures::StreamExt;
+use futures::stream::BoxStream;
 use serde::Deserialize;
 use serde_json::Value;
 use tools_rs::FunctionCall;
@@ -75,11 +75,7 @@ impl<T: Transport> StreamProvider for OpenAIClient<T> {
             body,
         };
 
-        let event_stream = self
-            .transport
-            .stream(req)
-            .await
-            .map_err(ChatError::from)?;
+        let event_stream = self.transport.stream(req).await.map_err(ChatError::from)?;
 
         Ok(parse_transport_event_stream(event_stream))
     }

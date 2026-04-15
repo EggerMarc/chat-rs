@@ -54,9 +54,7 @@ impl<T> ChatOutcome<T> {
         match self {
             ChatOutcome::Complete(v) => v,
             ChatOutcome::Paused { reason } => {
-                panic!(
-                    "expected chat loop to complete, but it paused: {reason:?}"
-                )
+                panic!("expected chat loop to complete, but it paused: {reason:?}")
             }
         }
     }

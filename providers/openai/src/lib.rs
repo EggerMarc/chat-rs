@@ -25,7 +25,12 @@ pub struct BaseConfig;
 pub struct CompletionConfig;
 pub struct EmbeddingConfig;
 
-pub struct OpenAIBuilder<M = WithoutModel, U = BaseEndpoint, C = BaseConfig, T: Transport = ReqwestTransport> {
+pub struct OpenAIBuilder<
+    M = WithoutModel,
+    U = BaseEndpoint,
+    C = BaseConfig,
+    T: Transport = ReqwestTransport,
+> {
     model_name: Option<String>,
     api_key: Option<String>,
     scheme: String,
@@ -341,4 +346,3 @@ impl<U, C, T: Transport> OpenAIBuilder<WithModel, U, C, T> {
         }
     }
 }
-

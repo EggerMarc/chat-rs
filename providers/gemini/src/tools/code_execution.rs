@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::tools::GeminiNativeTool;
 
@@ -63,4 +63,3 @@ impl GeminiNativeTool for CodeExecutionTool {
         Box::new(self.clone())
     }
 }
-

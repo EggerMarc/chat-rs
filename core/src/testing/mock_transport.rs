@@ -218,16 +218,19 @@ mod tests {
             body: vec![],
         };
         let err = transport.send(req).await.unwrap_err();
-        assert!(matches!(err, TransportError::Request { status: Some(429), .. }));
+        assert!(matches!(
+            err,
+            TransportError::Request {
+                status: Some(429),
+                ..
+            }
+        ));
     }
 
     #[tokio::test]
     async fn queues_multiple_responses_in_order() {
         let (transport, inspector) = MockTransport::new();
-        inspector.set_responses(vec![
-            (200, b"first".to_vec()),
-            (201, b"second".to_vec()),
-        ]);
+        inspector.set_responses(vec![(200, b"first".to_vec()), (201, b"second".to_vec())]);
 
         let req = || Request {
             scheme: "https".into(),

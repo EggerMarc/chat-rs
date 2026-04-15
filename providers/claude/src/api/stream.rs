@@ -21,10 +21,7 @@ use chat_core::{
 use serde_json::Value;
 use tools_rs::{CallId, FunctionCall};
 
-use crate::{
-    api::types::request::ClaudeRequest,
-    client::ClaudeClient,
-};
+use crate::{api::types::request::ClaudeRequest, client::ClaudeClient};
 
 const THINKING_BETA_HEADER: &str = "interleaved-thinking-2025-05-14";
 
@@ -67,11 +64,7 @@ impl<T: Transport> StreamProvider for ClaudeClient<T> {
             body,
         };
 
-        let event_stream = self
-            .transport
-            .stream(req)
-            .await
-            .map_err(ChatError::from)?;
+        let event_stream = self.transport.stream(req).await.map_err(ChatError::from)?;
 
         Ok(parse_claude_event_stream(event_stream))
     }

@@ -11,10 +11,7 @@ use chat_core::types::response::EmbeddingsResponse;
 #[async_trait::async_trait]
 impl<T: Transport> EmbeddingsProvider for GeminiClient<T> {
     async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure> {
-        let path = format!(
-            "{}/models/{}:embedContent",
-            self.base_path, self.model_name
-        );
+        let path = format!("{}/models/{}:embedContent", self.base_path, self.model_name);
 
         let request_body =
             GeminiEmbeddingRequest::from_core(messages, self.embeddings_config.as_ref())

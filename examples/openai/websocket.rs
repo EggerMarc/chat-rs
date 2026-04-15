@@ -14,8 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Use the async WebSocket transport instead of the default HTTP/SSE.
     // Authenticates once on the WS handshake; subsequent requests reuse
     // the connection with no per-request auth overhead.
-    let ws = AsyncWsTransport::new()
-        .with_message_type("response.create");
+    let ws = AsyncWsTransport::new().with_message_type("response.create");
 
     let client = OpenAIBuilder::new()
         .with_model("gpt-4o-mini")

@@ -1,10 +1,7 @@
 use async_stream::try_stream;
 use futures::StreamExt;
 
-use crate::transport::{
-    EventStream, Request, Response, Transport, TransportError,
-    sse::SseParser,
-};
+use crate::transport::{EventStream, Request, Response, Transport, TransportError, sse::SseParser};
 
 /// HTTP transport backed by [`reqwest`].
 ///

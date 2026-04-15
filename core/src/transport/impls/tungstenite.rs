@@ -2,11 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use futures::StreamExt;
 use tungstenite::client::IntoClientRequest;
-use tungstenite::{Message, WebSocket, connect};
 use tungstenite::stream::MaybeTlsStream;
+use tungstenite::{Message, WebSocket, connect};
 
-use crate::transport::{EventStream, Request, Response, Transport, TransportError};
 use super::common::{frame_to_event, is_terminal_event, wrap_ws_body, ws_url};
+use crate::transport::{EventStream, Request, Response, Transport, TransportError};
 
 type WsConn = WebSocket<MaybeTlsStream<std::net::TcpStream>>;
 
@@ -61,10 +61,7 @@ impl Default for WsTransport {
     }
 }
 
-fn connect_ws(
-    url: &str,
-    headers: &[(String, String)],
-) -> Result<WsConn, TransportError> {
+fn connect_ws(url: &str, headers: &[(String, String)]) -> Result<WsConn, TransportError> {
     let mut req = url
         .into_client_request()
         .map_err(|e| TransportError::Connection(e.to_string()))?;
@@ -74,8 +71,7 @@ fn connect_ws(
         req.headers_mut().insert(
             HeaderName::from_bytes(k.as_bytes())
                 .map_err(|e| TransportError::Connection(e.to_string()))?,
-            HeaderValue::from_str(v)
-                .map_err(|e| TransportError::Connection(e.to_string()))?,
+            HeaderValue::from_str(v).map_err(|e| TransportError::Connection(e.to_string()))?,
         );
     }
 
@@ -90,7 +86,9 @@ async fn ensure_connected(
     headers: &[(String, String)],
 ) -> Result<(), TransportError> {
     {
-        let guard = conn.lock().map_err(|e| TransportError::Connection(e.to_string()))?;
+        let guard = conn
+            .lock()
+            .map_err(|e| TransportError::Connection(e.to_string()))?;
         if guard.is_some() {
             return Ok(());
         }
@@ -100,10 +98,11 @@ async fn ensure_connected(
     let headers = headers.to_vec();
     let ws = tokio::task::spawn_blocking(move || connect_ws(&url, &headers))
         .await
-        .map_err(|e| TransportError::Connection(format!("spawn_blocking failed: {e}")))?
-        ?;
+        .map_err(|e| TransportError::Connection(format!("spawn_blocking failed: {e}")))??;
 
-    let mut guard = conn.lock().map_err(|e| TransportError::Connection(e.to_string()))?;
+    let mut guard = conn
+        .lock()
+        .map_err(|e| TransportError::Connection(e.to_string()))?;
     *guard = Some(ws);
     Ok(())
 }
@@ -112,13 +111,18 @@ fn send_and_collect(
     conn: &Mutex<Option<WsConn>>,
     text: String,
 ) -> Result<Response, TransportError> {
-    let mut guard = conn.lock().map_err(|e| TransportError::Connection(e.to_string()))?;
-    let ws = guard.as_mut().ok_or_else(|| {
-        TransportError::Connection("WebSocket not connected".to_string())
-    })?;
+    let mut guard = conn
+        .lock()
+        .map_err(|e| TransportError::Connection(e.to_string()))?;
+    let ws = guard
+        .as_mut()
+        .ok_or_else(|| TransportError::Connection("WebSocket not connected".to_string()))?;
 
     ws.send(Message::Text(text.into()))
-        .map_err(|e| TransportError::Request { status: None, message: e.to_string() })?;
+        .map_err(|e| TransportError::Request {
+            status: None,
+            message: e.to_string(),
+        })?;
 
     #[allow(unused_assignments)]
     let mut last_frame = None::<String>;
@@ -131,12 +135,16 @@ fn send_and_collect(
                     let event_type = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
                     if event_type == "error" {
-                        let msg = v.get("error")
+                        let msg = v
+                            .get("error")
                             .and_then(|e| e.get("message"))
                             .and_then(|m| m.as_str())
                             .unwrap_or("WebSocket error frame");
                         let status = v.get("status").and_then(|s| s.as_u64()).map(|s| s as u16);
-                        return Err(TransportError::Request { status, message: msg.to_string() });
+                        return Err(TransportError::Request {
+                            status,
+                            message: msg.to_string(),
+                        });
                     }
 
                     last_frame = Some(text);
@@ -152,7 +160,9 @@ fn send_and_collect(
                     "WebSocket closed before terminal event".to_string(),
                 ));
             }
-            Ok(Message::Ping(data)) => { let _ = ws.send(Message::Pong(data)); }
+            Ok(Message::Ping(data)) => {
+                let _ = ws.send(Message::Pong(data));
+            }
             Ok(_) => {}
             Err(e) => {
                 *guard = None;
@@ -175,19 +185,32 @@ fn stream_frames(
     text: String,
     tx: tokio::sync::mpsc::UnboundedSender<Result<String, TransportError>>,
 ) {
-    let send_err = |e: TransportError| { let _ = tx.send(Err(e)); };
+    let send_err = |e: TransportError| {
+        let _ = tx.send(Err(e));
+    };
 
     let mut guard = match conn.lock() {
         Ok(g) => g,
-        Err(e) => { send_err(TransportError::Connection(e.to_string())); return; }
+        Err(e) => {
+            send_err(TransportError::Connection(e.to_string()));
+            return;
+        }
     };
     let ws = match guard.as_mut() {
         Some(ws) => ws,
-        None => { send_err(TransportError::Connection("WebSocket not connected".to_string())); return; }
+        None => {
+            send_err(TransportError::Connection(
+                "WebSocket not connected".to_string(),
+            ));
+            return;
+        }
     };
 
     if let Err(e) = ws.send(Message::Text(text.into())) {
-        send_err(TransportError::Request { status: None, message: e.to_string() });
+        send_err(TransportError::Request {
+            status: None,
+            message: e.to_string(),
+        });
         return;
     }
 
@@ -196,18 +219,26 @@ fn stream_frames(
             Ok(Message::Text(text)) => {
                 let text = text.to_string();
                 let parsed = serde_json::from_str::<serde_json::Value>(&text).ok();
-                let event_type = parsed.as_ref()
+                let event_type = parsed
+                    .as_ref()
                     .and_then(|v| v.get("type")?.as_str())
                     .unwrap_or("");
 
                 if event_type == "error" {
-                    let status = parsed.as_ref().and_then(|v| v.get("status")?.as_u64()).map(|s| s as u16);
-                    let msg = parsed.as_ref()
+                    let status = parsed
+                        .as_ref()
+                        .and_then(|v| v.get("status")?.as_u64())
+                        .map(|s| s as u16);
+                    let msg = parsed
+                        .as_ref()
                         .and_then(|v| v.get("error")?.get("message")?.as_str())
                         .unwrap_or("WebSocket error frame")
                         .to_string();
                     *guard = None;
-                    send_err(TransportError::Request { status, message: msg });
+                    send_err(TransportError::Request {
+                        status,
+                        message: msg,
+                    });
                     return;
                 }
 
@@ -226,7 +257,9 @@ fn stream_frames(
                 ));
                 return;
             }
-            Ok(Message::Ping(data)) => { let _ = ws.send(Message::Pong(data)); }
+            Ok(Message::Ping(data)) => {
+                let _ = ws.send(Message::Pong(data));
+            }
             Ok(_) => {}
             Err(e) => {
                 *guard = None;
@@ -265,8 +298,8 @@ impl Transport for WsTransport {
 
         tokio::task::spawn_blocking(move || stream_frames(&conn, text, tx));
 
-        let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(rx)
-            .map(|result| match result {
+        let stream =
+            tokio_stream::wrappers::UnboundedReceiverStream::new(rx).map(|result| match result {
                 Ok(text) => frame_to_event(&text),
                 Err(e) => Err(e),
             });

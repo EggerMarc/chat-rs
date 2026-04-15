@@ -3,12 +3,12 @@ use std::sync::Arc;
 use async_stream::try_stream;
 use futures::{SinkExt, StreamExt};
 use tokio::sync::Mutex;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 
-use crate::transport::{EventStream, Request, Response, Transport, TransportError};
 use super::common::{frame_to_event, is_terminal_event, wrap_ws_body, ws_url};
+use crate::transport::{EventStream, Request, Response, Transport, TransportError};
 
 type WsConn = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
@@ -60,10 +60,7 @@ impl Default for AsyncWsTransport {
     }
 }
 
-async fn connect_ws(
-    url: &str,
-    headers: &[(String, String)],
-) -> Result<WsConn, TransportError> {
+async fn connect_ws(url: &str, headers: &[(String, String)]) -> Result<WsConn, TransportError> {
     let mut req = url
         .into_client_request()
         .map_err(|e| TransportError::Connection(e.to_string()))?;
@@ -73,8 +70,7 @@ async fn connect_ws(
         req.headers_mut().insert(
             HeaderName::from_bytes(k.as_bytes())
                 .map_err(|e| TransportError::Connection(e.to_string()))?,
-            HeaderValue::from_str(v)
-                .map_err(|e| TransportError::Connection(e.to_string()))?,
+            HeaderValue::from_str(v).map_err(|e| TransportError::Connection(e.to_string()))?,
         );
     }
 
@@ -106,13 +102,16 @@ impl Transport for AsyncWsTransport {
         let text = wrap_ws_body(req.body, self.message_type.as_deref())?;
 
         let mut guard = self.conn.lock().await;
-        let ws = guard.as_mut().ok_or_else(|| {
-            TransportError::Connection("WebSocket not connected".to_string())
-        })?;
+        let ws = guard
+            .as_mut()
+            .ok_or_else(|| TransportError::Connection("WebSocket not connected".to_string()))?;
 
         ws.send(Message::Text(text.into()))
             .await
-            .map_err(|e| TransportError::Request { status: None, message: e.to_string() })?;
+            .map_err(|e| TransportError::Request {
+                status: None,
+                message: e.to_string(),
+            })?;
 
         let mut last_frame = String::new();
 
@@ -124,12 +123,16 @@ impl Transport for AsyncWsTransport {
                         let event_type = v.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
                         if event_type == "error" {
-                            let msg = v.get("error")
+                            let msg = v
+                                .get("error")
                                 .and_then(|e| e.get("message"))
                                 .and_then(|m| m.as_str())
                                 .unwrap_or("WebSocket error frame");
                             let status = v.get("status").and_then(|s| s.as_u64()).map(|s| s as u16);
-                            return Err(TransportError::Request { status, message: msg.to_string() });
+                            return Err(TransportError::Request {
+                                status,
+                                message: msg.to_string(),
+                            });
                         }
 
                         last_frame = text;
@@ -175,14 +178,17 @@ impl Transport for AsyncWsTransport {
         // the lock for the entire duration. It's returned to the mutex
         // when the stream reaches a terminal event.
         let mut guard = self.conn.lock().await;
-        let mut ws = guard.take().ok_or_else(|| {
-            TransportError::Connection("WebSocket not connected".to_string())
-        })?;
+        let mut ws = guard
+            .take()
+            .ok_or_else(|| TransportError::Connection("WebSocket not connected".to_string()))?;
         drop(guard);
 
         ws.send(Message::Text(text.into()))
             .await
-            .map_err(|e| TransportError::Request { status: None, message: e.to_string() })?;
+            .map_err(|e| TransportError::Request {
+                status: None,
+                message: e.to_string(),
+            })?;
 
         let conn = Arc::clone(&self.conn);
 
