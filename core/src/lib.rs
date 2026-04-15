@@ -8,3 +8,6 @@ pub mod macros;
 pub mod types;
 
 pub(crate) mod utils;
+
+#[cfg(feature = "testing")]
+pub mod testing;

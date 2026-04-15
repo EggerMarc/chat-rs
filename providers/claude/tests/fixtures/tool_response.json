@@ -1,0 +1,19 @@
+{
+  "id": "msg_test_002",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_test_001",
+      "name": "get_weather",
+      "input": {
+        "location": "San Francisco"
+      }
+    }
+  ],
+  "model": "claude-sonnet-4-20250514",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 25,
+    "output_tokens": 18
+  }
+}

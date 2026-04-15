@@ -19,6 +19,11 @@ async-stream = { workspace = true, optional = true }
 schemars.workspace = true
 base64              = "0.22.1"
 
+[dev-dependencies]
+chat-core = { path = "../../core", version = "0.1.1", features = ["reqwest-transport", "testing"] }
+tokio.workspace = true
+serde_json.workspace = true
+
 [features]
 default = []
 stream = ["chat-core/stream", "dep:async-stream", "dep:futures"]
