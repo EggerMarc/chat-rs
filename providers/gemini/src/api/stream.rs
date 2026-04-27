@@ -43,6 +43,7 @@ impl<T: Transport> StreamProvider for GeminiClient<T> {
             options,
             None,
             self.include_thoughts,
+            self.response_modalities.as_deref(),
         )?;
 
         let body = serde_json::to_vec(&request_body)

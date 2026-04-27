@@ -140,6 +140,11 @@ path = "./examples/gemini/image_understanding.rs"
 required-features = ["gemini"]
 
 [[example]]
+name = "gemini-image-generation"
+path = "./examples/gemini/image_generation.rs"
+required-features = ["gemini"]
+
+[[example]]
 name = "retry"
 path = "./examples/retry.rs"
 required-features = ["gemini"]
@@ -192,6 +197,11 @@ required-features = ["openai"]
 [[example]]
 name = "openai-structured"
 path = "./examples/openai/structured.rs"
+required-features = ["openai"]
+
+[[example]]
+name = "openai-image-generation"
+path = "./examples/openai/image_generation.rs"
 required-features = ["openai"]
 
 [[example]]

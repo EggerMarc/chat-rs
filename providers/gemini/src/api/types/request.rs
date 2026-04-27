@@ -126,6 +126,8 @@ pub struct GeminiGenerationConfig {
     pub stop_sequences: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking_config: Option<GeminiThinkingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_modalities: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -154,6 +156,7 @@ impl GeminiRequest {
         options: Option<&ChatOptions>,
         output_shape: Option<&schemars::Schema>,
         include_thoughts: bool,
+        response_modalities: Option<&[String]>,
     ) -> Result<Self, ChatError> {
         let mut req = Self::default();
 
@@ -281,6 +284,10 @@ impl GeminiRequest {
             gen_config.thinking_config = Some(GeminiThinkingConfig {
                 include_thoughts: true,
             });
+        }
+
+        if let Some(modalities) = response_modalities {
+            gen_config.response_modalities = Some(modalities.to_vec());
         }
 
         if let Some(opts) = options {
