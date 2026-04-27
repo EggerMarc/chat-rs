@@ -18,6 +18,7 @@ futures = { workspace = true, optional = true }
 async-stream = { workspace = true, optional = true }
 schemars.workspace = true
 base64              = "0.22.1"
+tracing             = "0.1"
 
 [dev-dependencies]
 chat-core = { path = "../../core", version = "0.1.1", features = ["reqwest-transport", "testing"] }

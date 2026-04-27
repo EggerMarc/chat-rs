@@ -1,3 +1,4 @@
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chat_core::{
     error::ChatError,
     types::{
@@ -102,16 +103,20 @@ impl GeminiCompletionResponse {
                         }
                     }
 
-                    if let Some(inline) = part.inline_data
-                        && let Ok(bytes) = base64::Engine::decode(
-                            &base64::engine::general_purpose::STANDARD,
-                            &inline.data,
-                        )
-                    {
-                        let mime = inline
-                            .mime_type
-                            .unwrap_or_else(|| "application/octet-stream".to_string());
-                        core_parts.push(PartEnum::File(File::from_bytes_with_mime(bytes, mime)));
+                    if let Some(inline) = part.inline_data {
+                        match STANDARD.decode(&inline.data) {
+                            Ok(bytes) => {
+                                let mime = inline
+                                    .mime_type
+                                    .unwrap_or_else(|| "application/octet-stream".to_string());
+                                core_parts.push(PartEnum::File(
+                                    File::from_bytes_with_mime(bytes, mime),
+                                ));
+                            }
+                            Err(err) => {
+                                tracing::warn!(?err, "failed to decode Gemini inlineData");
+                            }
+                        }
                     }
 
                     if let Some(fc) = part.function_call {
