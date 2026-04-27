@@ -6,7 +6,7 @@ use chat_core::{
         messages::{
             Messages,
             content::{Content, RoleEnum},
-            file::File,
+            file::FileSource,
             parts::PartEnum,
         },
         options::ChatOptions,
@@ -16,6 +16,23 @@ use chat_core::{
 use schemars::Schema;
 use serde::Serialize;
 use serde_json::{Value, json};
+
+fn mime_to_ext(mime: &str) -> &'static str {
+    match mime {
+        "application/pdf" => "pdf",
+        "application/json" => "json",
+        "application/zip" => "zip",
+        "application/msword" => "doc",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "docx",
+        "application/vnd.ms-excel" => "xls",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "xlsx",
+        "text/plain" => "txt",
+        "text/csv" => "csv",
+        "text/html" => "html",
+        "text/markdown" => "md",
+        _ => "bin",
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub struct OpenAIEmbeddingRequest {
@@ -35,14 +52,16 @@ impl OpenAIEmbeddingRequest {
             match part {
                 PartEnum::Text(t) => parts.push(json!(t.0)),
                 PartEnum::Reasoning(r) => parts.push(json!(r.text)),
-                PartEnum::File(File::Bytes(b)) => {
-                    let b64 = STANDARD.encode(&b.bytes);
-                    let uri = format!("data:{};base64,{}", b.mimetype, b64);
-                    parts.push(json!(uri));
-                }
-                PartEnum::File(File::Url(u)) => {
-                    parts.push(json!(u.url.to_string()));
-                }
+                PartEnum::File(file) => match &file.source {
+                    FileSource::Bytes(bytes) => {
+                        let b64 = STANDARD.encode(bytes);
+                        let uri = format!("data:{};base64,{}", file.mime, b64);
+                        parts.push(json!(uri));
+                    }
+                    FileSource::Url(url) => {
+                        parts.push(json!(url.to_string()));
+                    }
+                },
                 _ => {}
             }
         }
@@ -292,19 +311,61 @@ fn content_to_input_items(content: &Content, items: &mut Vec<Value>) {
                     }));
                 }
             }
-            PartEnum::File(File::Url(u)) => {
-                message_parts.push(json!({
-                    "type": "input_image",
-                    "image_url": u.url.to_string(),
-                }));
-            }
-            PartEnum::File(File::Bytes(b)) => {
-                let b64 = STANDARD.encode(&b.bytes);
-                let uri = format!("data:{};base64,{}", b.mimetype, b64);
-                message_parts.push(json!({
-                    "type": "input_image",
-                    "image_url": uri,
-                }));
+            PartEnum::File(file) => {
+                // OpenAI accepts file_id references via meta["openai_file_id"].
+                // When present we short-circuit — the source payload (if any)
+                // is redundant because the provider already has the bytes.
+                let file_id = file.meta.get("openai_file_id").and_then(|v| v.as_str());
+                let part_type = if file.is_image() {
+                    "input_image"
+                } else {
+                    "input_file"
+                };
+
+                if let Some(id) = file_id {
+                    message_parts.push(json!({ "type": part_type, "file_id": id }));
+                    continue;
+                }
+
+                match &file.source {
+                    FileSource::Url(url) if file.is_image() => {
+                        message_parts.push(json!({
+                            "type": "input_image",
+                            "image_url": url.to_string(),
+                        }));
+                    }
+                    FileSource::Bytes(bytes) if file.is_image() => {
+                        let b64 = STANDARD.encode(bytes);
+                        let uri = format!("data:{};base64,{}", file.mime, b64);
+                        message_parts.push(json!({
+                            "type": "input_image",
+                            "image_url": uri,
+                        }));
+                    }
+                    FileSource::Url(url) => {
+                        message_parts.push(json!({
+                            "type": "input_file",
+                            "file_url": url.to_string(),
+                        }));
+                    }
+                    FileSource::Bytes(bytes) => {
+                        let b64 = STANDARD.encode(bytes);
+                        let filename = file
+                            .meta
+                            .get("filename")
+                            .and_then(|v| v.as_str())
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| {
+                                let ext = mime_to_ext(file.mime.as_str());
+                                format!("file.{ext}")
+                            });
+                        message_parts.push(json!({
+                            "type": "input_file",
+                            "filename": filename,
+                            "file_data": format!("data:{};base64,{}", file.mime, b64),
+                        }));
+                    }
+                }
             }
             PartEnum::Structured(_) | PartEnum::Embeddings(_) => {}
         }

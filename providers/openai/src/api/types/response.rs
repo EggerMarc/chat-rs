@@ -41,8 +41,20 @@ pub enum ResponsesOutputItem {
     Reasoning(ResponsesReasoning),
     #[serde(rename = "web_search_call")]
     WebSearchCall(ResponsesWebSearchCall),
+    #[serde(rename = "image_generation_call")]
+    ImageGenerationCall(ResponsesImageGenerationCall),
     #[serde(other)]
     Unknown,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ResponsesImageGenerationCall {
+    /// Base64-encoded image payload. Present when the model has produced a
+    /// finalised image; absent during intermediate status frames.
+    pub result: Option<String>,
+    /// Output format hint (e.g. `"png"`, `"jpeg"`). Used to synthesise a
+    /// mimetype when present.
+    pub output_format: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -158,6 +170,26 @@ pub fn output_items_to_parts(output: &[ResponsesOutputItem]) -> (Parts, bool) {
                     }
                 }
             }
+            ResponsesOutputItem::ImageGenerationCall(call) => {
+                if let Some(b64) = &call.result {
+                    match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64) {
+                        Ok(bytes) => {
+                            let mime = call
+                                .output_format
+                                .as_deref()
+                                .map(|fmt| format!("image/{fmt}"))
+                                .unwrap_or_else(|| "image/png".to_string());
+                            parts.push(PartEnum::File(File::from_bytes_with_mime(bytes, mime)));
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "openai: failed to decode image_generation_call result (output_format={:?}): {e}",
+                                call.output_format,
+                            );
+                        }
+                    }
+                }
+            }
             ResponsesOutputItem::WebSearchCall(_) | ResponsesOutputItem::Unknown => {}
         }
     }
@@ -259,5 +291,57 @@ impl OpenAIEmbeddingResponse {
             },
             metadata: Some(metadata),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chat_core::types::messages::file::FileSource;
+
+    #[test]
+    fn image_generation_call_decoded_to_file_image() {
+        // Tiny valid base64 payload ("hi").
+        let body = r#"{
+            "output": [
+                {
+                    "type": "image_generation_call",
+                    "id": "ig_1",
+                    "result": "aGk=",
+                    "output_format": "png",
+                    "status": "completed"
+                }
+            ]
+        }"#;
+
+        let resp: ResponsesApiResponse = serde_json::from_str(body).unwrap();
+        let (parts, _) = output_items_to_parts(&resp.output);
+
+        let file = parts
+            .into_iter()
+            .find_map(|p| match p {
+                PartEnum::File(f) => Some(f),
+                _ => None,
+            })
+            .expect("expected a File part");
+
+        assert!(file.is_image());
+        assert_eq!(file.mime.as_str(), "image/png");
+        match file.source {
+            FileSource::Bytes(bytes) => assert_eq!(bytes, b"hi"),
+            other => panic!("expected Bytes source, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn image_generation_call_without_result_is_skipped() {
+        let body = r#"{
+            "output": [
+                { "type": "image_generation_call", "id": "ig_1", "status": "in_progress" }
+            ]
+        }"#;
+        let resp: ResponsesApiResponse = serde_json::from_str(body).unwrap();
+        let (parts, _) = output_items_to_parts(&resp.output);
+        assert!(parts.is_empty());
     }
 }

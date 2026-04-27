@@ -13,6 +13,10 @@ use crate::tools::{
     web_search::WebSearchTool,
 };
 
+pub use crate::tools::image_generation::{
+    ImageBackground, ImageGenerationTool, ImageOutputFormat, ImageQuality, ImageSize,
+};
+
 pub use chat_core::transport::ReqwestTransport;
 
 pub struct WithoutModel;
@@ -207,6 +211,13 @@ impl<M, T: Transport> OpenAIBuilder<M, BaseEndpoint, BaseConfig, T> {
         self.into_completion()
             .with_web_search(context_size, user_location)
     }
+
+    pub fn with_image_generation(
+        self,
+        tool: ImageGenerationTool,
+    ) -> OpenAIBuilder<M, BaseEndpoint, CompletionConfig, T> {
+        self.into_completion().with_image_generation(tool)
+    }
 }
 
 impl<M, T: Transport> OpenAIBuilder<M, CustomEndpoint, BaseConfig, T> {
@@ -244,6 +255,13 @@ impl<M, T: Transport> OpenAIBuilder<M, CustomEndpoint, BaseConfig, T> {
         self.into_completion()
             .with_web_search(context_size, user_location)
     }
+
+    pub fn with_image_generation(
+        self,
+        tool: ImageGenerationTool,
+    ) -> OpenAIBuilder<M, CustomEndpoint, CompletionConfig, T> {
+        self.into_completion().with_image_generation(tool)
+    }
 }
 
 impl<M, T: Transport> OpenAIBuilder<M, BaseEndpoint, CompletionConfig, T> {
@@ -261,6 +279,11 @@ impl<M, T: Transport> OpenAIBuilder<M, BaseEndpoint, CompletionConfig, T> {
             context_size,
             user_location,
         }));
+        self
+    }
+
+    pub fn with_image_generation(mut self, tool: ImageGenerationTool) -> Self {
+        self.native_tools.push(Box::new(tool));
         self
     }
 }
@@ -286,6 +309,14 @@ impl<M, T: Transport> OpenAIBuilder<M, CustomEndpoint, CompletionConfig, T> {
             context_size,
             user_location,
         }));
+        self
+    }
+
+    pub fn with_image_generation(mut self, tool: ImageGenerationTool) -> Self {
+        eprintln!(
+            "WARNING: 'image_generation' is an OpenAI-specific native tool. Custom endpoints may reject this request."
+        );
+        self.native_tools.push(Box::new(tool));
         self
     }
 }

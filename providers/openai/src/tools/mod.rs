@@ -1,3 +1,4 @@
+pub(crate) mod image_generation;
 pub(crate) mod web_search;
 
 use serde_json::Value;

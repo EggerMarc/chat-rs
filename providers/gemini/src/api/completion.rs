@@ -33,6 +33,7 @@ impl<T: Transport> CompletionProvider for GeminiClient<T> {
             options,
             structured_output,
             self.include_thoughts,
+            self.response_modalities.as_deref(),
         )
         .map_err(ChatFailure::from_err)?;
 

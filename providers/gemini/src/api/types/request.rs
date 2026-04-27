@@ -1,7 +1,7 @@
 use chat_core::{
     error::ChatError,
     types::{
-        messages::{Messages, content::RoleEnum, file::File, parts::PartEnum},
+        messages::{Messages, content::RoleEnum, file::FileSource, parts::PartEnum},
         options::ChatOptions,
         tools::ToolDeclarations,
     },
@@ -126,6 +126,8 @@ pub struct GeminiGenerationConfig {
     pub stop_sequences: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking_config: Option<GeminiThinkingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_modalities: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -154,6 +156,7 @@ impl GeminiRequest {
         options: Option<&ChatOptions>,
         output_shape: Option<&schemars::Schema>,
         include_thoughts: bool,
+        response_modalities: Option<&[String]>,
     ) -> Result<Self, ChatError> {
         let mut req = Self::default();
 
@@ -207,18 +210,18 @@ impl GeminiRequest {
                     }
                     PartEnum::File(file) => {
                         let mut gp = GeminiPart::default();
-                        match file {
-                            File::Bytes(raw_data) => {
-                                let encoded_data = STANDARD.encode(&raw_data.bytes);
+                        match &file.source {
+                            FileSource::Bytes(bytes) => {
+                                let encoded_data = STANDARD.encode(bytes);
                                 gp.inline_data = Some(GeminiInlineData {
-                                    mime_type: Some(raw_data.mimetype.to_string()),
+                                    mime_type: Some(file.mime.to_string()),
                                     data: encoded_data,
                                 });
                             }
-                            File::Url(url_data) => {
+                            FileSource::Url(url) => {
                                 gp.file_data = Some(GeminiFileData {
-                                    file_uri: url_data.url.to_string(),
-                                    mime_type: url_data.mimetype.as_ref().map(|m| m.to_string()),
+                                    file_uri: url.to_string(),
+                                    mime_type: Some(file.mime.to_string()),
                                 });
                             }
                         }
@@ -281,6 +284,10 @@ impl GeminiRequest {
             gen_config.thinking_config = Some(GeminiThinkingConfig {
                 include_thoughts: true,
             });
+        }
+
+        if let Some(modalities) = response_modalities {
+            gen_config.response_modalities = Some(modalities.to_vec());
         }
 
         if let Some(opts) = options {

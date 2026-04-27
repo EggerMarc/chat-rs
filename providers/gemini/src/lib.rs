@@ -32,6 +32,7 @@ pub struct GeminiBuilder<M = WithoutModel, C = BaseConfig, T: Transport = Reqwes
     function_config: Option<GeminiFunctionCallingConfig>,
     embeddings_config: Option<GeminiEmbeddingsConfig>,
     include_thoughts: bool,
+    response_modalities: Option<Vec<String>>,
     transport: Option<T>,
     meta: ProviderMeta,
     _m: PhantomData<M>,
@@ -53,6 +54,7 @@ impl GeminiBuilder<WithoutModel, BaseConfig, ReqwestTransport> {
             function_config: None,
             embeddings_config: None,
             include_thoughts: false,
+            response_modalities: None,
             transport: Some(ReqwestTransport::default()),
             meta: ProviderMeta::default(),
             _m: PhantomData,
@@ -90,6 +92,7 @@ impl<M, C, T: Transport> GeminiBuilder<M, C, T> {
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
             include_thoughts: self.include_thoughts,
+            response_modalities: self.response_modalities,
             transport: Some(transport),
             meta: self.meta,
             _m: PhantomData,
@@ -107,6 +110,7 @@ impl<C, T: Transport> GeminiBuilder<WithoutModel, C, T> {
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
             include_thoughts: self.include_thoughts,
+            response_modalities: self.response_modalities,
             transport: self.transport,
             meta: self.meta,
             _m: PhantomData,
@@ -124,6 +128,7 @@ impl<M, T: Transport> GeminiBuilder<M, BaseConfig, T> {
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
             include_thoughts: self.include_thoughts,
+            response_modalities: self.response_modalities,
             transport: self.transport,
             meta: self.meta,
             _m: PhantomData,
@@ -141,6 +146,11 @@ impl<M, T: Transport> GeminiBuilder<M, BaseConfig, T> {
 
     pub fn with_thoughts(mut self, include: bool) -> Self {
         self.include_thoughts = include;
+        self
+    }
+
+    pub fn with_image_output(mut self) -> Self {
+        self.response_modalities = Some(vec!["TEXT".to_string(), "IMAGE".to_string()]);
         self
     }
 
@@ -208,6 +218,7 @@ impl<M, T: Transport> GeminiBuilder<M, BaseConfig, T> {
             function_config: None,
             embeddings_config: self.embeddings_config,
             include_thoughts: false,
+            response_modalities: None,
             transport: self.transport,
             meta: self.meta,
             _m: PhantomData,
@@ -256,6 +267,7 @@ impl<C, T: Transport> GeminiBuilder<WithModel, C, T> {
             function_config: self.function_config,
             embeddings_config: self.embeddings_config,
             include_thoughts: self.include_thoughts,
+            response_modalities: self.response_modalities,
             meta: self.meta,
         }
     }
