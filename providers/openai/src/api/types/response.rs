@@ -171,18 +171,23 @@ pub fn output_items_to_parts(output: &[ResponsesOutputItem]) -> (Parts, bool) {
                 }
             }
             ResponsesOutputItem::ImageGenerationCall(call) => {
-                if let Some(b64) = &call.result
-                    && let Ok(bytes) = base64::Engine::decode(
-                        &base64::engine::general_purpose::STANDARD,
-                        b64,
-                    )
-                {
-                    let mime = call
-                        .output_format
-                        .as_deref()
-                        .map(|fmt| format!("image/{fmt}"))
-                        .unwrap_or_else(|| "image/png".to_string());
-                    parts.push(PartEnum::File(File::from_bytes_with_mime(bytes, mime)));
+                if let Some(b64) = &call.result {
+                    match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64) {
+                        Ok(bytes) => {
+                            let mime = call
+                                .output_format
+                                .as_deref()
+                                .map(|fmt| format!("image/{fmt}"))
+                                .unwrap_or_else(|| "image/png".to_string());
+                            parts.push(PartEnum::File(File::from_bytes_with_mime(bytes, mime)));
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "openai: failed to decode image_generation_call result (output_format={:?}): {e}",
+                                call.output_format,
+                            );
+                        }
+                    }
                 }
             }
             ResponsesOutputItem::WebSearchCall(_) | ResponsesOutputItem::Unknown => {}

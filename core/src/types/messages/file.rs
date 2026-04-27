@@ -156,13 +156,16 @@ mod tests {
     fn meta_null_is_omitted_on_serialize() {
         let file = File::from_bytes_with_mime(b"x".to_vec(), "image/png");
         let json = serde_json::to_string(&file).unwrap();
-        assert!(!json.contains("meta"), "null meta should be skipped: {json}");
+        assert!(
+            !json.contains("meta"),
+            "null meta should be skipped: {json}"
+        );
     }
 
     #[test]
     fn serde_roundtrip_with_meta() {
-        let file = File::from_bytes_with_mime(b"hi".to_vec(), "image/png")
-            .with_meta(json!({ "k": 1 }));
+        let file =
+            File::from_bytes_with_mime(b"hi".to_vec(), "image/png").with_meta(json!({ "k": 1 }));
         let s = serde_json::to_string(&file).unwrap();
         let back: File = serde_json::from_str(&s).unwrap();
         assert_eq!(file, back);

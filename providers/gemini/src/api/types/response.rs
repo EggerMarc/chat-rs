@@ -111,8 +111,7 @@ impl GeminiCompletionResponse {
                         let mime = inline
                             .mime_type
                             .unwrap_or_else(|| "application/octet-stream".to_string());
-                        core_parts
-                            .push(PartEnum::File(File::from_bytes_with_mime(bytes, mime)));
+                        core_parts.push(PartEnum::File(File::from_bytes_with_mime(bytes, mime)));
                     }
 
                     if let Some(fc) = part.function_call {

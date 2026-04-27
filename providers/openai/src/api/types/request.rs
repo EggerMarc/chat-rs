@@ -17,6 +17,23 @@ use schemars::Schema;
 use serde::Serialize;
 use serde_json::{Value, json};
 
+fn mime_to_ext(mime: &str) -> &'static str {
+    match mime {
+        "application/pdf" => "pdf",
+        "application/json" => "json",
+        "application/zip" => "zip",
+        "application/msword" => "doc",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "docx",
+        "application/vnd.ms-excel" => "xls",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "xlsx",
+        "text/plain" => "txt",
+        "text/csv" => "csv",
+        "text/html" => "html",
+        "text/markdown" => "md",
+        _ => "bin",
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct OpenAIEmbeddingRequest {
     pub model: String,
@@ -298,10 +315,7 @@ fn content_to_input_items(content: &Content, items: &mut Vec<Value>) {
                 // OpenAI accepts file_id references via meta["openai_file_id"].
                 // When present we short-circuit — the source payload (if any)
                 // is redundant because the provider already has the bytes.
-                let file_id = file
-                    .meta
-                    .get("openai_file_id")
-                    .and_then(|v| v.as_str());
+                let file_id = file.meta.get("openai_file_id").and_then(|v| v.as_str());
                 let part_type = if file.is_image() {
                     "input_image"
                 } else {
@@ -336,9 +350,18 @@ fn content_to_input_items(content: &Content, items: &mut Vec<Value>) {
                     }
                     FileSource::Bytes(bytes) => {
                         let b64 = STANDARD.encode(bytes);
+                        let filename = file
+                            .meta
+                            .get("filename")
+                            .and_then(|v| v.as_str())
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| {
+                                let ext = mime_to_ext(file.mime.as_str());
+                                format!("file.{ext}")
+                            });
                         message_parts.push(json!({
                             "type": "input_file",
-                            "filename": "file",
+                            "filename": filename,
                             "file_data": format!("data:{};base64,{}", file.mime, b64),
                         }));
                     }
