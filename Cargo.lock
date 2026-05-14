@@ -175,6 +175,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat-completions"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "base64",
+ "chat-core",
+ "futures",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tools-rs",
+ "url",
+]
+
+[[package]]
 name = "chat-core"
 version = "0.1.1"
 dependencies = [
@@ -247,6 +264,7 @@ version = "0.1.1"
 dependencies = [
  "async-trait",
  "chat-claude",
+ "chat-completions",
  "chat-core",
  "chat-gemini",
  "chat-openai",

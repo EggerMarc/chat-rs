@@ -42,6 +42,11 @@ pub use chat_core::{
     types::response::StreamEvent,
 };
 
+#[cfg(feature = "completions")]
+pub mod completions {
+    pub use chat_completions::*;
+}
+
 #[cfg(feature = "gemini")]
 pub mod gemini {
     pub use chat_gemini::*;
@@ -68,6 +73,9 @@ pub mod prelude {
     pub use crate::types;
     pub use crate::{ChatError, ChatFailure};
     pub use crate::{CompletionProvider, EmbeddingsProvider};
+
+    #[cfg(feature = "completions")]
+    pub use crate::completions;
 
     #[cfg(feature = "gemini")]
     pub use crate::gemini;
