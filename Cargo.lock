@@ -231,6 +231,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat-huggingface"
+version = "0.1.0"
+dependencies = [
+ "chat-completions",
+ "chat-core",
+ "tokio",
+]
+
+[[package]]
 name = "chat-ollama"
 version = "0.1.0"
 dependencies = [
@@ -279,6 +288,7 @@ dependencies = [
  "chat-completions",
  "chat-core",
  "chat-gemini",
+ "chat-huggingface",
  "chat-ollama",
  "chat-openai",
  "chat-router",

@@ -67,6 +67,11 @@ pub mod ollama {
     pub use chat_ollama::*;
 }
 
+#[cfg(feature = "huggingface")]
+pub mod huggingface {
+    pub use chat_huggingface::*;
+}
+
 #[cfg(feature = "router")]
 pub mod router {
     pub use chat_router::*;
@@ -93,6 +98,9 @@ pub mod prelude {
 
     #[cfg(feature = "ollama")]
     pub use crate::ollama;
+
+    #[cfg(feature = "huggingface")]
+    pub use crate::huggingface;
 
     #[cfg(feature = "router")]
     pub use crate::router;

@@ -8,6 +8,7 @@ members = [
     "providers/claude",
     "providers/openai",
     "providers/ollama",
+    "providers/huggingface",
     "providers/router",
 ]
 
@@ -60,6 +61,7 @@ chat-gemini      = { path = "providers/gemini", version = "0.1.1", optional = tr
 chat-openai      = { path = "providers/openai", version = "0.1.1", optional = true }
 chat-claude      = { path = "providers/claude", version = "0.1.1", optional = true }
 chat-ollama      = { path = "providers/ollama", version = "0.1.0", optional = true }
+chat-huggingface = { path = "providers/huggingface", version = "0.1.0", optional = true }
 chat-router      = { path = "providers/router", version = "0.1.1", optional = true }
 tokio.workspace = true
 schemars.workspace = true
@@ -94,8 +96,9 @@ gemini = ["dep:chat-gemini"]
 claude = ["dep:chat-claude"]
 openai = ["dep:chat-openai"]
 ollama = ["dep:chat-ollama", "dep:chat-completions"]
+huggingface = ["dep:chat-huggingface", "dep:chat-completions"]
 router = ["dep:chat-router"]
-stream = ["chat-core/stream", "chat-completions?/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-ollama?/stream", "chat-router?/stream"]
+stream = ["chat-core/stream", "chat-completions?/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-ollama?/stream", "chat-huggingface?/stream", "chat-router?/stream"]
 tungstenite = ["chat-core/tungstenite"]
 tokio-tungstenite = ["chat-core/tokio-tungstenite"]
 
@@ -134,6 +137,16 @@ required-features = ["ollama"]
 name = "ollama-pull"
 path = "./examples/ollama/pull.rs"
 required-features = ["ollama"]
+
+[[example]]
+name = "huggingface-completion"
+path = "./examples/huggingface/completion.rs"
+required-features = ["huggingface"]
+
+[[example]]
+name = "huggingface-stream"
+path = "./examples/huggingface/stream.rs"
+required-features = ["huggingface", "stream"]
 
 [[example]]
 name = "gemini-structured"
