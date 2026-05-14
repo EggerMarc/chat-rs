@@ -7,7 +7,7 @@ A multi-provider LLM framework for Rust. Build type-safe chat clients with tool 
 
 ## Features
 
-- **Multi-provider** — Gemini, Claude, OpenAI, and Router today, more coming (see [Roadmap](ROADMAP.md))
+- **Multi-provider** — Gemini, Claude, OpenAI, Ollama, Hugging Face, Cerebras, generic OpenAI-compatible servers, and Router today, more coming (see [Roadmap](ROADMAP.md))
 - **Router** — route requests across multiple providers with fallback and custom strategies (keyword, embedding, capability-based)
 - **Type-safe builder** — compile-time enforcement of valid configurations via type-state pattern
 - **Tool calling** — define tools with `#[tool]`, the framework handles the call loop automatically
@@ -52,11 +52,15 @@ Enable providers via feature flags:
 
 ```toml
 # Pick one or more
-chat-rs = { version = "0.1.1", features = ["gemini"] }
-chat-rs = { version = "0.1.1", features = ["claude"] }
-chat-rs = { version = "0.1.1", features = ["openai"] }
-chat-rs = { version = "0.1.1", features = ["router", "gemini", "claude"] }
-chat-rs = { version = "0.1.1", features = ["gemini", "claude", "openai", "stream"] }
+chat-rs = { version = "0.1.2", features = ["gemini"] }
+chat-rs = { version = "0.1.2", features = ["claude"] }
+chat-rs = { version = "0.1.2", features = ["openai"] }
+chat-rs = { version = "0.1.2", features = ["ollama"] }
+chat-rs = { version = "0.1.2", features = ["huggingface"] }
+chat-rs = { version = "0.1.2", features = ["cerebras"] }
+chat-rs = { version = "0.1.2", features = ["completions"] }
+chat-rs = { version = "0.1.2", features = ["router", "gemini", "claude"] }
+chat-rs = { version = "0.1.2", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
 | Provider | Feature | API Key Env Var | Builder |
@@ -64,7 +68,13 @@ chat-rs = { version = "0.1.1", features = ["gemini", "claude", "openai", "stream
 | Google Gemini | `gemini` | `GEMINI_API_KEY` | `GeminiBuilder` |
 | Anthropic Claude | `claude` | `CLAUDE_API_KEY` | `ClaudeBuilder` |
 | OpenAI | `openai` | `OPENAI_API_KEY` | `OpenAIBuilder` |
+| Ollama (local) | `ollama` | — (optional) | `OllamaBuilder` |
+| Hugging Face Router | `huggingface` | `HF_TOKEN` | `HuggingFaceBuilder` |
+| Cerebras | `cerebras` | `CEREBRAS_API_KEY` | `CerebrasBuilder` |
+| Generic OAI-compat | `completions` | depends on server | `ChatCompletionsBuilder` |
 | Router | `router` | — | `RouterBuilder` |
+
+The `ollama`, `huggingface`, `cerebras`, and `completions` providers all share the same Chat Completions wire spec, factored into the `chat-completions` crate. Bring-your-own server (vLLM, llama.cpp, LiteLLM, etc.) via the generic `ChatCompletionsBuilder`.
 
 Swapping providers is a one-line change — replace the builder, everything else stays the same:
 
@@ -82,6 +92,29 @@ let client = ClaudeBuilder::new()
 // OpenAI
 let client = OpenAIBuilder::new()
     .with_model("gpt-4o")
+    .build();
+
+// Ollama (local) — pulls the model if missing, then builds
+let client = OllamaBuilder::new()
+    .with_model("llama3.2")
+    .pull().await?
+    .build();
+
+// Hugging Face Inference Providers
+let client = HuggingFaceBuilder::new()
+    .with_model("openai/gpt-oss-120b:fastest")
+    .build();
+
+// Cerebras
+let client = CerebrasBuilder::new()
+    .with_model("llama-3.3-70b")
+    .build();
+
+// Bring-your-own OpenAI-compatible server (vLLM, llama.cpp, LiteLLM, ...)
+let client = ChatCompletionsBuilder::new()
+    .with_base_url("http://localhost:8000/v1")
+    .with_model("my-model")
+    .with_api_key("sk-...")
     .build();
 
 // Same from here on
@@ -267,17 +300,25 @@ let client = OpenAIBuilder::new()
 
 ## OpenAI-Compatible Endpoints
 
-Use local or proxy servers that implement the OpenAI Responses API:
+For any server speaking the OpenAI Chat Completions wire spec (vLLM, llama.cpp's `llama-server`, LiteLLM, etc.), use `ChatCompletionsBuilder` directly:
 
 ```rust
-let client = OpenAIBuilder::new()
-    .with_model("llama3")
-    .with_custom_url("http://localhost:11434/v1".to_string())
-    .with_api_key("ollama".to_string())
+use chat_rs::completions::ChatCompletionsBuilder;
+
+let client = ChatCompletionsBuilder::new()
+    .with_base_url("http://localhost:8000/v1")
+    .with_model("my-model")
+    .with_api_key("sk-...")  // optional — omit for servers that don't require auth
     .build();
 ```
 
-> **Note:** The custom endpoint must support the Responses API format (`POST /responses`), not the Chat Completions API.
+Dedicated wrappers preset URL/env-var/auth for popular targets:
+
+- **Ollama** — `OllamaBuilder` defaults to `http://localhost:11434/v1`, honors `OLLAMA_HOST`, supports `.pull()` to fetch a model via Ollama's native API.
+- **Hugging Face Router** — `HuggingFaceBuilder` defaults to `https://router.huggingface.co/v1`, reads `HF_TOKEN`.
+- **Cerebras** — `CerebrasBuilder` defaults to `https://api.cerebras.ai/v1`, reads `CEREBRAS_API_KEY`.
+
+`OpenAIBuilder::with_custom_url()` also exists for endpoints implementing the OpenAI **Responses API** (`POST /responses`), which is a different wire format from Chat Completions.
 
 ## Router
 
@@ -395,14 +436,22 @@ Transport implementations live in `core/src/transport/impls/`. See [`core/AGENTS
 chat-rs (root)              ← Re-exports + feature flags
 ├── core/                   ← Traits, types, Chat engine, builder, Transport trait + impls
 ├── providers/
+│   ├── completions/        ← Generic OpenAI Chat Completions wire (`ChatCompletionsBuilder`)
 │   ├── gemini/             ← Google Gemini provider
 │   ├── claude/             ← Anthropic Claude provider
 │   ├── openai/             ← OpenAI Responses API provider
+│   ├── ollama/             ← Ollama wrapper (local daemon, pull/ping)
+│   ├── huggingface/        ← Hugging Face Inference Providers (Router)
+│   ├── cerebras/           ← Cerebras Inference
 │   └── router/             ← Multi-provider router
 └── examples/
+    ├── completions/        ← Generic OAI-compat examples
     ├── gemini/             ← Gemini examples
     ├── claude/             ← Claude examples
     ├── openai/             ← OpenAI examples
+    ├── ollama/             ← Ollama examples
+    ├── huggingface/        ← Hugging Face examples
+    ├── cerebras/           ← Cerebras examples
     └── router/             ← Router strategy examples
 ```
 
@@ -441,6 +490,25 @@ cargo run --example router-keyword --features router,gemini,claude
 cargo run --example router-embeddings --features router,gemini,claude
 cargo run --example router-capability --features router,gemini,claude
 cargo run --example router-stream --features router,gemini,claude,stream
+
+# Ollama (local)
+cargo run --example ollama-completion --features ollama
+cargo run --example ollama-stream --features ollama,stream
+cargo run --example ollama-tools --features ollama
+cargo run --example ollama-structured --features ollama
+cargo run --example ollama-embeddings --features ollama
+cargo run --example ollama-pull --features ollama
+
+# Hugging Face
+cargo run --example huggingface-completion --features huggingface
+cargo run --example huggingface-stream --features huggingface,stream
+
+# Cerebras
+cargo run --example cerebras-completion --features cerebras
+cargo run --example cerebras-stream --features cerebras,stream
+
+# Generic OpenAI-compatible server
+cargo run --example completions-completion --features completions
 
 # Retry strategies
 cargo run --example retry --features gemini

@@ -9,6 +9,16 @@ All provider crates live under `providers/`. Each implements the core traits (`C
 | `chat-gemini` | `providers/gemini` | `GEMINI_API_KEY` | Gemini `generateContent` / `embedContent` |
 | `chat-claude` | `providers/claude` | `CLAUDE_API_KEY` | Anthropic Messages API (`/v1/messages`) |
 | `chat-openai` | `providers/openai` | `OPENAI_API_KEY` | OpenAI Responses API (`/v1/responses`) |
+| `chat-completions` | `providers/completions` | depends on server | Generic OpenAI Chat Completions (`/v1/chat/completions`) — base for OAI-compat wrappers |
+| `chat-ollama` | `providers/ollama` | — (optional) | Wraps `chat-completions`; adds Ollama's native `/api/pull` and `OLLAMA_HOST` defaults |
+| `chat-huggingface` | `providers/huggingface` | `HF_TOKEN` | Wraps `chat-completions` for HF Inference Providers Router (`https://router.huggingface.co/v1`) |
+| `chat-cerebras` | `providers/cerebras` | `CEREBRAS_API_KEY` | Wraps `chat-completions` for Cerebras Inference (`https://api.cerebras.ai/v1`) |
+
+### Wire-spec crates vs provider wrappers
+
+`chat-completions` is a **wire-spec crate**: it owns the Chat Completions request/response types, SSE event handling, and an endpoint-agnostic `ChatCompletionsBuilder` users can point at any OAI-compatible server. Provider crates (`chat-ollama`, `chat-huggingface`, `chat-cerebras`) are **thin wrappers** that preset URL defaults, env vars, auth, and any provider-specific niceties (e.g. Ollama's `.pull()`).
+
+A symmetric `chat-responses` wire crate is planned for the OpenAI Responses API, extracted from `chat-openai`. Once it lands, providers that support both surfaces (Groq, future) get a `.with_responses()` / `.with_completions()` toggle on their builder.
 
 ## Common Architecture
 
