@@ -1,10 +1,12 @@
 [package]
-name = "chat-gemini"
-version = "0.1.2"
-description = "Provider implementation of Gemini for chat-rs"
+name = "chat-completions"
+version = "0.1.0"
+description = "Generic OpenAI-compatible Chat Completions client for chat-rs. Bring your own server (Ollama, vLLM, llama.cpp, LiteLLM, etc.)."
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
 
 
 [dependencies]
@@ -17,11 +19,11 @@ tools-rs.workspace = true
 futures = { workspace = true, optional = true }
 async-stream = { workspace = true, optional = true }
 schemars.workspace = true
+url.workspace = true
 base64              = "0.22.1"
-tracing             = "0.1"
 
 [dev-dependencies]
-chat-core = { path = "../../core", version = "0.1.2", features = ["reqwest-transport", "testing"] }
+chat-core = { path = "../../core", version = "0.1.2", features = ["reqwest-transport"] }
 tokio.workspace = true
 serde_json.workspace = true
 

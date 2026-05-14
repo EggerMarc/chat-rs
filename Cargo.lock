@@ -159,8 +159,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "chat-cerebras"
+version = "0.1.0"
+dependencies = [
+ "chat-completions",
+ "chat-core",
+ "tokio",
+]
+
+[[package]]
 name = "chat-claude"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -175,8 +184,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat-completions"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "base64",
+ "chat-core",
+ "futures",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tools-rs",
+ "url",
+]
+
+[[package]]
 name = "chat-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -198,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "chat-gemini"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -214,8 +240,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat-huggingface"
+version = "0.1.0"
+dependencies = [
+ "chat-completions",
+ "chat-core",
+ "tokio",
+]
+
+[[package]]
+name = "chat-ollama"
+version = "0.1.0"
+dependencies = [
+ "chat-completions",
+ "chat-core",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "chat-openai"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -243,12 +290,16 @@ dependencies = [
 
 [[package]]
 name = "chat-rs"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-trait",
+ "chat-cerebras",
  "chat-claude",
+ "chat-completions",
  "chat-core",
  "chat-gemini",
+ "chat-huggingface",
+ "chat-ollama",
  "chat-openai",
  "chat-router",
  "dotenvy",

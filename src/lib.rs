@@ -42,6 +42,11 @@ pub use chat_core::{
     types::response::StreamEvent,
 };
 
+#[cfg(feature = "completions")]
+pub mod completions {
+    pub use chat_completions::*;
+}
+
 #[cfg(feature = "gemini")]
 pub mod gemini {
     pub use chat_gemini::*;
@@ -57,6 +62,21 @@ pub mod openai {
     pub use chat_openai::*;
 }
 
+#[cfg(feature = "ollama")]
+pub mod ollama {
+    pub use chat_ollama::*;
+}
+
+#[cfg(feature = "huggingface")]
+pub mod huggingface {
+    pub use chat_huggingface::*;
+}
+
+#[cfg(feature = "cerebras")]
+pub mod cerebras {
+    pub use chat_cerebras::*;
+}
+
 #[cfg(feature = "router")]
 pub mod router {
     pub use chat_router::*;
@@ -69,6 +89,9 @@ pub mod prelude {
     pub use crate::{ChatError, ChatFailure};
     pub use crate::{CompletionProvider, EmbeddingsProvider};
 
+    #[cfg(feature = "completions")]
+    pub use crate::completions;
+
     #[cfg(feature = "gemini")]
     pub use crate::gemini;
 
@@ -77,6 +100,15 @@ pub mod prelude {
 
     #[cfg(feature = "openai")]
     pub use crate::openai;
+
+    #[cfg(feature = "ollama")]
+    pub use crate::ollama;
+
+    #[cfg(feature = "huggingface")]
+    pub use crate::huggingface;
+
+    #[cfg(feature = "cerebras")]
+    pub use crate::cerebras;
 
     #[cfg(feature = "router")]
     pub use crate::router;

@@ -1,0 +1,21 @@
+[package]
+name = "chat-cerebras"
+version = "0.1.0"
+description = "Cerebras Inference provider for chat-rs."
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+
+[dependencies]
+chat-completions = { path = "../completions", version = "0.1.0" }
+
+[dev-dependencies]
+chat-core = { path = "../../core", version = "0.1.2", features = ["reqwest-transport"] }
+tokio.workspace = true
+
+[features]
+default = []
+stream = ["chat-completions/stream"]
