@@ -62,6 +62,11 @@ pub mod openai {
     pub use chat_openai::*;
 }
 
+#[cfg(feature = "ollama")]
+pub mod ollama {
+    pub use chat_ollama::*;
+}
+
 #[cfg(feature = "router")]
 pub mod router {
     pub use chat_router::*;
@@ -85,6 +90,9 @@ pub mod prelude {
 
     #[cfg(feature = "openai")]
     pub use crate::openai;
+
+    #[cfg(feature = "ollama")]
+    pub use crate::ollama;
 
     #[cfg(feature = "router")]
     pub use crate::router;
