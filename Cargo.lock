@@ -169,7 +169,7 @@ dependencies = [
 
 [[package]]
 name = "chat-claude"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -202,7 +202,7 @@ dependencies = [
 
 [[package]]
 name = "chat-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "chat-gemini"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -262,7 +262,7 @@ dependencies = [
 
 [[package]]
 name = "chat-openai"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-stream",
  "async-trait",
