@@ -236,7 +236,10 @@ version = "0.1.0"
 dependencies = [
  "chat-completions",
  "chat-core",
+ "serde",
+ "serde_json",
  "tokio",
+ "url",
 ]
 
 [[package]]

@@ -111,6 +111,31 @@ path = "./examples/ollama/completion.rs"
 required-features = ["ollama"]
 
 [[example]]
+name = "ollama-stream"
+path = "./examples/ollama/stream.rs"
+required-features = ["ollama", "stream"]
+
+[[example]]
+name = "ollama-tools"
+path = "./examples/ollama/tools.rs"
+required-features = ["ollama"]
+
+[[example]]
+name = "ollama-structured"
+path = "./examples/ollama/structured.rs"
+required-features = ["ollama"]
+
+[[example]]
+name = "ollama-embeddings"
+path = "./examples/ollama/embeddings.rs"
+required-features = ["ollama"]
+
+[[example]]
+name = "ollama-pull"
+path = "./examples/ollama/pull.rs"
+required-features = ["ollama"]
+
+[[example]]
 name = "gemini-structured"
 path = "./examples/gemini/structured.rs"
 required-features = ["gemini"]

@@ -1,66 +1,241 @@
 //! Ollama provider for chat-rs.
 //!
 //! Thin wrapper around [`chat_completions`] — Ollama serves an
-//! OpenAI-compatible `/v1/chat/completions` endpoint. This crate only
-//! adds Ollama-specific defaults: the local socket URL and the
-//! `OLLAMA_HOST` env var convention.
+//! OpenAI-compatible `/v1/chat/completions` endpoint, so all chat,
+//! streaming, tools, structured output, and embedding logic lives in the
+//! `chat-completions` crate.
+//!
+//! What this crate adds on top:
+//! - Default base URL pointing at the local daemon
+//! - `OLLAMA_HOST` env var support
+//! - [`OllamaBuilder::pull_and_build`] to ensure the model is present
+//!   before the first request, hitting Ollama's native `/api/pull`.
 //!
 //! ```no_run
+//! # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 //! use chat_ollama::OllamaBuilder;
 //!
+//! // Pull the model if it's missing, then return a ready-to-use client.
 //! let client = OllamaBuilder::new()
-//!     .with_model("llama3")
-//!     .build();
+//!     .with_model("llama3.2")
+//!     .pull_and_build()
+//!     .await?;
+//! # Ok(()) }
 //! ```
-//!
-//! Point at a remote daemon by setting `OLLAMA_HOST=http://host:port`
-//! before constructing the builder, or call [`OllamaBuilder::with_host`]
-//! explicitly.
 
-pub use chat_completions::{
-    ChatCompletionsBuilder, ChatCompletionsClient, ReqwestTransport, WithModel, WithUrl,
-    WithoutModel,
+use std::marker::PhantomData;
+
+use chat_completions::{
+    ChatCompletionsBuilder, ChatCompletionsClient, ChatError, ReqwestTransport, Request, Transport,
 };
+use serde::Deserialize;
+use serde_json::json;
 
-/// Default Ollama base URL when `OLLAMA_HOST` is not set.
-pub const DEFAULT_OLLAMA_URL: &str = "http://localhost:11434/v1";
+/// Default Ollama base host when `OLLAMA_HOST` is not set.
+pub const DEFAULT_OLLAMA_HOST: &str = "http://localhost:11434";
 
 const OLLAMA_HOST_ENV: &str = "OLLAMA_HOST";
 
-/// Constructor for an Ollama-flavored [`ChatCompletionsBuilder`].
-///
-/// `OllamaBuilder` is a namespace, not a stateful struct — its
-/// constructors return the underlying builder already in `WithUrl` state,
-/// so the rest of the chain is the standard chat-completions API
-/// (`.with_model`, `.with_api_key`, `.with_transport`, `.build`).
-pub struct OllamaBuilder;
+pub struct WithoutModel;
+pub struct WithModel;
 
-impl OllamaBuilder {
-    /// Build for the local Ollama daemon (or whatever `OLLAMA_HOST` points at).
-    ///
-    /// Reads `OLLAMA_HOST` if set, otherwise uses `http://localhost:11434/v1`.
-    /// The trailing `/v1` segment is appended if the host string omits it.
-    pub fn new() -> ChatCompletionsBuilder<WithoutModel, WithUrl, ReqwestTransport> {
-        let host = std::env::var(OLLAMA_HOST_ENV)
-            .unwrap_or_else(|_| DEFAULT_OLLAMA_URL.to_string());
+/// Ollama-flavored builder. Wraps [`ChatCompletionsBuilder`] and adds
+/// `/api/pull` integration so a model can be fetched at build time.
+pub struct OllamaBuilder<M = WithoutModel, T: Transport = ReqwestTransport> {
+    scheme: String,
+    host: String,
+    model: Option<String>,
+    api_key: Option<String>,
+    extra_headers: Vec<(String, String)>,
+    description: Option<String>,
+    transport: Option<T>,
+    _m: PhantomData<M>,
+}
+
+impl Default for OllamaBuilder<WithoutModel, ReqwestTransport> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OllamaBuilder<WithoutModel, ReqwestTransport> {
+    /// Build pointed at `OLLAMA_HOST` if set, otherwise `http://localhost:11434`.
+    pub fn new() -> Self {
+        let host = std::env::var(OLLAMA_HOST_ENV).unwrap_or_else(|_| DEFAULT_OLLAMA_HOST.to_string());
         Self::with_host(host)
     }
 
     /// Build pointed at the given host. Accepts plain `http://host:port`
-    /// (the `/v1` suffix is added) or a full URL ending in `/v1`.
-    pub fn with_host(
-        host: impl AsRef<str>,
-    ) -> ChatCompletionsBuilder<WithoutModel, WithUrl, ReqwestTransport> {
-        ChatCompletionsBuilder::new().with_base_url(normalize_url(host.as_ref()))
+    /// or a URL with a `/v1` suffix (the suffix is stripped — Ollama's
+    /// pull endpoint lives outside `/v1`).
+    pub fn with_host(host: impl AsRef<str>) -> Self {
+        let parsed = url::Url::parse(host.as_ref()).expect("Invalid Ollama host URL");
+        let scheme = parsed.scheme().to_string();
+        let host_port = parsed
+            .host_str()
+            .expect("Ollama host URL missing host")
+            .to_string()
+            + &parsed.port().map(|p| format!(":{p}")).unwrap_or_default();
+
+        Self {
+            scheme,
+            host: host_port,
+            model: None,
+            api_key: None,
+            extra_headers: Vec::new(),
+            description: None,
+            transport: Some(ReqwestTransport::default()),
+            _m: PhantomData,
+        }
     }
 }
 
-fn normalize_url(host: &str) -> String {
-    let trimmed = host.trim_end_matches('/');
-    if trimmed.ends_with("/v1") {
-        trimmed.to_string()
-    } else {
-        format!("{trimmed}/v1")
+impl<M, T: Transport> OllamaBuilder<M, T> {
+    pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
+        self.api_key = Some(api_key.into());
+        self
+    }
+
+    pub fn with_header(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.extra_headers.push((key.into(), value.into()));
+        self
+    }
+
+    pub fn with_description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    pub fn with_transport<T2: Transport>(self, transport: T2) -> OllamaBuilder<M, T2> {
+        OllamaBuilder {
+            scheme: self.scheme,
+            host: self.host,
+            model: self.model,
+            api_key: self.api_key,
+            extra_headers: self.extra_headers,
+            description: self.description,
+            transport: Some(transport),
+            _m: PhantomData,
+        }
+    }
+}
+
+impl<T: Transport> OllamaBuilder<WithoutModel, T> {
+    pub fn with_model(self, model: impl Into<String>) -> OllamaBuilder<WithModel, T> {
+        OllamaBuilder {
+            scheme: self.scheme,
+            host: self.host,
+            model: Some(model.into()),
+            api_key: self.api_key,
+            extra_headers: self.extra_headers,
+            description: self.description,
+            transport: self.transport,
+            _m: PhantomData,
+        }
+    }
+}
+
+impl<T: Transport> OllamaBuilder<WithModel, T> {
+    /// Build the client without contacting the daemon.
+    pub fn build(self) -> ChatCompletionsClient<T> {
+        let transport = self.transport.expect("transport set");
+        let model = self.model.expect("model set");
+
+        let base_url = format!("{}://{}/v1", self.scheme, self.host);
+        let mut b = ChatCompletionsBuilder::new()
+            .with_base_url(base_url)
+            .with_model(model)
+            .with_transport(transport);
+
+        if let Some(key) = self.api_key {
+            b = b.with_api_key(key);
+        }
+        for (k, v) in self.extra_headers {
+            b = b.with_header(k, v);
+        }
+        if let Some(desc) = self.description {
+            b = b.with_description(desc);
+        }
+        b.build()
+    }
+
+    /// Ensure the configured model is downloaded, then build the client.
+    ///
+    /// Issues a `POST /api/pull` against the daemon with `stream: false`.
+    /// If the model is already present this returns near-instantly; if
+    /// not, it blocks until the pull completes (which may take minutes
+    /// for large models, with no progress output).
+    ///
+    /// Pull errors are surfaced as [`ChatError::Provider`].
+    pub async fn pull_and_build(self) -> Result<ChatCompletionsClient<T>, ChatError> {
+        self.pull().await?;
+        Ok(self.build())
+    }
+
+    /// Pull the configured model without building anything. Useful for
+    /// pre-warming a model on startup.
+    pub async fn pull(&self) -> Result<(), ChatError> {
+        let model = self.model.as_ref().expect("model set");
+        let transport = self.transport.as_ref().expect("transport set");
+
+        let body = serde_json::to_vec(&json!({
+            "model": model,
+            "stream": false,
+        }))
+        .map_err(|e| ChatError::Other(e.to_string()))?;
+
+        let mut headers = vec![("Content-Type".into(), "application/json".into())];
+        if let Some(key) = &self.api_key {
+            headers.push(("Authorization".into(), format!("Bearer {key}")));
+        }
+        headers.extend(self.extra_headers.iter().cloned());
+
+        let req = Request {
+            scheme: self.scheme.clone(),
+            host: self.host.clone(),
+            path: "/api/pull".to_string(),
+            headers,
+            body,
+        };
+
+        let res = transport.send(req).await.map_err(ChatError::from)?;
+        if !(200..300).contains(&res.status) {
+            let body = String::from_utf8_lossy(&res.body);
+            return Err(ChatError::Provider(format!(
+                "Ollama pull failed (HTTP {}): {body}",
+                res.status
+            )));
+        }
+
+        // Non-streaming pull returns a single JSON object. Honor the
+        // documented `status` field; "success" is the only happy value.
+        // Some Ollama versions return only `{}` on success, so an
+        // absent/empty status is treated as OK.
+        #[derive(Deserialize)]
+        struct PullResponse {
+            #[serde(default)]
+            status: Option<String>,
+            #[serde(default)]
+            error: Option<String>,
+        }
+
+        let parsed: PullResponse = serde_json::from_slice(&res.body).unwrap_or(PullResponse {
+            status: None,
+            error: None,
+        });
+
+        if let Some(err) = parsed.error {
+            return Err(ChatError::Provider(format!("Ollama pull: {err}")));
+        }
+        if let Some(status) = parsed.status
+            && status != "success"
+            && !status.is_empty()
+        {
+            // Non-terminal status reaching this point means the daemon
+            // gave us an unexpected response shape; surface verbatim.
+            return Err(ChatError::Provider(format!("Ollama pull status: {status}")));
+        }
+        Ok(())
     }
 }
 
@@ -69,14 +244,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn normalize_adds_v1_when_missing() {
-        assert_eq!(normalize_url("http://localhost:11434"), "http://localhost:11434/v1");
-        assert_eq!(normalize_url("http://localhost:11434/"), "http://localhost:11434/v1");
+    fn parses_host_only() {
+        let b = OllamaBuilder::with_host("http://localhost:11434");
+        assert_eq!(b.scheme, "http");
+        assert_eq!(b.host, "localhost:11434");
     }
 
     #[test]
-    fn normalize_preserves_v1_suffix() {
-        assert_eq!(normalize_url("http://localhost:11434/v1"), "http://localhost:11434/v1");
-        assert_eq!(normalize_url("http://localhost:11434/v1/"), "http://localhost:11434/v1");
+    fn parses_host_with_v1_path() {
+        // Path is intentionally discarded — pull lives outside /v1.
+        let b = OllamaBuilder::with_host("http://localhost:11434/v1");
+        assert_eq!(b.scheme, "http");
+        assert_eq!(b.host, "localhost:11434");
+    }
+
+    #[test]
+    fn parses_remote_host() {
+        let b = OllamaBuilder::with_host("https://my-ollama.example.com:8443");
+        assert_eq!(b.scheme, "https");
+        assert_eq!(b.host, "my-ollama.example.com:8443");
     }
 }

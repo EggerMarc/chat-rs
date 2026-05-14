@@ -19,10 +19,10 @@ mod client;
 
 use std::marker::PhantomData;
 
-use chat_core::transport::Transport;
 use chat_core::types::provider_meta::ProviderMeta;
 
-pub use chat_core::transport::ReqwestTransport;
+pub use chat_core::error::{ChatError, ChatFailure};
+pub use chat_core::transport::{ReqwestTransport, Request, Response, Transport, TransportError};
 pub use crate::client::ChatCompletionsClient;
 
 pub struct WithoutModel;
