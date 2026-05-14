@@ -42,7 +42,7 @@ url                 = { version = "2.5.8", features = ["serde"] }
 
 [package]
 name         = "chat-rs"
-version      = "0.1.1"
+version      = "0.1.2"
 description  = "Build LLM clients with ease, attach them to your tools"
 autoexamples = false
 authors.workspace = true
@@ -56,11 +56,11 @@ name = "chat_rs"
 path = "src/lib.rs"
 
 [dependencies]
-chat-core        = { path = "core", version = "0.1.1" }
+chat-core        = { path = "core", version = "0.1.2" }
 chat-completions = { path = "providers/completions", version = "0.1.0", optional = true }
-chat-gemini      = { path = "providers/gemini", version = "0.1.1", optional = true }
-chat-openai      = { path = "providers/openai", version = "0.1.1", optional = true }
-chat-claude      = { path = "providers/claude", version = "0.1.1", optional = true }
+chat-gemini      = { path = "providers/gemini", version = "0.1.2", optional = true }
+chat-openai      = { path = "providers/openai", version = "0.1.2", optional = true }
+chat-claude      = { path = "providers/claude", version = "0.1.2", optional = true }
 chat-ollama      = { path = "providers/ollama", version = "0.1.0", optional = true }
 chat-huggingface = { path = "providers/huggingface", version = "0.1.0", optional = true }
 chat-cerebras    = { path = "providers/cerebras", version = "0.1.0", optional = true }

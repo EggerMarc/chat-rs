@@ -24,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-chat-rs = { version = "0.1.1", features = ["openai"] }
+chat-rs = { version = "0.1.2", features = ["openai"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -187,7 +187,7 @@ println!("Name: {}, Likes: {:?}", response.content.name, response.content.likes)
 Enable the `stream` feature flag:
 
 ```toml
-chat-rs = { version = "0.1.1", features = ["gemini", "stream"] }
+chat-rs = { version = "0.1.2", features = ["gemini", "stream"] }
 ```
 
 ```rust
@@ -392,7 +392,7 @@ let client = OpenAIBuilder::new()
 To use WebSocket transport (e.g. for OpenAI's Responses API over WS):
 
 ```toml
-chat-rs = { version = "0.1.1", features = ["openai", "stream", "tokio-tungstenite"] }
+chat-rs = { version = "0.1.2", features = ["openai", "stream", "tokio-tungstenite"] }
 ```
 
 ```rust
