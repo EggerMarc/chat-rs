@@ -8,18 +8,18 @@
 //! What this crate adds on top:
 //! - Default base URL pointing at the local daemon
 //! - `OLLAMA_HOST` env var support
-//! - [`OllamaBuilder::pull_and_build`] to ensure the model is present
-//!   before the first request, hitting Ollama's native `/api/pull`.
+//! - [`OllamaBuilder::pull`] to ensure the model is present before the
+//!   first request, hitting Ollama's native `/api/pull`. Returns the
+//!   builder so it slots into the normal chain.
 //!
 //! ```no_run
 //! # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 //! use chat_ollama::OllamaBuilder;
 //!
-//! // Pull the model if it's missing, then return a ready-to-use client.
 //! let client = OllamaBuilder::new()
 //!     .with_model("llama3.2")
-//!     .pull_and_build()
-//!     .await?;
+//!     .pull().await?
+//!     .build();
 //! # Ok(()) }
 //! ```
 
@@ -27,6 +27,7 @@ use std::marker::PhantomData;
 
 use chat_completions::{
     ChatCompletionsBuilder, ChatCompletionsClient, ChatError, ReqwestTransport, Request, Transport,
+    TransportError,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -91,6 +92,27 @@ impl OllamaBuilder<WithoutModel, ReqwestTransport> {
 }
 
 impl<M, T: Transport> OllamaBuilder<M, T> {
+    /// Confirm the Ollama daemon is reachable at the configured host.
+    ///
+    /// Hits `/api/version`. Returns `Ok(())` if anything answers
+    /// (including 4xx — the daemon is alive, just rejecting the
+    /// request), or [`ChatError::Provider`] with an actionable install
+    /// hint when the connection is refused.
+    pub async fn ping(&self) -> Result<(), ChatError> {
+        let transport = self.transport.as_ref().expect("transport set");
+        let req = Request {
+            scheme: self.scheme.clone(),
+            host: self.host.clone(),
+            path: "/api/version".to_string(),
+            headers: vec![("Content-Type".into(), "application/json".into())],
+            body: Vec::new(),
+        };
+        match transport.send(req).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(map_transport_error(&self.scheme, &self.host, e)),
+        }
+    }
+
     pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
         self.api_key = Some(api_key.into());
         self
@@ -159,22 +181,25 @@ impl<T: Transport> OllamaBuilder<WithModel, T> {
         b.build()
     }
 
-    /// Ensure the configured model is downloaded, then build the client.
+    /// Ensure the configured model is downloaded.
     ///
     /// Issues a `POST /api/pull` against the daemon with `stream: false`.
-    /// If the model is already present this returns near-instantly; if
-    /// not, it blocks until the pull completes (which may take minutes
-    /// for large models, with no progress output).
+    /// If the model is already present locally this returns near-instantly;
+    /// otherwise it blocks until the download completes (no progress output).
     ///
-    /// Pull errors are surfaced as [`ChatError::Provider`].
-    pub async fn pull_and_build(self) -> Result<ChatCompletionsClient<T>, ChatError> {
-        self.pull().await?;
-        Ok(self.build())
-    }
-
-    /// Pull the configured model without building anything. Useful for
-    /// pre-warming a model on startup.
-    pub async fn pull(&self) -> Result<(), ChatError> {
+    /// Returns the builder so the caller can keep chaining — pair with
+    /// `.build()` to get a ready-to-use client:
+    ///
+    /// ```no_run
+    /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use chat_ollama::OllamaBuilder;
+    /// let client = OllamaBuilder::new()
+    ///     .with_model("llama3.2")
+    ///     .pull().await?
+    ///     .build();
+    /// # Ok(()) }
+    /// ```
+    pub async fn pull(self) -> Result<Self, ChatError> {
         let model = self.model.as_ref().expect("model set");
         let transport = self.transport.as_ref().expect("transport set");
 
@@ -198,7 +223,10 @@ impl<T: Transport> OllamaBuilder<WithModel, T> {
             body,
         };
 
-        let res = transport.send(req).await.map_err(ChatError::from)?;
+        let res = transport
+            .send(req)
+            .await
+            .map_err(|e| map_transport_error(&self.scheme, &self.host, e))?;
         if !(200..300).contains(&res.status) {
             let body = String::from_utf8_lossy(&res.body);
             return Err(ChatError::Provider(format!(
@@ -231,11 +259,22 @@ impl<T: Transport> OllamaBuilder<WithModel, T> {
             && status != "success"
             && !status.is_empty()
         {
-            // Non-terminal status reaching this point means the daemon
-            // gave us an unexpected response shape; surface verbatim.
             return Err(ChatError::Provider(format!("Ollama pull status: {status}")));
         }
-        Ok(())
+        Ok(self)
+    }
+}
+
+/// Translate a transport-level failure into a [`ChatError`] with an
+/// install/start hint when the daemon was unreachable.
+fn map_transport_error(scheme: &str, host: &str, err: TransportError) -> ChatError {
+    match &err {
+        TransportError::Connection(msg) => ChatError::Provider(format!(
+            "Ollama daemon unreachable at {scheme}://{host} ({msg}). \
+             Install from https://ollama.com/download, then run `ollama serve`. \
+             Override the host with OLLAMA_HOST=http://your-host:port."
+        )),
+        _ => ChatError::from(err),
     }
 }
 

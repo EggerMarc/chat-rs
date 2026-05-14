@@ -5,6 +5,7 @@ use chat_core::{
             content::{CompleteReasonEnum, Content, RoleEnum},
             embeddings::Embeddings,
             parts::{PartEnum, Parts},
+            reasoning::Reasoning,
             text::Text,
         },
         metadata::{Metadata, usage::Usage},
@@ -33,6 +34,9 @@ pub struct Choice {
 pub struct ResponseMessage {
     #[serde(default)]
     pub content: Option<Value>,
+    /// Thinking-model channel used by Qwen3, DeepSeek-R1 and clones.
+    #[serde(default, alias = "reasoning")]
+    pub reasoning_content: Option<String>,
     #[serde(default)]
     pub tool_calls: Option<Vec<ResponseToolCall>>,
 }
@@ -87,6 +91,13 @@ pub fn finish_reason_to_core(reason: Option<&str>, had_tool_calls: bool) -> Comp
 /// Appends parts produced by a single response message into the parts buffer.
 /// Returns whether any tool calls were emitted.
 pub fn message_to_parts(msg: &ResponseMessage, parts: &mut Parts) -> bool {
+    // Reasoning first so renderers can show it before the answer.
+    if let Some(reasoning) = &msg.reasoning_content
+        && !reasoning.is_empty()
+    {
+        parts.push(PartEnum::Reasoning(Reasoning::new(reasoning.clone())));
+    }
+
     // Content can be string, array of typed parts, or null.
     if let Some(content) = &msg.content {
         append_content_value(content, parts);

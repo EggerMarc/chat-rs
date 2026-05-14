@@ -1,9 +1,9 @@
 //! Pull a model from the Ollama registry, then chat with it.
 //!
-//! `.pull_and_build()` hits Ollama's native `/api/pull` endpoint before
-//! returning the chat client. If the model is already present locally
-//! the call returns near-instantly; otherwise it blocks until the
-//! download finishes.
+//! `.pull()` hits Ollama's native `/api/pull` endpoint and returns the
+//! builder, so it slots into the normal chain before `.build()`. If the
+//! model is already present locally the call returns near-instantly;
+//! otherwise it blocks until the download finishes.
 //!
 //! ```bash
 //! OLLAMA_MODEL=qwen2.5:0.5b cargo run --example ollama-pull --features ollama
@@ -24,8 +24,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     eprintln!("Pulling {model} (this may take a while on first run)...");
     let client = OllamaBuilder::new()
         .with_model(model)
-        .pull_and_build()
-        .await?;
+        .pull()
+        .await?
+        .build();
     eprintln!("Pull complete.");
 
     let mut chat = ChatBuilder::new().with_model(client).build();

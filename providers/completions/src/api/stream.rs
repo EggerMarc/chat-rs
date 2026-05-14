@@ -97,6 +97,10 @@ struct StreamChoice {
 struct StreamDelta {
     #[serde(default)]
     content: Option<Value>,
+    /// Thinking-model channel used by Qwen3, DeepSeek-R1 and clones.
+    /// Both `reasoning_content` and `reasoning` are accepted as aliases.
+    #[serde(default, alias = "reasoning")]
+    reasoning_content: Option<String>,
     #[serde(default)]
     tool_calls: Option<Vec<StreamToolCallDelta>>,
 }
@@ -133,6 +137,7 @@ struct ToolCallState {
 
 struct StreamState {
     text_buf: String,
+    reasoning_buf: String,
     tool_calls: BTreeMap<usize, ToolCallState>,
     finish_reason: Option<String>,
     id: Option<String>,
@@ -144,6 +149,7 @@ impl Default for StreamState {
     fn default() -> Self {
         Self {
             text_buf: String::new(),
+            reasoning_buf: String::new(),
             tool_calls: BTreeMap::new(),
             finish_reason: None,
             id: None,
@@ -178,6 +184,13 @@ impl StreamState {
             {
                 self.text_buf.push_str(text);
                 events.push(StreamEvent::TextChunk(text.to_string()));
+            }
+
+            if let Some(reasoning) = choice.delta.reasoning_content
+                && !reasoning.is_empty()
+            {
+                self.reasoning_buf.push_str(&reasoning);
+                events.push(StreamEvent::ReasoningChunk(reasoning));
             }
 
             if let Some(deltas) = choice.delta.tool_calls {
@@ -218,7 +231,12 @@ impl StreamState {
     }
 
     fn into_response(self) -> ChatResponse {
+        use chat_core::types::messages::reasoning::Reasoning;
         let mut parts = Parts::default();
+
+        if !self.reasoning_buf.is_empty() {
+            parts.push(PartEnum::Reasoning(Reasoning::new(self.reasoning_buf)));
+        }
 
         if !self.text_buf.is_empty() {
             // If the model streamed valid JSON, surface it as Structured
