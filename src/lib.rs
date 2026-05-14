@@ -72,6 +72,11 @@ pub mod huggingface {
     pub use chat_huggingface::*;
 }
 
+#[cfg(feature = "cerebras")]
+pub mod cerebras {
+    pub use chat_cerebras::*;
+}
+
 #[cfg(feature = "router")]
 pub mod router {
     pub use chat_router::*;
@@ -101,6 +106,9 @@ pub mod prelude {
 
     #[cfg(feature = "huggingface")]
     pub use crate::huggingface;
+
+    #[cfg(feature = "cerebras")]
+    pub use crate::cerebras;
 
     #[cfg(feature = "router")]
     pub use crate::router;
