@@ -24,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-chat-rs = { version = "0.1.2", features = ["openai"] }
+chat-rs = { version = "0.2.0", features = ["openai"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -52,15 +52,15 @@ Enable providers via feature flags:
 
 ```toml
 # Pick one or more
-chat-rs = { version = "0.1.2", features = ["gemini"] }
-chat-rs = { version = "0.1.2", features = ["claude"] }
-chat-rs = { version = "0.1.2", features = ["openai"] }
-chat-rs = { version = "0.1.2", features = ["ollama"] }
-chat-rs = { version = "0.1.2", features = ["huggingface"] }
-chat-rs = { version = "0.1.2", features = ["cerebras"] }
-chat-rs = { version = "0.1.2", features = ["completions"] }
-chat-rs = { version = "0.1.2", features = ["router", "gemini", "claude"] }
-chat-rs = { version = "0.1.2", features = ["gemini", "claude", "openai", "stream"] }
+chat-rs = { version = "0.2.0", features = ["gemini"] }
+chat-rs = { version = "0.2.0", features = ["claude"] }
+chat-rs = { version = "0.2.0", features = ["openai"] }
+chat-rs = { version = "0.2.0", features = ["ollama"] }
+chat-rs = { version = "0.2.0", features = ["huggingface"] }
+chat-rs = { version = "0.2.0", features = ["cerebras"] }
+chat-rs = { version = "0.2.0", features = ["completions"] }
+chat-rs = { version = "0.2.0", features = ["router", "gemini", "claude"] }
+chat-rs = { version = "0.2.0", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
 | Provider | Feature | API Key Env Var | Builder |
@@ -164,7 +164,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Load tools from Python scripts at runtime via the `python` feature (powered by `tools-rs` 0.3 + PyO3). Decorate functions with `@tool()` and point `ToolsBuilder` at a directory of `.py` files — they register alongside any native `#[tool]`s.
 
 ```toml
-chat-rs = { version = "0.1.2", features = ["gemini", "python"] }
+chat-rs = { version = "0.2.0", features = ["gemini", "python"] }
 ```
 
 ```python
@@ -225,7 +225,7 @@ println!("Name: {}, Likes: {:?}", response.content.name, response.content.likes)
 Enable the `stream` feature flag:
 
 ```toml
-chat-rs = { version = "0.1.2", features = ["gemini", "stream"] }
+chat-rs = { version = "0.2.0", features = ["gemini", "stream"] }
 ```
 
 ```rust
@@ -430,7 +430,7 @@ let client = OpenAIBuilder::new()
 To use WebSocket transport (e.g. for OpenAI's Responses API over WS):
 
 ```toml
-chat-rs = { version = "0.1.2", features = ["openai", "stream", "tokio-tungstenite"] }
+chat-rs = { version = "0.2.0", features = ["openai", "stream", "tokio-tungstenite"] }
 ```
 
 ```rust

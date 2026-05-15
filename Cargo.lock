@@ -166,7 +166,7 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chat-cerebras"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chat-completions",
  "chat-core",
@@ -175,7 +175,7 @@ dependencies = [
 
 [[package]]
 name = "chat-claude"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -191,7 +191,7 @@ dependencies = [
 
 [[package]]
 name = "chat-completions"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -208,7 +208,7 @@ dependencies = [
 
 [[package]]
 name = "chat-core"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -230,7 +230,7 @@ dependencies = [
 
 [[package]]
 name = "chat-gemini"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -247,7 +247,7 @@ dependencies = [
 
 [[package]]
 name = "chat-huggingface"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chat-completions",
  "chat-core",
@@ -256,7 +256,7 @@ dependencies = [
 
 [[package]]
 name = "chat-ollama"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chat-completions",
  "chat-core",
@@ -268,7 +268,7 @@ dependencies = [
 
 [[package]]
 name = "chat-openai"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -285,7 +285,7 @@ dependencies = [
 
 [[package]]
 name = "chat-router"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chat-core",
@@ -296,7 +296,7 @@ dependencies = [
 
 [[package]]
 name = "chat-rs"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chat-cerebras",
