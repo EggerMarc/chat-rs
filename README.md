@@ -10,7 +10,7 @@ A multi-provider LLM framework for Rust. Build type-safe chat clients with tool 
 - **Multi-provider** — Gemini, Claude, OpenAI, Ollama, Hugging Face, Cerebras, generic OpenAI-compatible servers, and Router today, more coming (see [Roadmap](ROADMAP.md))
 - **Router** — route requests across multiple providers with fallback and custom strategies (keyword, embedding, capability-based)
 - **Type-safe builder** — compile-time enforcement of valid configurations via type-state pattern
-- **Tool calling** — define tools with `#[tool]`, the framework handles the call loop automatically
+- **Tool calling** — define tools with `#[tool]` in Rust, or load `@tool`-decorated Python scripts at runtime; the framework handles the call loop automatically
 - **Structured output** — deserialize model responses directly into your Rust types via `schemars`
 - **Streaming** — real-time token-by-token output with tool call support
 - **Human in the loop** — pause mid-turn on sensitive tool calls, let a human approve or reject, then resume the stream
@@ -24,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-chat-rs = { version = "0.1.2", features = ["openai"] }
+chat-rs = { version = "0.2.0", features = ["openai"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -52,15 +52,15 @@ Enable providers via feature flags:
 
 ```toml
 # Pick one or more
-chat-rs = { version = "0.1.2", features = ["gemini"] }
-chat-rs = { version = "0.1.2", features = ["claude"] }
-chat-rs = { version = "0.1.2", features = ["openai"] }
-chat-rs = { version = "0.1.2", features = ["ollama"] }
-chat-rs = { version = "0.1.2", features = ["huggingface"] }
-chat-rs = { version = "0.1.2", features = ["cerebras"] }
-chat-rs = { version = "0.1.2", features = ["completions"] }
-chat-rs = { version = "0.1.2", features = ["router", "gemini", "claude"] }
-chat-rs = { version = "0.1.2", features = ["gemini", "claude", "openai", "stream"] }
+chat-rs = { version = "0.2.0", features = ["gemini"] }
+chat-rs = { version = "0.2.0", features = ["claude"] }
+chat-rs = { version = "0.2.0", features = ["openai"] }
+chat-rs = { version = "0.2.0", features = ["ollama"] }
+chat-rs = { version = "0.2.0", features = ["huggingface"] }
+chat-rs = { version = "0.2.0", features = ["cerebras"] }
+chat-rs = { version = "0.2.0", features = ["completions"] }
+chat-rs = { version = "0.2.0", features = ["router", "gemini", "claude"] }
+chat-rs = { version = "0.2.0", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
 | Provider | Feature | API Key Env Var | Builder |
@@ -159,6 +159,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Python Tools
+
+Load tools from Python scripts at runtime via the `python` feature (powered by `tools-rs` 0.3 + PyO3). Decorate functions with `@tool()` and point `ToolsBuilder` at a directory of `.py` files — they register alongside any native `#[tool]`s.
+
+```toml
+chat-rs = { version = "0.2.0", features = ["gemini", "python"] }
+```
+
+```python
+# scripts/weather.py
+from tools_rs import tool
+
+@tool()
+def get_weather(city: str) -> str:
+    """Get the current weather in a city.
+
+    Args:
+        city: The city to look up.
+    """
+    return {"London": "rainy, 12C", "Tokyo": "sunny, 22C"}.get(city, "unknown")
+```
+
+```rust
+use tools_rs::{Language, ToolsBuilder};
+
+let tools = ToolsBuilder::new()
+    .with_language(Language::Python)
+    .from_path("scripts")
+    .collect()?;
+
+let mut chat = ChatBuilder::new()
+    .with_tools(tools)
+    .with_model(client)
+    .build();
+```
+
+PyO3 builds against the system Python; if your interpreter is newer than PyO3's max supported version, set `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` when building.
+
 ## Structured Output
 
 Deserialize model responses directly into typed Rust structs. Your type must derive `JsonSchema` and `Deserialize`.
@@ -187,7 +225,7 @@ println!("Name: {}, Likes: {:?}", response.content.name, response.content.likes)
 Enable the `stream` feature flag:
 
 ```toml
-chat-rs = { version = "0.1.2", features = ["gemini", "stream"] }
+chat-rs = { version = "0.2.0", features = ["gemini", "stream"] }
 ```
 
 ```rust
@@ -392,7 +430,7 @@ let client = OpenAIBuilder::new()
 To use WebSocket transport (e.g. for OpenAI's Responses API over WS):
 
 ```toml
-chat-rs = { version = "0.1.2", features = ["openai", "stream", "tokio-tungstenite"] }
+chat-rs = { version = "0.2.0", features = ["openai", "stream", "tokio-tungstenite"] }
 ```
 
 ```rust
@@ -471,6 +509,7 @@ cargo run --example gemini-code-execution --features gemini
 cargo run --example gemini-google-maps --features gemini
 cargo run --example gemini-image-understanding --features gemini
 cargo run --example gemini-hitl --features gemini,stream
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo run --example gemini-python-tools --features gemini,python
 
 # Claude
 cargo run --example claude-completion --features claude
