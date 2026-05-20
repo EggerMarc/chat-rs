@@ -1,6 +1,6 @@
 [package]
 name = "chat-completions"
-version = "0.2.0"
+version = "0.2.1"
 description = "Generic OpenAI-compatible Chat Completions client for chat-rs. Bring your own server (Ollama, vLLM, llama.cpp, LiteLLM, etc.)."
 edition.workspace = true
 authors.workspace = true
@@ -10,7 +10,7 @@ rust-version.workspace = true
 
 
 [dependencies]
-chat-core = { path = "../../core", version = "0.2.0", features = ["reqwest-transport"] }
+chat-core = { path = "../../core", version = "0.2.1", features = ["reqwest-transport"] }
 
 async-trait.workspace = true
 serde.workspace = true
@@ -23,7 +23,7 @@ url.workspace = true
 base64              = "0.22.1"
 
 [dev-dependencies]
-chat-core = { path = "../../core", version = "0.2.0", features = ["reqwest-transport"] }
+chat-core = { path = "../../core", version = "0.2.1", features = ["reqwest-transport"] }
 tokio.workspace = true
 serde_json.workspace = true
 

@@ -753,7 +753,7 @@ dependencies = [
 
 [[package]]
 name = "chat-cerebras"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chat-completions",
  "chat-core",
@@ -762,7 +762,7 @@ dependencies = [
 
 [[package]]
 name = "chat-claude"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -778,7 +778,7 @@ dependencies = [
 
 [[package]]
 name = "chat-completions"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -795,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "chat-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -817,7 +817,7 @@ dependencies = [
 
 [[package]]
 name = "chat-gemini"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -834,7 +834,7 @@ dependencies = [
 
 [[package]]
 name = "chat-huggingface"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chat-completions",
  "chat-core",
@@ -843,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "chat-mistralrs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -860,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "chat-ollama"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chat-completions",
  "chat-core",
@@ -872,7 +872,7 @@ dependencies = [
 
 [[package]]
 name = "chat-openai"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -889,7 +889,7 @@ dependencies = [
 
 [[package]]
 name = "chat-router"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-trait",
  "chat-core",
@@ -900,7 +900,7 @@ dependencies = [
 
 [[package]]
 name = "chat-rs"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-trait",
  "chat-cerebras",
