@@ -4,6 +4,7 @@ use chat_core::types::messages::content::RoleEnum;
 use chat_core::types::messages::file::{File, FileSource};
 use chat_core::types::messages::parts::PartEnum;
 use chat_core::types::options::ChatOptions;
+use image::DynamicImage;
 use mistralrs::{
     AudioInput, MultimodalMessages, RequestBuilder, SamplingParams, StopTokens, TextMessageRole,
     TextMessages,
@@ -13,9 +14,10 @@ use mistralrs::{
 /// `ChatOptions`.
 ///
 /// Picks between the text and multimodal message paths automatically: any
-/// audio `File` part anywhere in `messages` flips on the multimodal path.
-/// Other part types (tool, structured, reasoning, embeddings) are still
-/// rejected with `ChatFailure` — they'll land in their own phases.
+/// image or audio `File` part anywhere in `messages` flips on the
+/// multimodal path. Other part types (tool, structured, reasoning,
+/// embeddings) are still rejected with `ChatFailure` — they'll land in
+/// their own phases.
 pub fn from_core(
     messages: &Messages,
     options: Option<&ChatOptions>,
@@ -29,11 +31,11 @@ pub fn from_core(
         return Err(unsupported("structured outputs", "Phase 3"));
     }
 
-    let has_audio = messages
+    let has_media = messages
         .0
         .iter()
-        .any(|c| c.parts.0.iter().any(is_audio_part));
-    let rb: RequestBuilder = if has_audio {
+        .any(|c| c.parts.0.iter().any(is_media_part));
+    let rb: RequestBuilder = if has_media {
         build_multimodal(messages)?.into()
     } else {
         build_text(messages)?.into()
@@ -56,11 +58,11 @@ fn build_multimodal(messages: &Messages) -> Result<MultimodalMessages, ChatFailu
     let mut mm = MultimodalMessages::new();
     for content in &messages.0 {
         let role = map_role(&content.role);
-        let (text, audio) = split_text_and_audio(&content.parts.0)?;
-        if audio.is_empty() {
+        let (text, images, audio) = split_text_and_media(&content.parts.0)?;
+        if images.is_empty() && audio.is_empty() {
             mm = mm.add_message(role, text);
         } else {
-            mm = mm.add_audio_message(role, text, audio);
+            mm = mm.add_multimodal_message(role, text, images, audio, vec![]);
         }
     }
     Ok(mm)
@@ -75,14 +77,19 @@ fn map_role(role: &RoleEnum) -> TextMessageRole {
 }
 
 /// Collect all `Text` parts into one string (newline-joined). Reject any
-/// non-text, non-audio part with a clear phase-specific error.
+/// non-text file or other unsupported part with a clear phase-specific
+/// error. Only called on the text-only path, where media parts are absent
+/// by construction.
 fn flatten_text_only(parts: &[PartEnum]) -> Result<String, ChatFailure> {
     let mut buf = String::new();
     for part in parts {
         match part {
             PartEnum::Text(t) => append_line(&mut buf, t.as_str()),
-            PartEnum::File(_) => {
-                return Err(unsupported("non-audio file parts", "Phase 2 (vision)"));
+            PartEnum::File(f) => {
+                return Err(unsupported(
+                    &format!("file parts with mimetype {}", f.mime),
+                    "later phase (video, documents)",
+                ));
             }
             PartEnum::Tool(_) => return Err(unsupported("tool parts", "Phase 4")),
             PartEnum::Structured(_) => {
@@ -99,17 +106,26 @@ fn flatten_text_only(parts: &[PartEnum]) -> Result<String, ChatFailure> {
     Ok(buf)
 }
 
-fn split_text_and_audio(parts: &[PartEnum]) -> Result<(String, Vec<AudioInput>), ChatFailure> {
+fn split_text_and_media(
+    parts: &[PartEnum],
+) -> Result<(String, Vec<DynamicImage>, Vec<AudioInput>), ChatFailure> {
     let mut text = String::new();
+    let mut images = Vec::new();
     let mut audio = Vec::new();
     for part in parts {
         match part {
             PartEnum::Text(t) => append_line(&mut text, t.as_str()),
+            PartEnum::File(f) if f.is_image() => {
+                images.push(decode_image(f)?);
+            }
             PartEnum::File(f) if f.is_audio() => {
                 audio.push(decode_audio(f)?);
             }
-            PartEnum::File(_) => {
-                return Err(unsupported("non-audio file parts", "Phase 2 (vision)"));
+            PartEnum::File(f) => {
+                return Err(unsupported(
+                    &format!("file parts with mimetype {}", f.mime),
+                    "later phase (video, documents)",
+                ));
             }
             PartEnum::Tool(_) => return Err(unsupported("tool parts", "Phase 4")),
             PartEnum::Structured(_) => {
@@ -123,7 +139,7 @@ fn split_text_and_audio(parts: &[PartEnum]) -> Result<(String, Vec<AudioInput>),
             }
         }
     }
-    Ok((text, audio))
+    Ok((text, images, audio))
 }
 
 fn append_line(buf: &mut String, s: &str) {
@@ -133,8 +149,24 @@ fn append_line(buf: &mut String, s: &str) {
     buf.push_str(s);
 }
 
-fn is_audio_part(part: &PartEnum) -> bool {
-    matches!(part, PartEnum::File(f) if f.is_audio())
+fn is_media_part(part: &PartEnum) -> bool {
+    matches!(part, PartEnum::File(f) if f.is_image() || f.is_audio())
+}
+
+fn decode_image(file: &File) -> Result<DynamicImage, ChatFailure> {
+    match &file.source {
+        FileSource::Bytes(bytes) => image::load_from_memory(bytes).map_err(|e| {
+            ChatFailure::from_err(ChatError::InvalidResponse(format!(
+                "could not decode image bytes ({}): {e}",
+                file.mime
+            )))
+        }),
+        FileSource::Url(_) => Err(ChatFailure::from_err(ChatError::Provider(
+            "remote-URL images are not supported yet — fetch bytes and pass them via \
+             File::from_bytes"
+                .into(),
+        ))),
+    }
 }
 
 fn decode_audio(file: &File) -> Result<AudioInput, ChatFailure> {

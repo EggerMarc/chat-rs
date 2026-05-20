@@ -850,6 +850,7 @@ dependencies = [
  "async-trait",
  "chat-core",
  "futures",
+ "image",
  "mistralrs",
  "schemars 1.2.1",
  "serde",
