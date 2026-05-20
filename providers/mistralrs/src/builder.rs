@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::types::provider_meta::ProviderMeta;
-use mistralrs::{GgufModelBuilder, ModelBuilder};
+use mistralrs::{GgufModelBuilder, IsqType, ModelBuilder, MultimodalModelBuilder};
 
 use crate::client::MistralRsClient;
 
@@ -39,6 +39,9 @@ pub struct MistralRsBuilder<M = WithoutModel> {
     gguf_file: Option<String>,
     tok_model_id: Option<String>,
     device: DeviceChoice,
+    multimodal: bool,
+    isq: Option<IsqType>,
+    logging: bool,
     description: Option<String>,
     _m: PhantomData<M>,
 }
@@ -56,6 +59,9 @@ impl MistralRsBuilder<WithoutModel> {
             gguf_file: None,
             tok_model_id: None,
             device: DeviceChoice::Auto,
+            multimodal: false,
+            isq: None,
+            logging: false,
             description: None,
             _m: PhantomData,
         }
@@ -69,6 +75,9 @@ impl MistralRsBuilder<WithoutModel> {
             gguf_file: self.gguf_file,
             tok_model_id: self.tok_model_id,
             device: self.device,
+            multimodal: self.multimodal,
+            isq: self.isq,
+            logging: self.logging,
             description: self.description,
             _m: PhantomData,
         }
@@ -97,6 +106,30 @@ impl<M> MistralRsBuilder<M> {
         self
     }
 
+    /// Switch the loader to mistral.rs's multimodal path. Required for
+    /// vision / audio models (e.g. Voxtral, Gemma 3n, Phi-4-MM,
+    /// Qwen2.5-VL). Without this, the auto-detect / GGUF loaders run.
+    pub fn with_multimodal(mut self) -> Self {
+        self.multimodal = true;
+        self
+    }
+
+    /// Apply mistral.rs in-situ quantization (ISQ). Useful for fitting
+    /// larger multimodal models into a MacBook's memory, e.g.
+    /// `IsqType::Q4K` for ~4-bit weights.
+    pub fn with_isq(mut self, isq: IsqType) -> Self {
+        self.isq = Some(isq);
+        self
+    }
+
+    /// Enable mistral.rs's built-in loader/download progress logs. Useful
+    /// for first-time runs where weight download can take many minutes —
+    /// without this the process is silent until the model is fully loaded.
+    pub fn with_logging(mut self) -> Self {
+        self.logging = true;
+        self
+    }
+
     pub fn with_description(mut self, d: impl Into<String>) -> Self {
         self.description = Some(d.into());
         self
@@ -113,7 +146,21 @@ impl MistralRsBuilder<WithModel> {
         let model_id = self.model_id.expect("with_model() sets model_id");
         let force_cpu = matches!(self.device, DeviceChoice::Cpu);
 
-        let model = if let Some(gguf_file) = self.gguf_file.clone() {
+        let model = if self.multimodal {
+            let mut b = MultimodalModelBuilder::new(model_id.clone());
+            if let Some(isq) = self.isq {
+                b = b.with_isq(isq);
+            }
+            if force_cpu {
+                b = b.with_force_cpu();
+            }
+            if self.logging {
+                b = b.with_logging();
+            }
+            b.build()
+                .await
+                .map_err(|e| build_failure("multimodal loader", &model_id, e))?
+        } else if let Some(gguf_file) = self.gguf_file.clone() {
             let mut b = GgufModelBuilder::new(model_id.clone(), vec![gguf_file]);
             if let Some(tok) = self.tok_model_id.clone() {
                 b = b.with_tok_model_id(tok);
@@ -121,13 +168,22 @@ impl MistralRsBuilder<WithModel> {
             if force_cpu {
                 b = b.with_force_cpu();
             }
+            if self.logging {
+                b = b.with_logging();
+            }
             b.build()
                 .await
                 .map_err(|e| build_failure("GGUF loader", &model_id, e))?
         } else {
             let mut b = ModelBuilder::new(model_id.clone());
+            if let Some(isq) = self.isq {
+                b = b.with_isq(isq);
+            }
             if force_cpu {
                 b = b.with_force_cpu();
+            }
+            if self.logging {
+                b = b.with_logging();
             }
             b.build()
                 .await

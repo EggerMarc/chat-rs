@@ -92,6 +92,8 @@ tools_macros.workspace = true
 tokio.workspace = true
 futures.workspace = true
 async-trait.workspace = true
+cpal         = "0.15"
+hound        = "3.5"
 
 [features]
 default = []
@@ -163,6 +165,11 @@ required-features = ["mistralrs"]
 [[example]]
 name = "mistralrs-stream"
 path = "./examples/mistralrs/stream.rs"
+required-features = ["mistralrs", "stream"]
+
+[[example]]
+name = "mistralrs-voice"
+path = "./examples/mistralrs/voice.rs"
 required-features = ["mistralrs", "stream"]
 
 [[example]]

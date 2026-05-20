@@ -27,3 +27,6 @@ pub mod client;
 
 pub use builder::{DeviceChoice, MistralRsBuilder, WithModel, WithoutModel};
 pub use client::MistralRsClient;
+
+/// Re-exported for ergonomic use in builder calls.
+pub use mistralrs::IsqType;
