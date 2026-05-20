@@ -29,7 +29,10 @@ pub fn from_core(
         return Err(unsupported("structured outputs", "Phase 3"));
     }
 
-    let has_audio = messages.0.iter().any(|c| c.parts.0.iter().any(is_audio_part));
+    let has_audio = messages
+        .0
+        .iter()
+        .any(|c| c.parts.0.iter().any(is_audio_part));
     let rb: RequestBuilder = if has_audio {
         build_multimodal(messages)?.into()
     } else {
@@ -78,16 +81,18 @@ fn flatten_text_only(parts: &[PartEnum]) -> Result<String, ChatFailure> {
     for part in parts {
         match part {
             PartEnum::Text(t) => append_line(&mut buf, t.as_str()),
-            PartEnum::File(_) => return Err(unsupported("non-audio file parts", "Phase 2 (vision)")),
+            PartEnum::File(_) => {
+                return Err(unsupported("non-audio file parts", "Phase 2 (vision)"));
+            }
             PartEnum::Tool(_) => return Err(unsupported("tool parts", "Phase 4")),
             PartEnum::Structured(_) => {
-                return Err(unsupported("structured parts in input", "Phase 3"))
+                return Err(unsupported("structured parts in input", "Phase 3"));
             }
             PartEnum::Reasoning(_) => {
-                return Err(unsupported("reasoning parts in input", "later phase"))
+                return Err(unsupported("reasoning parts in input", "later phase"));
             }
             PartEnum::Embeddings(_) => {
-                return Err(unsupported("embedding parts in input", "later phase"))
+                return Err(unsupported("embedding parts in input", "later phase"));
             }
         }
     }
@@ -103,16 +108,18 @@ fn split_text_and_audio(parts: &[PartEnum]) -> Result<(String, Vec<AudioInput>),
             PartEnum::File(f) if f.is_audio() => {
                 audio.push(decode_audio(f)?);
             }
-            PartEnum::File(_) => return Err(unsupported("non-audio file parts", "Phase 2 (vision)")),
+            PartEnum::File(_) => {
+                return Err(unsupported("non-audio file parts", "Phase 2 (vision)"));
+            }
             PartEnum::Tool(_) => return Err(unsupported("tool parts", "Phase 4")),
             PartEnum::Structured(_) => {
-                return Err(unsupported("structured parts in input", "Phase 3"))
+                return Err(unsupported("structured parts in input", "Phase 3"));
             }
             PartEnum::Reasoning(_) => {
-                return Err(unsupported("reasoning parts in input", "later phase"))
+                return Err(unsupported("reasoning parts in input", "later phase"));
             }
             PartEnum::Embeddings(_) => {
-                return Err(unsupported("embedding parts in input", "later phase"))
+                return Err(unsupported("embedding parts in input", "later phase"));
             }
         }
     }

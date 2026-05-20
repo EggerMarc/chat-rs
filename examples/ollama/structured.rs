@@ -12,6 +12,7 @@
 use chat_rs::{
     ChatBuilder,
     ollama::OllamaBuilder,
+    parts,
     types::messages::{self, content},
 };
 use schemars::JsonSchema;
@@ -36,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = messages::Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "Extract structured data about the user. Reply ONLY with JSON.",
     ]));
 
@@ -44,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut user_input = String::new();
         println!("User:\t");
         std::io::stdin().read_line(&mut user_input)?;
-        messages.push(content::from_user(vec![user_input.trim()]));
+        messages.push(content::from_user(parts![user_input.trim()]));
 
         let response = chat
             .complete(&mut messages)

@@ -1,6 +1,6 @@
 use chat_rs::{
-    ChatBuilder, gemini,
-    types::messages::{self, content, parts::PartEnum},
+    ChatBuilder, gemini, parts,
+    types::messages::{self, content, file::File},
 };
 
 use once_cell::sync::Lazy;
@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .build();
 
     let mut messages = messages::Messages::default();
-    let system_messages = content::from_system(vec![
+    let system_messages = content::from_system(parts![
         "You are a helpful assistant. Your job is to be as useful as possible.",
     ]);
 
@@ -80,18 +80,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         println!("User:\t");
         std::io::stdin().read_line(&mut user_input)?;
         println!("\n");
-        let video_parts: Vec<PartEnum> = find_youtube_urls(&user_input)
-            .iter()
-            .map(|url| {
-                PartEnum::from_file(messages::file::File::from_url(url.to_owned(), None).unwrap())
-            })
-            .collect();
-
-        let mut user_message = content::from_user(vec![&user_input]);
-        user_message
-            .parts
-            .extend(messages::parts::Parts(video_parts));
-        messages.push(user_message);
+        let mut user_parts = parts![&user_input];
+        user_parts.extend(
+            find_youtube_urls(&user_input)
+                .into_iter()
+                .map(|url| File::from_url(url, None).unwrap().into()),
+        );
+        messages.push(content::from_user(user_parts));
 
         let response = chat
             .complete(&mut messages)

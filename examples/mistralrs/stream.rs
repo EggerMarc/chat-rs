@@ -2,6 +2,7 @@
 //!
 //!     cargo run --example mistralrs-stream --features "mistralrs stream chat-mistralrs/metal"
 
+use chat_core::parts;
 use chat_core::traits::StreamProvider;
 use chat_core::types::messages::from_user;
 use chat_core::types::response::StreamEvent;
@@ -18,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()
         .await?;
 
-    let mut messages = from_user(vec!["Write a short story about a curious robot."]);
+    let mut messages = from_user(parts!["Write a short story about a curious robot."]);
     let mut stream = client.stream(&mut messages, None, None).await?;
 
     while let Some(event) = stream.next().await {

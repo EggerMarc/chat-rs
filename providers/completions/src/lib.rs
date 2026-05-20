@@ -21,9 +21,9 @@ use std::marker::PhantomData;
 
 use chat_core::types::provider_meta::ProviderMeta;
 
-pub use chat_core::error::{ChatError, ChatFailure};
-pub use chat_core::transport::{ReqwestTransport, Request, Response, Transport, TransportError};
 pub use crate::client::ChatCompletionsClient;
+pub use chat_core::error::{ChatError, ChatFailure};
+pub use chat_core::transport::{Request, ReqwestTransport, Response, Transport, TransportError};
 
 pub struct WithoutModel;
 pub struct WithModel;
@@ -31,11 +31,8 @@ pub struct WithModel;
 pub struct WithoutUrl;
 pub struct WithUrl;
 
-pub struct ChatCompletionsBuilder<
-    M = WithoutModel,
-    U = WithoutUrl,
-    T: Transport = ReqwestTransport,
-> {
+pub struct ChatCompletionsBuilder<M = WithoutModel, U = WithoutUrl, T: Transport = ReqwestTransport>
+{
     model_name: Option<String>,
     api_key: Option<String>,
     scheme: String,
@@ -114,7 +111,10 @@ impl<M, U, T: Transport> ChatCompletionsBuilder<M, U, T> {
 }
 
 impl<U, T: Transport> ChatCompletionsBuilder<WithoutModel, U, T> {
-    pub fn with_model(self, model_name: impl Into<String>) -> ChatCompletionsBuilder<WithModel, U, T> {
+    pub fn with_model(
+        self,
+        model_name: impl Into<String>,
+    ) -> ChatCompletionsBuilder<WithModel, U, T> {
         ChatCompletionsBuilder {
             model_name: Some(model_name.into()),
             api_key: self.api_key,
@@ -136,10 +136,7 @@ impl<M, T: Transport> ChatCompletionsBuilder<M, WithoutUrl, T> {
     /// Example: `http://localhost:11434/v1`, `https://api.cerebras.ai/v1`.
     /// The path portion is preserved as the base, and completion/embedding
     /// endpoints are appended (`/chat/completions`, `/embeddings`).
-    pub fn with_base_url(
-        self,
-        base_url: impl AsRef<str>,
-    ) -> ChatCompletionsBuilder<M, WithUrl, T> {
+    pub fn with_base_url(self, base_url: impl AsRef<str>) -> ChatCompletionsBuilder<M, WithUrl, T> {
         let parsed = url::Url::parse(base_url.as_ref()).expect("Invalid base URL");
         let scheme = parsed.scheme().to_string();
         let host = parsed

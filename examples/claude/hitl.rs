@@ -19,7 +19,8 @@ use std::io::{self, BufRead, Write};
 
 use chat_rs::{
     Action, Chat, ChatBuilder, Messages, PauseReason, ScopedCollection, StreamEvent,
-    StreamProvider, ToolStatus, Unstructured, claude::ClaudeBuilder, types::messages::content,
+    StreamProvider, ToolStatus, Unstructured, claude::ClaudeBuilder, parts,
+    types::messages::content,
 };
 use futures::StreamExt;
 use serde::Deserialize;
@@ -225,7 +226,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a terse assistant with destructive tools available. \
          Use them when asked. Explain what you did afterwards.",
     ]));
@@ -237,7 +238,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if user_input.is_empty() {
             break;
         }
-        messages.push(content::from_user(vec![&user_input]));
+        messages.push(content::from_user(parts![&user_input]));
 
         run_turn(&mut chat, &mut messages).await?;
     }

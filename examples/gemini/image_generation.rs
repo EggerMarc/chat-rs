@@ -1,5 +1,5 @@
 use chat_rs::{
-    ChatBuilder, PartEnum, gemini,
+    ChatBuilder, PartEnum, gemini, parts,
     types::messages::{self, file::FileSource},
 };
 use std::fs;
@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut chat = ChatBuilder::new().with_model(client).build();
 
-    let mut messages = messages::from_user(vec![
+    let mut messages = messages::from_user(parts![
         "Generate an image of a small wooden cabin in a snowy forest at dusk.",
     ]);
 

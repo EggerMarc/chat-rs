@@ -441,7 +441,9 @@ mod conversion_tests {
     #[test]
     fn from_str_and_string_produce_text_part() {
         assert!(matches!(PartEnum::from("hi"), PartEnum::Text(t) if t.as_str() == "hi"));
-        assert!(matches!(PartEnum::from(String::from("hi")), PartEnum::Text(t) if t.as_str() == "hi"));
+        assert!(
+            matches!(PartEnum::from(String::from("hi")), PartEnum::Text(t) if t.as_str() == "hi")
+        );
         let owned = String::from("hi");
         assert!(matches!(PartEnum::from(&owned), PartEnum::Text(t) if t.as_str() == "hi"));
     }

@@ -1,6 +1,7 @@
 use chat_rs::{
     ChatBuilder,
     gemini::{self},
+    parts,
     types::messages::{self, content},
 };
 use schemars::JsonSchema;
@@ -39,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = messages::Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a helpful assistant. Your job is to be as useful as possible.",
     ]));
 
@@ -47,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut user_input = String::new();
         println!("User:\t");
         std::io::stdin().read_line(&mut user_input)?;
-        let user_message = content::from_user(vec![&user_input]);
+        let user_message = content::from_user(parts![&user_input]);
         messages.push(user_message);
 
         let response = chat

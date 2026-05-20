@@ -5,6 +5,7 @@ use chat_rs::{
     ChatBuilder, Messages, ProviderMeta, StreamEvent,
     claude::ClaudeBuilder,
     gemini::GeminiBuilder,
+    parts,
     router::StreamRouterBuilder,
     router::{RoutingStrategy, StrategyError},
     types::messages::content,
@@ -106,7 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a helpful assistant. Your job is to be as useful as possible.",
     ]));
 
@@ -121,7 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::io::stdout().flush()?;
 
         std::io::stdin().read_line(&mut user_input)?;
-        messages.push(content::from_user(vec![user_input.trim()]));
+        messages.push(content::from_user(parts![user_input.trim()]));
 
         let mut stream = chat.stream(&mut messages).await.map_err(|err| err.err)?;
 

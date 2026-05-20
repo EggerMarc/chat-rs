@@ -8,6 +8,7 @@
 use chat_rs::{
     ChatBuilder, StreamEvent,
     ollama::OllamaBuilder,
+    parts,
     types::messages::{self, content},
 };
 use futures::StreamExt;
@@ -23,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut chat = ChatBuilder::new().with_model(client).build();
 
     let mut messages = messages::Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a helpful assistant. Keep replies short.",
     ]));
 
@@ -35,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         print!("\nUser:\t");
         std::io::stdout().flush()?;
         std::io::stdin().read_line(&mut user_input)?;
-        messages.push(content::from_user(vec![user_input.trim()]));
+        messages.push(content::from_user(parts![user_input.trim()]));
 
         print!("Model:\t");
         std::io::stdout().flush()?;

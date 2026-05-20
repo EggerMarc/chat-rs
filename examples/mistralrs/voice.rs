@@ -39,12 +39,10 @@
 use std::io::{self, BufRead, Cursor, Write};
 use std::sync::{Arc, Mutex};
 
+use chat_core::parts;
 use chat_core::traits::StreamProvider;
-use chat_core::types::messages::Messages;
-use chat_core::types::messages::content::{CompleteReasonEnum, Content, RoleEnum};
 use chat_core::types::messages::file::File;
-use chat_core::types::messages::parts::{PartEnum, Parts};
-use chat_core::types::messages::text::Text;
+use chat_core::types::messages::{self, content};
 use chat_core::types::response::StreamEvent;
 use chat_mistralrs::{IsqType, MistralRsBuilder};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -54,7 +52,9 @@ use hound::{SampleFormat, WavSpec, WavWriter};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("Loading Gemma 3n E2B (first run downloads ~6 GB, then stays warm)...");
-    eprintln!("Progress from mistral.rs follows below. Watch for 'Model loaded' as the green light.\n");
+    eprintln!(
+        "Progress from mistral.rs follows below. Watch for 'Model loaded' as the green light.\n"
+    );
     let mut client = MistralRsBuilder::new()
         .with_model("google/gemma-3n-E2B-it")
         .with_multimodal()
@@ -79,19 +79,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.sample_format(),
     );
 
-    let mut messages = Messages(vec![Content {
-        role: RoleEnum::System,
-        parts: Parts(vec![PartEnum::Text(Text::new(
-            "You are a helpful voice assistant. For every user turn the user \
-             sends an audio clip. Respond in EXACTLY this two-line format and \
-             nothing else before it:\n\
-             Heard: \"<verbatim transcript of what the user said>\"\n\
-             Reply: <your answer — at least two full sentences, and engage \
-             with the content of what was said; never reply with just \
-             \"okay\" or other one-word acknowledgements>",
-        ))]),
-        complete_reason: CompleteReasonEnum::None,
-    }]);
+    let mut messages = messages::from_system(parts![
+        "You are a helpful voice assistant. For every user turn the user \
+         sends an audio clip. Respond in EXACTLY this two-line format and \
+         nothing else before it:\n\
+         Heard: \"<verbatim transcript of what the user said>\"\n\
+         Reply: <your answer — at least two full sentences, and engage \
+         with the content of what was said; never reply with just \
+         \"okay\" or other one-word acknowledgements>"
+    ]);
     let stdin = io::stdin();
 
     loop {
@@ -102,7 +98,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // --- Capture mic into a shared f32 buffer ---
-        let samples = Arc::new(Mutex::new(Vec::<f32>::with_capacity(sample_rate as usize * 30)));
+        let samples = Arc::new(Mutex::new(Vec::<f32>::with_capacity(
+            sample_rate as usize * 30,
+        )));
         let stream = build_input_stream(&device, &config, samples.clone())?;
         stream.play()?;
 
@@ -125,18 +123,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // --- Wrap as a chat-rs File part ---
         let wav_bytes = encode_wav(&captured, sample_rate, channels)?;
-        let user_parts = Parts(vec![
-            PartEnum::Text(Text::new(
-                "Transcribe the attached audio verbatim on the `Heard:` line, \
-                 then give a substantive reply on the `Reply:` line.",
-            )),
-            PartEnum::File(File::from_bytes_with_mime(wav_bytes, "audio/wav")),
-        ]);
-        messages.push(Content {
-            role: RoleEnum::User,
-            parts: user_parts,
-            complete_reason: CompleteReasonEnum::None,
-        });
+        messages.push(content::from_user(parts![
+            "Transcribe the attached audio verbatim on the `Heard:` line, \
+             then give a substantive reply on the `Reply:` line.",
+            File::from_bytes_with_mime(wav_bytes, "audio/wav"),
+        ]));
 
         // --- Stream response to stdout, accumulate for history ---
         eprint!("\nAssistant: ");
@@ -159,11 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // --- Push assistant turn for multi-turn context ---
-        messages.push(Content {
-            role: RoleEnum::Model,
-            parts: Parts(vec![PartEnum::Text(Text::new(assistant_text))]),
-            complete_reason: CompleteReasonEnum::Stop,
-        });
+        messages.push(content::from_model(parts![assistant_text]));
     }
 
     Ok(())

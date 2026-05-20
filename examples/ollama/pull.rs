@@ -9,11 +9,7 @@
 //! OLLAMA_MODEL=qwen2.5:0.5b cargo run --example ollama-pull --features ollama
 //! ```
 
-use chat_rs::{
-    ChatBuilder,
-    ollama::OllamaBuilder,
-    types::messages,
-};
+use chat_rs::{ChatBuilder, ollama::OllamaBuilder, parts, types::messages};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -22,15 +18,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let model = std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "qwen2.5:0.5b".to_string());
 
     eprintln!("Pulling {model} (this may take a while on first run)...");
-    let client = OllamaBuilder::new()
-        .with_model(model)
-        .pull()
-        .await?
-        .build();
+    let client = OllamaBuilder::new().with_model(model).pull().await?.build();
     eprintln!("Pull complete.");
 
     let mut chat = ChatBuilder::new().with_model(client).build();
-    let mut messages = messages::from_user(vec!["In one sentence, what are you?"]);
+    let mut messages = messages::from_user(parts!["In one sentence, what are you?"]);
     let res = chat.complete(&mut messages).await?.expect_complete();
     println!("Model: {:#?}", res.content);
 

@@ -162,12 +162,16 @@ impl ChatCompletionsResponse {
 
         let mut parts = Parts::default();
         let had_tool_calls = message_to_parts(&choice.message, &mut parts);
-        let complete_reason = finish_reason_to_core(choice.finish_reason.as_deref(), had_tool_calls);
+        let complete_reason =
+            finish_reason_to_core(choice.finish_reason.as_deref(), had_tool_calls);
 
         let metadata = Metadata {
             id: self.id,
             model_slug: self.model,
-            usage: self.usage.map(CompletionsUsage::to_core).unwrap_or_default(),
+            usage: self
+                .usage
+                .map(CompletionsUsage::to_core)
+                .unwrap_or_default(),
             ..Default::default()
         };
 
@@ -213,7 +217,10 @@ impl ChatCompletionsEmbeddingResponse {
         let dimension = first.embedding.len();
         let metadata = Metadata {
             model_slug: self.model,
-            usage: self.usage.map(CompletionsUsage::to_core).unwrap_or_default(),
+            usage: self
+                .usage
+                .map(CompletionsUsage::to_core)
+                .unwrap_or_default(),
             ..Default::default()
         };
 
@@ -246,7 +253,13 @@ mod tests {
         let resp: ChatCompletionsResponse = serde_json::from_str(body).unwrap();
         let core = resp.into_core_chat_response().unwrap();
         assert_eq!(core.content.complete_reason, CompleteReasonEnum::Stop);
-        let txt = core.content.parts.text_response().unwrap().as_str().to_string();
+        let txt = core
+            .content
+            .parts
+            .text_response()
+            .unwrap()
+            .as_str()
+            .to_string();
         assert_eq!(txt, "hi there");
     }
 

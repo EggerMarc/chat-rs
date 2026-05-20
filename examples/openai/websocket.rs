@@ -1,6 +1,7 @@
 use chat_rs::{
     ChatBuilder, StreamEvent,
     openai::OpenAIBuilder,
+    parts,
     transport::AsyncWsTransport,
     types::messages::{self, content},
 };
@@ -27,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = messages::Messages::default();
-    messages.push(content::from_system(vec!["You are a helpful assistant."]));
+    messages.push(content::from_system(parts!["You are a helpful assistant."]));
 
     println!("OpenAI over WebSocket (type 'quit' to exit)");
     println!("--------------------------------------------");
@@ -43,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
 
-        messages.push(content::from_user(vec![input]));
+        messages.push(content::from_user(parts![input]));
 
         let mut stream = chat.stream(&mut messages).await.map_err(|err| err.err)?;
 

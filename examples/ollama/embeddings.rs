@@ -8,6 +8,7 @@
 use chat_rs::{
     ChatBuilder,
     ollama::OllamaBuilder,
+    parts,
     types::messages::{self, content},
 };
 
@@ -28,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut user_input = String::new();
         println!("Text:\t");
         std::io::stdin().read_line(&mut user_input)?;
-        messages.push(content::from_user(vec![user_input.trim()]));
+        messages.push(content::from_user(parts![user_input.trim()]));
 
         let response = chat.embed(&mut messages).await.map_err(|err| err.err)?;
         println!("Dimensions:\t{}", response.embeddings.dimension);
