@@ -1,0 +1,31 @@
+[package]
+name = "chat-mistralrs"
+version = "0.2.0"
+description = "Local-inference provider for chat-rs, built on mistral.rs."
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chat-core    = { path = "../../core", version = "0.2.0" }
+mistralrs    = "0.8"
+anyhow       = "1"
+async-trait.workspace  = true
+serde.workspace        = true
+serde_json.workspace   = true
+tools-rs.workspace     = true
+schemars.workspace     = true
+tokio        = { workspace = true, features = ["sync", "macros", "rt"] }
+async-stream = { workspace = true, optional = true }
+futures      = { workspace = true, optional = true }
+
+[features]
+default    = []
+stream     = ["chat-core/stream", "dep:async-stream", "dep:futures"]
+metal      = ["mistralrs/metal"]
+cuda       = ["mistralrs/cuda"]
+accelerate = ["mistralrs/accelerate"]
+mkl        = ["mistralrs/mkl"]
+flash-attn = ["mistralrs/flash-attn"]

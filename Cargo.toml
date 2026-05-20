@@ -10,6 +10,7 @@ members = [
     "providers/ollama",
     "providers/huggingface",
     "providers/cerebras",
+    "providers/mistralrs",
     "providers/router",
 ]
 
@@ -64,6 +65,7 @@ chat-claude      = { path = "providers/claude", version = "0.2.0", optional = tr
 chat-ollama      = { path = "providers/ollama", version = "0.2.0", optional = true }
 chat-huggingface = { path = "providers/huggingface", version = "0.2.0", optional = true }
 chat-cerebras    = { path = "providers/cerebras", version = "0.2.0", optional = true }
+chat-mistralrs   = { path = "providers/mistralrs", version = "0.2.0", optional = true }
 chat-router      = { path = "providers/router", version = "0.2.0", optional = true }
 tokio.workspace = true
 schemars.workspace = true
@@ -100,9 +102,10 @@ openai = ["dep:chat-openai"]
 ollama = ["dep:chat-ollama", "dep:chat-completions"]
 huggingface = ["dep:chat-huggingface", "dep:chat-completions"]
 cerebras = ["dep:chat-cerebras", "dep:chat-completions"]
+mistralrs = ["dep:chat-mistralrs"]
 router = ["dep:chat-router"]
 python = ["tools-rs/python"]
-stream = ["chat-core/stream", "chat-completions?/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-ollama?/stream", "chat-huggingface?/stream", "chat-cerebras?/stream", "chat-router?/stream"]
+stream = ["chat-core/stream", "chat-completions?/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-ollama?/stream", "chat-huggingface?/stream", "chat-cerebras?/stream", "chat-mistralrs?/stream", "chat-router?/stream"]
 tungstenite = ["chat-core/tungstenite"]
 tokio-tungstenite = ["chat-core/tokio-tungstenite"]
 
@@ -151,6 +154,16 @@ required-features = ["huggingface"]
 name = "huggingface-stream"
 path = "./examples/huggingface/stream.rs"
 required-features = ["huggingface", "stream"]
+
+[[example]]
+name = "mistralrs-completion"
+path = "./examples/mistralrs/completion.rs"
+required-features = ["mistralrs"]
+
+[[example]]
+name = "mistralrs-stream"
+path = "./examples/mistralrs/stream.rs"
+required-features = ["mistralrs", "stream"]
 
 [[example]]
 name = "cerebras-completion"
