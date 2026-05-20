@@ -253,6 +253,78 @@ impl PartEnum {
     }
 }
 
+impl From<&str> for PartEnum {
+    fn from(s: &str) -> Self {
+        PartEnum::Text(Text::new(s))
+    }
+}
+
+impl From<String> for PartEnum {
+    fn from(s: String) -> Self {
+        PartEnum::Text(Text(s))
+    }
+}
+
+impl From<&String> for PartEnum {
+    fn from(s: &String) -> Self {
+        PartEnum::Text(Text(s.clone()))
+    }
+}
+
+impl From<Text> for PartEnum {
+    fn from(text: Text) -> Self {
+        PartEnum::Text(text)
+    }
+}
+
+impl From<Reasoning> for PartEnum {
+    fn from(reasoning: Reasoning) -> Self {
+        PartEnum::Reasoning(reasoning)
+    }
+}
+
+impl From<Tool> for PartEnum {
+    fn from(tool: Tool) -> Self {
+        PartEnum::Tool(tool)
+    }
+}
+
+impl From<File> for PartEnum {
+    fn from(file: File) -> Self {
+        PartEnum::File(file)
+    }
+}
+
+impl From<Embeddings> for PartEnum {
+    fn from(embeddings: Embeddings) -> Self {
+        PartEnum::Embeddings(embeddings)
+    }
+}
+
+impl From<serde_json::Value> for PartEnum {
+    fn from(value: serde_json::Value) -> Self {
+        PartEnum::Structured(value)
+    }
+}
+
+/// Build a heterogeneous `Vec<PartEnum>` from any items that implement
+/// `Into<PartEnum>`. Lets you mix text, files, tools, etc. in a single
+/// expression without explicit per-item conversions.
+///
+/// ```ignore
+/// use chat_core::parts;
+/// let p = parts!["look at this", screenshot, "and tell me what you see"];
+/// ```
+#[macro_export]
+macro_rules! parts {
+    () => { ::std::vec::Vec::<$crate::types::messages::parts::PartEnum>::new() };
+    ($($item:expr),+ $(,)?) => {
+        ::std::vec![
+            $(<$crate::types::messages::parts::PartEnum as ::core::convert::From<_>>::from($item)),+
+        ]
+    };
+}
+
 impl Display for PartEnum {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -358,5 +430,45 @@ impl Parts {
             }
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod conversion_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn from_str_and_string_produce_text_part() {
+        assert!(matches!(PartEnum::from("hi"), PartEnum::Text(t) if t.as_str() == "hi"));
+        assert!(matches!(PartEnum::from(String::from("hi")), PartEnum::Text(t) if t.as_str() == "hi"));
+        let owned = String::from("hi");
+        assert!(matches!(PartEnum::from(&owned), PartEnum::Text(t) if t.as_str() == "hi"));
+    }
+
+    #[test]
+    fn from_file_and_value_produce_matching_variants() {
+        let file = File::from_bytes_with_mime(b"x".to_vec(), "image/png");
+        assert!(matches!(PartEnum::from(file), PartEnum::File(_)));
+        assert!(matches!(
+            PartEnum::from(json!({"k": 1})),
+            PartEnum::Structured(_)
+        ));
+    }
+
+    #[test]
+    fn parts_macro_builds_heterogeneous_vec() {
+        let file = File::from_bytes_with_mime(b"x".to_vec(), "image/png");
+        let v = crate::parts!["look", file, String::from("then this")];
+        assert_eq!(v.len(), 3);
+        assert!(matches!(v[0], PartEnum::Text(_)));
+        assert!(matches!(v[1], PartEnum::File(_)));
+        assert!(matches!(v[2], PartEnum::Text(_)));
+    }
+
+    #[test]
+    fn parts_macro_empty_yields_empty_vec() {
+        let v: Vec<PartEnum> = crate::parts![];
+        assert!(v.is_empty());
     }
 }
