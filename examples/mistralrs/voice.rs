@@ -229,10 +229,7 @@ fn build_input_stream(
             &cfg,
             move |data: &[u16], _| {
                 let mut buf = sink.lock().unwrap();
-                buf.extend(
-                    data.iter()
-                        .map(|s| (*s as f32 - i16::MAX as f32) / i16::MAX as f32),
-                );
+                buf.extend(data.iter().map(|s| (*s as f32 - 32768.0) / 32768.0));
             },
             err_fn,
             None,

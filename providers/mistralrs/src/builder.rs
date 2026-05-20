@@ -101,7 +101,23 @@ impl<M> MistralRsBuilder<M> {
         self
     }
 
+    /// Only [`DeviceChoice::Auto`] and [`DeviceChoice::Cpu`] are wired
+    /// through today. Explicit GPU/Metal selection is not yet implemented —
+    /// passing `Cuda`, `CudaOrdinal`, or `Metal` panics rather than silently
+    /// falling back to auto-detect. For now, use `Auto` (which honours the
+    /// compiled-in backend feature) and select GPU at compile time via the
+    /// `metal` / `cuda` features.
     pub fn with_device(mut self, device: DeviceChoice) -> Self {
+        match device {
+            DeviceChoice::Auto | DeviceChoice::Cpu => {}
+            DeviceChoice::Cuda | DeviceChoice::CudaOrdinal(_) | DeviceChoice::Metal => {
+                panic!(
+                    "DeviceChoice::{device:?} is not yet wired through to the mistral.rs \
+                     loader — use DeviceChoice::Auto (and enable the `metal` or `cuda` \
+                     feature at compile time) or DeviceChoice::Cpu"
+                );
+            }
+        }
         self.device = device;
         self
     }
@@ -145,6 +161,18 @@ impl MistralRsBuilder<WithModel> {
     pub async fn build(self) -> Result<MistralRsClient, ChatFailure> {
         let model_id = self.model_id.expect("with_model() sets model_id");
         let force_cpu = matches!(self.device, DeviceChoice::Cpu);
+
+        if self.multimodal && (self.gguf_file.is_some() || self.tok_model_id.is_some()) {
+            return Err(build_failure(
+                "builder",
+                &model_id,
+                anyhow::anyhow!(
+                    "with_multimodal() is incompatible with with_gguf_file() / \
+                     with_tok_model_id(): the multimodal loader does not consume \
+                     GGUF files or a separate tokenizer source. Pick one path."
+                ),
+            ));
+        }
 
         let model = if self.multimodal {
             let mut b = MultimodalModelBuilder::new(model_id.clone());
