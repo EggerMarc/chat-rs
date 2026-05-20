@@ -1,16 +1,18 @@
 //! Voice chat against a local audio-multimodal model loaded via mistral.rs.
 //!
-//! Records from the system microphone, sends the audio to **Phi-4-Multimodal**
-//! (an audio + vision + text model from Microsoft), and streams the
-//! assistant's text response to stdout. Multi-turn — the conversation
-//! history is preserved across recordings.
+//! Records from the system microphone, sends the audio to **Gemma 3n E2B**
+//! (Google's Matformer audio + vision + text model, ~2 B effective params),
+//! and streams the assistant's text response to stdout. Multi-turn — the
+//! conversation history is preserved across recordings.
 //!
-//! ### Why Phi-4-Multimodal and not Voxtral?
-//! Voxtral would be the obvious purpose-built audio model, but
-//! `mistralrs 0.8.1`'s Voxtral loader demands a `frame_rate` field in
-//! `audio_config.json` that the public HF release doesn't ship — load
-//! fails with `missing field 'frame_rate'`. Phi-4-MM is the next-best
-//! always-open audio-capable model in 0.8.1's `MultimodalLoaderType`.
+//! ### Why Gemma 3n E2B?
+//! Of the audio-capable architectures in `mistralrs 0.8.1`'s
+//! `MultimodalLoaderType` (`Phi4MM`, `Voxtral`, `MiniCpmO`, `Gemma3n`),
+//! Voxtral fails to load (`audio_config.json` is missing the `frame_rate`
+//! field the 0.8.1 loader requires), Phi-4-MM and MiniCPM-o are too heavy
+//! for a 16 GB machine once you add the audio encoder + KV cache on top of
+//! the quantised weights. Gemma 3n E2B is the smallest natively-audio model
+//! the 0.8.1 multimodal loader supports.
 //!
 //! ### macOS notes
 //! - On first launch macOS will ask for microphone permission. Grant it in
@@ -19,9 +21,9 @@
 //!     cargo run --release --example mistralrs-voice \
 //!       --features "mistralrs stream chat-mistralrs/metal"
 //!
-//! Expect a few minutes on first run while ~11 GB of weights download into
+//! Expect a few minutes on first run while ~6 GB of weights download into
 //! `~/.cache/huggingface/`. With `IsqType::Q4K` the loaded model lives in
-//! roughly 3.5 GB of RAM.
+//! roughly 1.5–2 GB of RAM.
 //!
 //! UX:
 //!   1. Press enter to start recording.
@@ -30,9 +32,9 @@
 //!   4. The model processes the clip, then streams its text response.
 //!   5. Loop.
 //!
-//! The response does **not** stream in parallel with your speech — Voxtral
-//! emits text after consuming the full audio clip. Token-streaming begins
-//! immediately once the model starts decoding.
+//! The response does **not** stream in parallel with your speech — the model
+//! emits text only after consuming the full audio clip. Token-streaming
+//! begins immediately once decoding starts.
 
 use std::io::{self, BufRead, Cursor, Write};
 use std::sync::{Arc, Mutex};
@@ -51,10 +53,10 @@ use hound::{SampleFormat, WavSpec, WavWriter};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    eprintln!("Loading Phi-4-Multimodal (first run downloads ~11 GB, then stays warm)...");
+    eprintln!("Loading Gemma 3n E2B (first run downloads ~6 GB, then stays warm)...");
     eprintln!("Progress from mistral.rs follows below. Watch for 'Model loaded' as the green light.\n");
     let mut client = MistralRsBuilder::new()
-        .with_model("microsoft/Phi-4-multimodal-instruct")
+        .with_model("google/gemma-3n-E2B-it")
         .with_multimodal()
         .with_isq(IsqType::Q4K)
         .with_logging()
@@ -77,7 +79,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.sample_format(),
     );
 
-    let mut messages = Messages(vec![]);
+    let mut messages = Messages(vec![Content {
+        role: RoleEnum::System,
+        parts: Parts(vec![PartEnum::Text(Text::new(
+            "You are a helpful voice assistant. For every user turn the user \
+             sends an audio clip. Respond in EXACTLY this two-line format and \
+             nothing else before it:\n\
+             Heard: \"<verbatim transcript of what the user said>\"\n\
+             Reply: <your answer — at least two full sentences, and engage \
+             with the content of what was said; never reply with just \
+             \"okay\" or other one-word acknowledgements>",
+        ))]),
+        complete_reason: CompleteReasonEnum::None,
+    }]);
     let stdin = io::stdin();
 
     loop {
@@ -112,7 +126,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // --- Wrap as a chat-rs File part ---
         let wav_bytes = encode_wav(&captured, sample_rate, channels)?;
         let user_parts = Parts(vec![
-            PartEnum::Text(Text::new("Respond to what was just said.")),
+            PartEnum::Text(Text::new(
+                "Transcribe the attached audio verbatim on the `Heard:` line, \
+                 then give a substantive reply on the `Reply:` line.",
+            )),
             PartEnum::File(File::from_bytes_with_mime(wav_bytes, "audio/wav")),
         ]);
         messages.push(Content {
