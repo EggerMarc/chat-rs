@@ -1,6 +1,6 @@
 [package]
 name = "chat-mistralrs"
-version = "0.1.1"
+version = "0.1.2"
 description = "Local-inference provider for chat-rs, built on mistral.rs."
 edition.workspace = true
 authors.workspace = true
