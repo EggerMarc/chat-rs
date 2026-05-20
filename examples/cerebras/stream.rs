@@ -9,6 +9,7 @@
 use chat_rs::{
     ChatBuilder, StreamEvent,
     cerebras::CerebrasBuilder,
+    parts,
     types::messages::{self, content},
 };
 use futures::StreamExt;
@@ -18,14 +19,13 @@ use std::io::Write;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
 
-    let model =
-        std::env::var("CEREBRAS_MODEL").unwrap_or_else(|_| "llama-3.3-70b".to_string());
+    let model = std::env::var("CEREBRAS_MODEL").unwrap_or_else(|_| "llama-3.3-70b".to_string());
 
     let client = CerebrasBuilder::new().with_model(model).build();
     let mut chat = ChatBuilder::new().with_model(client).build();
 
     let mut messages = messages::Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a helpful assistant. Keep replies short.",
     ]));
 
@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         print!("\nUser:\t");
         std::io::stdout().flush()?;
         std::io::stdin().read_line(&mut user_input)?;
-        messages.push(content::from_user(vec![user_input.trim()]));
+        messages.push(content::from_user(parts![user_input.trim()]));
 
         print!("Model:\t");
         std::io::stdout().flush()?;

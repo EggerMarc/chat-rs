@@ -29,85 +29,57 @@ pub enum CompleteReasonEnum {
     Other(String),
 }
 
-/// Creates a Content with the user role from the provided prompt strings.
-///
-/// Each prompt string is converted into a content part. The resulting Content
-/// has role set to `RoleEnum::User` and `complete_reason` set to
-/// `CompleteReasonEnum::None`.
-///
-/// # Examples
-///
-/// ```ignore
-/// let c = from_user(vec!["hello"]);
-/// assert_eq!(c.role, RoleEnum::User);
-/// assert_eq!(c.parts.0.len(), 1);
-/// ```
-pub fn from_user(prompts: Vec<&str>) -> Content {
-    let role = RoleEnum::User;
-    let parts = Parts(
-        prompts
-            .iter()
-            .map(|prompt| PartEnum::from_text(prompt.to_string()))
-            .collect(),
-    );
+/// Build a `Content` with the user role from any iterable of items that can be
+/// converted into a `PartEnum`. This accepts homogeneous lists like
+/// `vec!["hi", "there"]` as well as a `Vec<PartEnum>` produced by the
+/// [`parts!`](crate::parts) macro for heterogeneous content (text, files,
+/// embeddings, tools).
+pub fn from_user<I>(prompts: I) -> Content
+where
+    I: IntoIterator,
+    I::Item: Into<PartEnum>,
+{
     Content {
-        role,
-        parts,
+        role: RoleEnum::User,
+        parts: collect_parts(prompts),
         ..Content::default()
     }
 }
 
-/// Constructs a `Content` with the system role from the provided prompt strings.
-///
-/// Returns a `Content` whose `role` is `RoleEnum::System`, whose `parts` are created from each prompt string, and whose `complete_reason` is `CompleteReasonEnum::None`.
-///
-/// # Examples
-///
-/// ```ignore
-/// let content = from_system(vec!["Initialize system", "Set config"]);
-/// assert_eq!(content.role, RoleEnum::System);
-/// assert_eq!(content.parts.0.len(), 2);
-/// ```
-pub fn from_system(prompts: Vec<&str>) -> Content {
-    let role = RoleEnum::System;
-    let parts = Parts(
-        prompts
-            .iter()
-            .map(|prompt| PartEnum::from_text(prompt.to_string()))
-            .collect(),
-    );
+/// Build a `Content` with the system role. See [`from_user`] for the accepted
+/// input shapes.
+pub fn from_system<I>(prompts: I) -> Content
+where
+    I: IntoIterator,
+    I::Item: Into<PartEnum>,
+{
     Content {
-        role,
-        parts,
+        role: RoleEnum::System,
+        parts: collect_parts(prompts),
         ..Content::default()
     }
 }
 
-/// Constructs a Content with the Model role from model-generated prompt strings.
-///
-/// Each prompt is converted into a Part and collected into `parts`. The `complete_reason` is set to `CompleteReasonEnum::Stop`.
-///
-/// # Examples
-///
-/// ```ignore
-/// let content = from_model(vec!["generated text"]);
-/// assert_eq!(content.role, RoleEnum::Model);
-/// assert!(matches!(content.complete_reason, CompleteReasonEnum::Stop));
-/// assert_eq!(content.parts.0.len(), 1);
-/// ```
-pub fn from_model(prompts: Vec<&str>) -> Content {
-    let role = RoleEnum::Model;
-    let parts = Parts(
-        prompts
-            .iter()
-            .map(|prompt| PartEnum::from_text(prompt.to_string()))
-            .collect(),
-    );
+/// Build a `Content` with the model role; `complete_reason` defaults to
+/// `Stop`. See [`from_user`] for the accepted input shapes.
+pub fn from_model<I>(prompts: I) -> Content
+where
+    I: IntoIterator,
+    I::Item: Into<PartEnum>,
+{
     Content {
-        role,
-        parts,
+        role: RoleEnum::Model,
+        parts: collect_parts(prompts),
         complete_reason: CompleteReasonEnum::Stop,
     }
+}
+
+fn collect_parts<I>(prompts: I) -> Parts
+where
+    I: IntoIterator,
+    I::Item: Into<PartEnum>,
+{
+    Parts(prompts.into_iter().map(Into::into).collect())
 }
 
 #[cfg(test)]
@@ -146,7 +118,7 @@ mod tests {
 
     #[test]
     fn test_from_user_with_empty_prompts() {
-        let content = from_user(vec![]);
+        let content = from_user(Vec::<&str>::new());
         assert_eq!(content.parts.len(), 0);
         assert_eq!(content.role, RoleEnum::User);
     }
@@ -194,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_from_system_with_empty_prompts() {
-        let content = from_system(vec![]);
+        let content = from_system(Vec::<&str>::new());
         assert_eq!(content.parts.len(), 0);
         assert_eq!(content.role, RoleEnum::System);
     }
@@ -202,7 +174,7 @@ mod tests {
     #[test]
     fn test_from_system_with_long_text() {
         let long_text = "a".repeat(10000);
-        let content = from_system(vec![&long_text]);
+        let content = from_system(vec![long_text.as_str()]);
         assert_eq!(content.parts.len(), 1);
         assert_eq!(content.parts.text_response().unwrap().as_str().len(), 10000);
     }
@@ -237,7 +209,7 @@ mod tests {
 
     #[test]
     fn test_from_model_with_empty_prompts() {
-        let content = from_model(vec![]);
+        let content = from_model(Vec::<&str>::new());
         assert_eq!(content.parts.len(), 0);
     }
 
@@ -254,6 +226,18 @@ mod tests {
         let content1 = from_user(vec!["Test"]);
         let content2 = content1.clone();
         assert_eq!(content1, content2);
+    }
+
+    #[test]
+    fn from_user_accepts_heterogeneous_parts() {
+        use crate::parts;
+        use crate::types::messages::file::File;
+
+        let screenshot = File::from_bytes_with_mime(b"x".to_vec(), "image/png");
+        let content = from_user(parts!["caption me", screenshot, "and this too"]);
+        assert_eq!(content.role, RoleEnum::User);
+        assert_eq!(content.parts.len(), 3);
+        assert!(matches!(content.parts.0[1], PartEnum::File(_)));
     }
 
     #[test]

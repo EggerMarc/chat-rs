@@ -29,8 +29,7 @@ impl StreamProvider for MistralRsClient {
         let tools_present = tool_declarations.is_some();
         // Build the request synchronously so a malformed Messages surfaces
         // here rather than as a stream item.
-        let req = request::from_core(messages, options, None, tools_present)
-            .map_err(|f| f.err)?;
+        let req = request::from_core(messages, options, None, tools_present).map_err(|f| f.err)?;
 
         let model = self.model.clone();
         let model_id = self.model_id.clone();

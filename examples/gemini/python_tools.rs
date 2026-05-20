@@ -4,8 +4,7 @@
 //! `ToolCollection` exactly like a native `#[tool]` would be.
 
 use chat_rs::{
-    ChatBuilder,
-    gemini,
+    ChatBuilder, gemini, parts,
     types::messages::{self, content},
 };
 use tools_rs::{Language, ToolsBuilder};
@@ -28,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = messages::Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a helpful assistant. Use the available tools when relevant.",
     ]));
 
@@ -36,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut user_input = String::new();
         println!("User:\t");
         std::io::stdin().read_line(&mut user_input)?;
-        let user_message = content::from_user(vec![&user_input]);
+        let user_message = content::from_user(parts![&user_input]);
         messages.push(user_message);
 
         let response = chat

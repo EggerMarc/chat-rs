@@ -303,7 +303,8 @@ mod tests {
     #[test]
     fn system_message_uses_system_role() {
         let mut msgs = messages::Messages::default();
-        msgs.0.push(messages::content::from_system(vec!["you are helpful"]));
+        msgs.0
+            .push(messages::content::from_system(vec!["you are helpful"]));
         msgs.0.push(messages::content::from_user(vec!["hi"]));
         let req = ChatCompletionsRequest::from_core(CompletionsRequestConfig {
             model_name: "m",

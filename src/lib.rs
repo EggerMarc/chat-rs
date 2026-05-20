@@ -6,7 +6,7 @@
 //! like Google Gemini, Anthropic Claude, and OpenAI. It features compile-time safe builders,
 //! automatic retry loops, and native tool execution.
 
-pub use chat_core::retry_strategy;
+pub use chat_core::{parts, retry_strategy};
 
 pub mod transport {
     pub use chat_core::transport::*;

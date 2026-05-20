@@ -6,6 +6,7 @@
 //! Run with the `metal` feature on macOS for GPU acceleration:
 //!     cargo run --example mistralrs-completion --features "mistralrs chat-mistralrs/metal"
 
+use chat_core::parts;
 use chat_core::traits::CompletionProvider;
 use chat_core::types::messages::from_user;
 use chat_mistralrs::MistralRsBuilder;
@@ -19,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()
         .await?;
 
-    let mut messages = from_user(vec!["Write a haiku about the ocean."]);
+    let mut messages = from_user(parts!["Write a haiku about the ocean."]);
     let response = client.complete(&mut messages, None, None, None).await?;
 
     if let Some(text) = response.content.parts.text_response() {

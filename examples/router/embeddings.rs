@@ -3,6 +3,7 @@ use chat_rs::{
     ChatBuilder, EmbeddingsProvider, Messages, ProviderMeta,
     claude::ClaudeBuilder,
     gemini::{GeminiBuilder, ReqwestTransport, client::GeminiClient},
+    parts,
     router::RouterBuilder,
     router::RoutingStrategy,
     router::StrategyError,
@@ -27,7 +28,7 @@ async fn embed_text(
     text: &str,
 ) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
     let mut msgs = Messages::default();
-    msgs.push(content::from_user(vec![text]));
+    msgs.push(content::from_user(parts![text]));
     let res = embedder.embed(&mut msgs).await.map_err(|e| e.err)?;
     Ok(res.embeddings.content)
 }
@@ -117,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .build();
 
     let mut messages = Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a helpful assistant. Your job is to be as useful as possible.",
     ]));
 
@@ -130,7 +131,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         print!("\nUser:\t");
         std::io::Write::flush(&mut std::io::stdout())?;
         std::io::stdin().read_line(&mut user_input)?;
-        messages.push(content::from_user(vec![user_input.trim()]));
+        messages.push(content::from_user(parts![user_input.trim()]));
 
         let response = chat
             .complete(&mut messages)

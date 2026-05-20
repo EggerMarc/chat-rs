@@ -7,50 +7,38 @@ pub mod text;
 pub mod tool;
 
 use content::Content;
+use parts::PartEnum;
 use tool::Tool;
 use tools_rs::CallId;
 
-/// Create a `Messages` containing a single user message produced from the provided prompts.
-///
-/// The returned `Messages` contains one `Content` with the user role whose parts are derived from `prompts`.
-///
-/// # Examples
-///
-/// ```ignore
-/// let msgs = from_user(vec!["Hello", "How are you?"]);
-/// assert_eq!(msgs.len(), 1);
-/// ```
-pub fn from_user(prompts: Vec<&str>) -> Messages {
+/// Create a `Messages` containing a single user message. Accepts any iterable
+/// of items convertible into [`PartEnum`] — works for `vec!["hi", "world"]`
+/// and for heterogeneous content built via [`parts!`](crate::parts).
+pub fn from_user<I>(prompts: I) -> Messages
+where
+    I: IntoIterator,
+    I::Item: Into<PartEnum>,
+{
     Messages(vec![content::from_user(prompts)])
 }
 
-/// Creates a `Messages` wrapper containing a single system `Content` constructed from the provided prompts.
-///
-/// # Examples
-///
-/// ```ignore
-/// let msgs = from_system(vec!["You are a helpful assistant."]);
-/// assert_eq!(msgs.len(), 1);
-/// ```
-pub fn from_system(prompts: Vec<&str>) -> Messages {
+/// Create a `Messages` containing a single system message. See [`from_user`]
+/// for accepted input shapes.
+pub fn from_system<I>(prompts: I) -> Messages
+where
+    I: IntoIterator,
+    I::Item: Into<PartEnum>,
+{
     Messages(vec![content::from_system(prompts)])
 }
 
-/// Create a `Messages` containing a single model `Content` constructed from the given prompts.
-///
-/// `prompts` are the textual parts used to build the model content in order.
-///
-/// # Returns
-///
-/// `Messages` containing one model `Content` assembled from `prompts`.
-///
-/// # Examples
-///
-/// ```ignore
-/// let msgs = from_model(vec!["Thinking...", "More details"]);
-/// assert_eq!(msgs.len(), 1);
-/// ```
-pub fn from_model(prompts: Vec<&str>) -> Messages {
+/// Create a `Messages` containing a single model message. See [`from_user`]
+/// for accepted input shapes.
+pub fn from_model<I>(prompts: I) -> Messages
+where
+    I: IntoIterator,
+    I::Item: Into<PartEnum>,
+{
     Messages(vec![content::from_model(prompts)])
 }
 

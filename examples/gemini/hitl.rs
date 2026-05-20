@@ -19,6 +19,7 @@ use std::io::{self, BufRead, Write};
 use chat_rs::{
     Action, ChatBuilder, ChatOutcome, Messages, PauseReason, ScopedCollection, ToolStatus,
     gemini::{self},
+    parts,
     types::messages::content,
 };
 use serde::Deserialize;
@@ -174,11 +175,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a terse assistant with destructive tools available. \
          Use them when asked. Explain what you did afterwards.",
     ]));
-    messages.push(content::from_user(vec![
+    messages.push(content::from_user(parts![
         "Delete everything matching /tmp/*.log, then email ops@example.com \
          with subject 'cleanup done'. Also read /etc/hostname.",
     ]));

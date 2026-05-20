@@ -10,6 +10,7 @@
 use chat_rs::{
     ChatBuilder,
     ollama::OllamaBuilder,
+    parts,
     types::messages::{self, content},
 };
 use tools_rs::{collect_tools, tool};
@@ -17,9 +18,7 @@ use tools_rs::{collect_tools, tool};
 #[tool]
 /// Gets user metadata. Must be called whenever a name is identified.
 async fn get_user_metadata(name: String) -> String {
-    format!(
-        "The user {name} loves tacos and burgers. They like to be addressed in pirate dialect."
-    )
+    format!("The user {name} loves tacos and burgers. They like to be addressed in pirate dialect.")
 }
 
 #[tokio::main]
@@ -38,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = messages::Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a helpful assistant. Call tools whenever they're useful.",
     ]));
 
@@ -46,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut user_input = String::new();
         println!("User:\t");
         std::io::stdin().read_line(&mut user_input)?;
-        messages.push(content::from_user(vec![user_input.trim()]));
+        messages.push(content::from_user(parts![user_input.trim()]));
 
         let response = chat
             .complete(&mut messages)

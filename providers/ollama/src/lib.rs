@@ -26,7 +26,7 @@
 use std::marker::PhantomData;
 
 use chat_completions::{
-    ChatCompletionsBuilder, ChatCompletionsClient, ChatError, ReqwestTransport, Request, Transport,
+    ChatCompletionsBuilder, ChatCompletionsClient, ChatError, Request, ReqwestTransport, Transport,
     TransportError,
 };
 use serde::Deserialize;
@@ -62,7 +62,8 @@ impl Default for OllamaBuilder<WithoutModel, ReqwestTransport> {
 impl OllamaBuilder<WithoutModel, ReqwestTransport> {
     /// Build pointed at `OLLAMA_HOST` if set, otherwise `http://localhost:11434`.
     pub fn new() -> Self {
-        let host = std::env::var(OLLAMA_HOST_ENV).unwrap_or_else(|_| DEFAULT_OLLAMA_HOST.to_string());
+        let host =
+            std::env::var(OLLAMA_HOST_ENV).unwrap_or_else(|_| DEFAULT_OLLAMA_HOST.to_string());
         Self::with_host(host)
     }
 

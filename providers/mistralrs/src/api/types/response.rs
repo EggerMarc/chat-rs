@@ -10,7 +10,10 @@ use crate::api::types::error::invalid_response;
 use chat_core::error::ChatFailure;
 
 /// Convert mistral.rs's [`ChatCompletionResponse`] to chat-rs's [`ChatResponse`].
-pub fn into_core(model_id: &str, resp: ChatCompletionResponse) -> Result<ChatResponse, ChatFailure> {
+pub fn into_core(
+    model_id: &str,
+    resp: ChatCompletionResponse,
+) -> Result<ChatResponse, ChatFailure> {
     let choice = resp
         .choices
         .into_iter()

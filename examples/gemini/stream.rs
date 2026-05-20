@@ -1,6 +1,7 @@
 use chat_rs::{
     ChatBuilder, StreamEvent,
     gemini::GeminiBuilder,
+    parts,
     types::messages::{self, content},
 };
 use futures::StreamExt;
@@ -32,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build();
 
     let mut messages = messages::Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a helpful assistant. Your job is to be as useful as possible.",
     ]));
 
@@ -45,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::io::stdout().flush()?;
 
         std::io::stdin().read_line(&mut user_input)?;
-        let user_message = content::from_user(vec![user_input.trim()]);
+        let user_message = content::from_user(parts![user_input.trim()]);
         messages.push(user_message);
 
         std::io::stdout().flush()?;

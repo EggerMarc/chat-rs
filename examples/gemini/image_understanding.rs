@@ -1,6 +1,6 @@
 use chat_rs::{
-    ChatBuilder, gemini,
-    types::messages::{self, content, parts::PartEnum},
+    ChatBuilder, gemini, parts,
+    types::messages::{self, content, file::File},
 };
 
 use std::env;
@@ -29,25 +29,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut messages = messages::Messages::default();
 
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "Describe the provided images clearly and concisely.",
     ]));
 
-    let image_parts: Vec<PartEnum> = image_paths
-        .into_iter()
-        .map(|path| {
-            PartEnum::from_file(
-                messages::file::File::from_path(path).expect("Failed to load image file"),
-            )
-        })
-        .collect();
-
-    let mut user_message = content::from_user(vec!["What do you see?"]);
-    user_message
-        .parts
-        .extend(messages::parts::Parts(image_parts));
-
-    messages.push(user_message);
+    let mut user_parts = parts!["What do you see?"];
+    user_parts.extend(image_paths.into_iter().map(|path| {
+        File::from_path(path)
+            .expect("Failed to load image file")
+            .into()
+    }));
+    messages.push(content::from_user(user_parts));
 
     let response = chat
         .complete(&mut messages)

@@ -1,5 +1,5 @@
 use chat_rs::{
-    ChatBuilder, gemini,
+    ChatBuilder, gemini, parts,
     types::messages::{self, content},
 };
 
@@ -20,9 +20,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let mut messages = messages::Messages::default();
 
-    messages.push(content::from_system(vec!["Talk to me like an 8 year old."]));
+    messages.push(content::from_system(parts![
+        "Talk to me like an 8 year old."
+    ]));
 
-    let user_message = content::from_user(vec!["Hello?"]);
+    let user_message = content::from_user(parts!["Hello?"]);
 
     messages.push(user_message);
 

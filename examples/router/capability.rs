@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chat_rs::{
-    ChatBuilder, Messages, ProviderMeta, claude::ClaudeBuilder, gemini::GeminiBuilder,
+    ChatBuilder, Messages, ProviderMeta, claude::ClaudeBuilder, gemini::GeminiBuilder, parts,
     router::RouterBuilder, router::RoutingStrategy, router::StrategyError,
     types::messages::content,
 };
@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .build();
 
     let mut messages = Messages::default();
-    messages.push(content::from_system(vec![
+    messages.push(content::from_system(parts![
         "You are a helpful assistant. Your job is to be as useful as possible.",
     ]));
 
@@ -98,7 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         print!("\nUser:\t");
         std::io::Write::flush(&mut std::io::stdout())?;
         std::io::stdin().read_line(&mut user_input)?;
-        messages.push(content::from_user(vec![user_input.trim()]));
+        messages.push(content::from_user(parts![user_input.trim()]));
 
         let response = chat
             .complete(&mut messages)
