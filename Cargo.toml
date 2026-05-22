@@ -173,6 +173,11 @@ path = "./examples/mistralrs/voice.rs"
 required-features = ["mistralrs", "stream"]
 
 [[example]]
+name = "mistralrs-vision"
+path = "./examples/mistralrs/vision.rs"
+required-features = ["mistralrs", "stream"]
+
+[[example]]
 name = "cerebras-completion"
 path = "./examples/cerebras/completion.rs"
 required-features = ["cerebras"]

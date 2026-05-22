@@ -15,11 +15,11 @@ Tracking upcoming providers and features for chat-rs.
 | Ollama | `chat-ollama` | Yes | Yes | — | Yes | — | Yes |
 | Hugging Face Router | `chat-huggingface` | Yes | Yes | — | — (not on OAI-compat surface) | — | Yes |
 | Cerebras | `chat-cerebras` | Yes | Yes | — | — (not on OAI-compat surface) | — | Yes |
-| mistral.rs (local) | `chat-mistralrs` | Yes (text, Phase 1) | Yes | — (planned) | Planned | Planned (vision → tools → structured) | Yes |
+| mistral.rs (local) | `chat-mistralrs` | Yes (text, image, audio) | Yes | — (planned) | Planned | Planned (tools, structured outputs) | Yes |
 
 `chat-completions` is the shared Chat Completions wire client. `chat-ollama`, `chat-huggingface`, and `chat-cerebras` are thin wrappers that preset URLs, auth, and provider-specific niceties (e.g. Ollama's `pull()` against the native API).
 
-`chat-mistralrs` is different in kind: it loads weights in-process via [mistral.rs](https://github.com/EricLBuehler/mistral.rs) — no HTTP, no daemon. Geared at local multimodal/agentic workflows (Qwen2.5-VL, structured outputs for actions, tool calling). Tracks the latest mistral.rs release without pinning; upstream churn is treated as normal maintenance. Phases land in order: text → vision → structured → tools → family expansion.
+`chat-mistralrs` is different in kind: it loads weights in-process via [mistral.rs](https://github.com/EricLBuehler/mistral.rs) — no HTTP, no daemon. Geared at local multimodal/agentic workflows (Qwen2.5-VL, structured outputs for actions, tool calling). Text, image, and audio inputs work today; structured outputs, tool calling, and broader family coverage are still on the way. Tracks the latest mistral.rs release without pinning; upstream churn is treated as normal maintenance.
 
 ### Planned Providers
 

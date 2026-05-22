@@ -18,8 +18,7 @@
 //! # Ok(()) }
 //! ```
 //!
-//! See `providers/AGENTS.md` for the overall provider architecture and
-//! `ROADMAP-mistralrs.md` for what's in scope per phase.
+//! See `providers/AGENTS.md` for the overall provider architecture.
 
 pub mod api;
 pub mod builder;

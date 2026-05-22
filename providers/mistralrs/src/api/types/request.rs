@@ -25,10 +25,10 @@ pub fn from_core(
     tools_present: bool,
 ) -> Result<RequestBuilder, ChatFailure> {
     if tools_present {
-        return Err(unsupported("tool declarations", "Phase 4"));
+        return Err(unsupported("tool declarations"));
     }
     if structured_output.is_some() {
-        return Err(unsupported("structured outputs", "Phase 3"));
+        return Err(unsupported("structured outputs"));
     }
 
     let has_media = messages
@@ -77,30 +77,23 @@ fn map_role(role: &RoleEnum) -> TextMessageRole {
 }
 
 /// Collect all `Text` parts into one string (newline-joined). Reject any
-/// non-text file or other unsupported part with a clear phase-specific
-/// error. Only called on the text-only path, where media parts are absent
-/// by construction.
+/// non-text file or other unsupported part. Only called on the text-only
+/// path, where media parts are absent by construction.
 fn flatten_text_only(parts: &[PartEnum]) -> Result<String, ChatFailure> {
     let mut buf = String::new();
     for part in parts {
         match part {
             PartEnum::Text(t) => append_line(&mut buf, t.as_str()),
             PartEnum::File(f) => {
-                return Err(unsupported(
-                    &format!("file parts with mimetype {}", f.mime),
-                    "later phase (video, documents)",
-                ));
+                return Err(unsupported(&format!(
+                    "file parts with mimetype {}",
+                    f.mime
+                )));
             }
-            PartEnum::Tool(_) => return Err(unsupported("tool parts", "Phase 4")),
-            PartEnum::Structured(_) => {
-                return Err(unsupported("structured parts in input", "Phase 3"));
-            }
-            PartEnum::Reasoning(_) => {
-                return Err(unsupported("reasoning parts in input", "later phase"));
-            }
-            PartEnum::Embeddings(_) => {
-                return Err(unsupported("embedding parts in input", "later phase"));
-            }
+            PartEnum::Tool(_) => return Err(unsupported("tool parts")),
+            PartEnum::Structured(_) => return Err(unsupported("structured parts in input")),
+            PartEnum::Reasoning(_) => return Err(unsupported("reasoning parts in input")),
+            PartEnum::Embeddings(_) => return Err(unsupported("embedding parts in input")),
         }
     }
     Ok(buf)
@@ -122,21 +115,15 @@ fn split_text_and_media(
                 audio.push(decode_audio(f)?);
             }
             PartEnum::File(f) => {
-                return Err(unsupported(
-                    &format!("file parts with mimetype {}", f.mime),
-                    "later phase (video, documents)",
-                ));
+                return Err(unsupported(&format!(
+                    "file parts with mimetype {}",
+                    f.mime
+                )));
             }
-            PartEnum::Tool(_) => return Err(unsupported("tool parts", "Phase 4")),
-            PartEnum::Structured(_) => {
-                return Err(unsupported("structured parts in input", "Phase 3"));
-            }
-            PartEnum::Reasoning(_) => {
-                return Err(unsupported("reasoning parts in input", "later phase"));
-            }
-            PartEnum::Embeddings(_) => {
-                return Err(unsupported("embedding parts in input", "later phase"));
-            }
+            PartEnum::Tool(_) => return Err(unsupported("tool parts")),
+            PartEnum::Structured(_) => return Err(unsupported("structured parts in input")),
+            PartEnum::Reasoning(_) => return Err(unsupported("reasoning parts in input")),
+            PartEnum::Embeddings(_) => return Err(unsupported("embedding parts in input")),
         }
     }
     Ok((text, images, audio))
@@ -221,8 +208,8 @@ fn sampling_from_options(options: Option<&ChatOptions>) -> SamplingParams {
     sp
 }
 
-fn unsupported(what: &str, phase: &str) -> ChatFailure {
+fn unsupported(what: &str) -> ChatFailure {
     ChatFailure::from_err(ChatError::Provider(format!(
-        "chat-mistralrs does not yet support {what} (lands in {phase})"
+        "chat-mistralrs does not yet support {what}"
     )))
 }
