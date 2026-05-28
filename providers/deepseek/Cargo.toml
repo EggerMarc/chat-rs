@@ -1,0 +1,21 @@
+[package]
+name = "chat-deepseek"
+version = "0.1.0"
+description = "DeepSeek provider for chat-rs."
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+
+[dependencies]
+chat-completions = { path = "../completions", version = "0.2.1" }
+
+[dev-dependencies]
+chat-core = { path = "../../core", version = "0.2.1", features = ["reqwest-transport"] }
+tokio.workspace = true
+
+[features]
+default = []
+stream = ["chat-completions/stream"]

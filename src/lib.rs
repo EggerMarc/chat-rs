@@ -77,6 +77,11 @@ pub mod cerebras {
     pub use chat_cerebras::*;
 }
 
+#[cfg(feature = "deepseek")]
+pub mod deepseek {
+    pub use chat_deepseek::*;
+}
+
 #[cfg(feature = "router")]
 pub mod router {
     pub use chat_router::*;
@@ -109,6 +114,9 @@ pub mod prelude {
 
     #[cfg(feature = "cerebras")]
     pub use crate::cerebras;
+
+    #[cfg(feature = "deepseek")]
+    pub use crate::deepseek;
 
     #[cfg(feature = "router")]
     pub use crate::router;

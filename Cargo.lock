@@ -816,6 +816,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat-deepseek"
+version = "0.1.0"
+dependencies = [
+ "chat-completions",
+ "chat-core",
+ "tokio",
+]
+
+[[package]]
 name = "chat-gemini"
 version = "0.2.1"
 dependencies = [
@@ -908,6 +917,7 @@ dependencies = [
  "chat-claude",
  "chat-completions",
  "chat-core",
+ "chat-deepseek",
  "chat-gemini",
  "chat-huggingface",
  "chat-mistralrs",
