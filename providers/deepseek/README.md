@@ -6,12 +6,12 @@
 
 ```toml
 [dependencies]
-chat-core = "0.2.2"
-chat-deepseek = "0.1.1"
+chat-core = "0.3.0"
+chat-deepseek = "0.1.2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.3.1", features = ["deepseek"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["deepseek"] }`.
 
 ## Usage
 
@@ -49,5 +49,5 @@ Override the base URL with `.with_base_url(...)` or supply a custom transport wi
 Streaming is gated on the `stream` feature:
 
 ```toml
-chat-deepseek = { version = "0.1.1", features = ["stream"] }
+chat-deepseek = { version = "0.1.2", features = ["stream"] }
 ```

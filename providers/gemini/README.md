@@ -6,12 +6,12 @@ Google Gemini provider for [chat-rs](https://github.com/EggerMarc/chat-rs).
 
 ```toml
 [dependencies]
-chat-core = "0.2.2"
-chat-gemini = "0.2.2"
+chat-core = "0.3.0"
+chat-gemini = "0.2.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.3.1", features = ["gemini"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["gemini"] }`.
 
 ## Usage
 
@@ -60,5 +60,5 @@ let client = GeminiBuilder::new()
 Streaming is gated on the `stream` feature:
 
 ```toml
-chat-gemini = { version = "0.2.2", features = ["stream"] }
+chat-gemini = { version = "0.2.3", features = ["stream"] }
 ```
