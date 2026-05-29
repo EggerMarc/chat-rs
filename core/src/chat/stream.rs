@@ -6,7 +6,7 @@ use crate::{
     error::ChatFailure,
     traits::StreamProvider,
     types::{
-        messages::Messages,
+        messages::{Messages, parts::PartEnum},
         metadata::Metadata,
         response::{ChatResponse, StreamEvent},
     },
@@ -79,6 +79,11 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
                     .map_err(|err| ChatFailure { err, metadata: last_metadata.clone() })?;
 
                 let mut final_response: Option<ChatResponse> = None;
+                // Mid-stream Structured events are also accumulated into
+                // the final ChatResponse so non-streaming consumers see
+                // them in `content.parts`, preserving the equivalence
+                // between `complete()` and accumulated `stream()`.
+                let mut structured_buffer: Vec<serde_json::Value> = Vec::new();
 
                 while let Some(event_result) = provider_stream.next().await {
                     match event_result {
@@ -86,6 +91,9 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
                             final_response = Some(response);
                         }
                         Ok(event) => {
+                            if let StreamEvent::Structured(ref v) = event {
+                                structured_buffer.push(v.clone());
+                            }
                             yield event;
                         }
                         Err(err) => {
@@ -94,7 +102,10 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
                     }
                 }
 
-                if let Some(response) = final_response {
+                if let Some(mut response) = final_response {
+                    for v in structured_buffer.drain(..) {
+                        response.content.parts.push(PartEnum::Structured(v));
+                    }
                     self.model.on_stream_done(&response);
 
                     if let Some(metadata) = response.metadata.clone() {
