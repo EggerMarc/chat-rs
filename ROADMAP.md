@@ -12,13 +12,14 @@ Tracking upcoming providers and features for chat-rs.
 | Anthropic Claude | `chat-claude` | Yes | Yes | — (HTTP-only upstream) | N/A | Extended Thinking | Yes |
 | OpenAI | `chat-openai` | Yes | Yes | Yes (Responses API WS) | Yes | Web Search, Image Generation | Yes |
 | Generic OAI-compat | `chat-completions` | Yes | Yes | — | Yes | — | Yes |
+| Generic Responses API | `chat-responses` | Yes | Yes | Yes (Responses API WS) | — | — | Yes |
 | Ollama | `chat-ollama` | Yes | Yes | — | Yes | — | Yes |
 | Hugging Face Router | `chat-huggingface` | Yes | Yes | — | — (not on OAI-compat surface) | — | Yes |
 | Cerebras | `chat-cerebras` | Yes | Yes | — | — (not on OAI-compat surface) | — | Yes |
 | DeepSeek | `chat-deepseek` | Yes | Yes | — | — (not on OAI-compat surface) | — | Yes |
 | mistral.rs (local) | `chat-mistralrs` | Yes (text, image, audio) | Yes | — (planned) | Planned | Planned (tools, structured outputs) | Yes |
 
-`chat-completions` is the shared Chat Completions wire client. `chat-ollama`, `chat-huggingface`, `chat-cerebras`, and `chat-deepseek` are thin wrappers that preset URLs, auth, and provider-specific niceties (e.g. Ollama's `pull()` against the native API). DeepSeek's open-weight V4 models natively emit DSML-tagged (XML-ish) tool calls; the hosted API normalizes them to standard OpenAI JSON before returning, so `chat-deepseek` sees only JSON. A future local-DeepSeek runtime would need its own DSML parser in the local-inference layer (e.g. `chat-mistralrs`), not in `chat-deepseek`.
+`chat-completions` is the shared Chat Completions wire client. `chat-responses` is the symmetric Responses API wire client; `chat-openai` is now a thin wrapper over it (presets URL + `OPENAI_API_KEY`, adds OpenAI-specific native tools `web_search`/`image_generation`, and the OpenAI-specific `/embeddings` endpoint). `chat-ollama`, `chat-huggingface`, `chat-cerebras`, and `chat-deepseek` are thin wrappers over `chat-completions` that preset URLs, auth, and provider-specific niceties (e.g. Ollama's `pull()` against the native API). DeepSeek's open-weight V4 models natively emit DSML-tagged (XML-ish) tool calls; the hosted API normalizes them to standard OpenAI JSON before returning, so `chat-deepseek` sees only JSON. A future local-DeepSeek runtime would need its own DSML parser in the local-inference layer (e.g. `chat-mistralrs`), not in `chat-deepseek`.
 
 `chat-mistralrs` is different in kind: it loads weights in-process via [mistral.rs](https://github.com/EricLBuehler/mistral.rs) — no HTTP, no daemon. Geared at local multimodal/agentic workflows (Qwen2.5-VL, structured outputs for actions, tool calling). Text, image, and audio inputs work today; structured outputs, tool calling, and broader family coverage are still on the way. Tracks the latest mistral.rs release without pinning; upstream churn is treated as normal maintenance.
 
@@ -66,7 +67,7 @@ Tracking upcoming providers and features for chat-rs.
 - [x] **Cerebras provider** — shipped as `chat-cerebras`.
 - [x] **DeepSeek provider** — shipped as `chat-deepseek` (hosted API only; local-weight DSML parsing belongs in the local-runtime layer).
 - [x] **Ollama provider** — shipped as `chat-ollama` with native `/api/pull` support.
-- [ ] **Generic Responses API wire crate** (`chat-responses`) — factor the Responses wire out of `chat-openai`, unblocks Groq Responses path and shared WS groundwork.
+- [x] **Generic Responses API wire crate** — shipped as `chat-responses`. Factored out of `chat-openai`; unblocks Groq Responses path and shared WS groundwork. Native tools are passed in as pre-materialized `Value`s, so the wire crate is trait-agnostic.
 - [ ] **Groq provider** — both Chat Completions and Responses paths, the latter waits on `chat-responses`.
 - [ ] **AI21 provider**
 - [ ] **Mistral provider**

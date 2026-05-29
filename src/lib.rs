@@ -47,6 +47,11 @@ pub mod completions {
     pub use chat_completions::*;
 }
 
+#[cfg(feature = "responses")]
+pub mod responses {
+    pub use chat_responses::*;
+}
+
 #[cfg(feature = "gemini")]
 pub mod gemini {
     pub use chat_gemini::*;
@@ -96,6 +101,9 @@ pub mod prelude {
 
     #[cfg(feature = "completions")]
     pub use crate::completions;
+
+    #[cfg(feature = "responses")]
+    pub use crate::responses;
 
     #[cfg(feature = "gemini")]
     pub use crate::gemini;

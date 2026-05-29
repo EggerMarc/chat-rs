@@ -26,14 +26,14 @@ use chat_core::{
 
 use crate::{
     api::types::{
-        request::OpenAIResponsesRequest,
-        response::{OpenAIUsage, ResponsesOutputItem, output_items_to_parts},
+        request::{ResponsesRequest, ResponsesRequestConfig},
+        response::{ResponsesOutputItem, ResponsesUsage, output_items_to_parts},
     },
-    client::OpenAIClient,
+    client::ResponsesClient,
 };
 
 #[async_trait::async_trait]
-impl<T: Transport> StreamProvider for OpenAIClient<T> {
+impl<T: Transport> StreamProvider for ResponsesClient<T> {
     async fn stream(
         &mut self,
         messages: &mut Messages,
@@ -46,19 +46,17 @@ impl<T: Transport> StreamProvider for OpenAIClient<T> {
             None
         };
 
-        let mut request_body = OpenAIResponsesRequest::from_core(
-            crate::api::types::request::ResponsesRequestConfig {
-                model_name: &self.model_name,
-                messages,
-                tool_declarations,
-                native_tools: self.native_tools.as_slice(),
-                reasoning_effort: self.reasoning_effort.clone(),
-                options,
-                output_shape: None,
-                previous_response_id,
-                store: self.store,
-            },
-        )?;
+        let mut request_body = ResponsesRequest::from_core(ResponsesRequestConfig {
+            model_name: &self.model_name,
+            messages,
+            tool_declarations,
+            extra_tool_declarations: &self.extra_tool_declarations,
+            reasoning_effort: self.reasoning_effort.clone(),
+            options,
+            output_shape: None,
+            previous_response_id,
+            store: self.store,
+        })?;
         request_body.stream = Some(true);
 
         let body = serde_json::to_vec(&request_body)
@@ -92,13 +90,6 @@ impl<T: Transport> StreamProvider for OpenAIClient<T> {
 
 // ---------------------------------------------------------------------------
 // SSE event data shapes (matching OpenAI Responses API wire format)
-//
-// Event reference:
-//   response.created / response.completed → { response: { id, model, output, usage, status } }
-//   response.output_item.added            → { item: { type, ... } }
-//   response.output_text.delta            → { delta: "text chunk" }
-//   response.reasoning_summary_text.delta → { delta: "reasoning chunk" }
-//   response.function_call_arguments.delta→ { item_id: "...", delta: "arg fragment" }
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
@@ -111,7 +102,7 @@ struct SseResponseData {
     id: Option<String>,
     model: Option<String>,
     output: Option<Vec<ResponsesOutputItem>>,
-    usage: Option<OpenAIUsage>,
+    usage: Option<ResponsesUsage>,
     status: Option<String>,
 }
 
@@ -120,14 +111,11 @@ struct SseOutputItemAdded {
     item: ResponsesOutputItem,
 }
 
-/// Text and reasoning delta events have `delta` as a plain string.
 #[derive(Debug, Deserialize)]
 struct SseTextDelta {
     delta: String,
 }
 
-/// Function call argument delta events have `delta` as a plain string
-/// and an `item_id` to correlate with the function call.
 #[derive(Debug, Deserialize)]
 struct SseFcArgsDelta {
     item_id: Option<String>,

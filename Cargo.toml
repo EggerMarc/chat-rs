@@ -4,6 +4,7 @@ resolver = "2"
 members = [
     "core",
     "providers/completions",
+    "providers/responses",
     "providers/gemini",
     "providers/claude",
     "providers/openai",
@@ -60,8 +61,9 @@ path = "src/lib.rs"
 [dependencies]
 chat-core        = { path = "core", version = "0.2.1" }
 chat-completions = { path = "providers/completions", version = "0.2.1", optional = true }
+chat-responses   = { path = "providers/responses", version = "0.1.0", optional = true }
 chat-gemini      = { path = "providers/gemini", version = "0.2.1", optional = true }
-chat-openai      = { path = "providers/openai", version = "0.2.1", optional = true }
+chat-openai      = { path = "providers/openai", version = "0.3.0", optional = true }
 chat-claude      = { path = "providers/claude", version = "0.2.1", optional = true }
 chat-ollama      = { path = "providers/ollama", version = "0.2.1", optional = true }
 chat-huggingface = { path = "providers/huggingface", version = "0.2.1", optional = true }
@@ -100,6 +102,7 @@ hound        = "3.5"
 [features]
 default = []
 completions = ["dep:chat-completions"]
+responses = ["dep:chat-responses"]
 gemini = ["dep:chat-gemini"]
 claude = ["dep:chat-claude"]
 openai = ["dep:chat-openai"]
@@ -110,7 +113,7 @@ deepseek = ["dep:chat-deepseek", "dep:chat-completions"]
 mistralrs = ["dep:chat-mistralrs"]
 router = ["dep:chat-router"]
 python = ["tools-rs/python"]
-stream = ["chat-core/stream", "chat-completions?/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-ollama?/stream", "chat-huggingface?/stream", "chat-cerebras?/stream", "chat-deepseek?/stream", "chat-mistralrs?/stream", "chat-router?/stream"]
+stream = ["chat-core/stream", "chat-completions?/stream", "chat-responses?/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-ollama?/stream", "chat-huggingface?/stream", "chat-cerebras?/stream", "chat-deepseek?/stream", "chat-mistralrs?/stream", "chat-router?/stream"]
 tungstenite = ["chat-core/tungstenite"]
 tokio-tungstenite = ["chat-core/tokio-tungstenite"]
 
