@@ -2,10 +2,22 @@
 
 [DeepSeek](https://api-docs.deepseek.com/) provider for [chat-rs](https://github.com/EggerMarc/chat-rs). Thin wrapper over [`chat-completions`](https://crates.io/crates/chat-completions) targeting DeepSeek's OpenAI-compatible `/chat/completions` endpoint.
 
+## Install
+
+```toml
+[dependencies]
+chat-core = "0.2.1"
+chat-deepseek = "0.1.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["deepseek"] }`.
+
 ## Usage
 
 ```rust
-use chat_rs::{ChatBuilder, deepseek::DeepSeekBuilder, types::messages};
+use chat_deepseek::DeepSeekBuilder;
+use chat_core::{builder::ChatBuilder, types::messages};
 
 let client = DeepSeekBuilder::new()
     .with_model("deepseek-v4-pro")
@@ -34,7 +46,8 @@ Override the base URL with `.with_base_url(...)` or supply a custom transport wi
 
 ## Feature Flags
 
+Streaming is gated on the `stream` feature:
+
 ```toml
-chat-rs = { version = "0.2.1", features = ["deepseek"] }
-chat-rs = { version = "0.2.1", features = ["deepseek", "stream"] }
+chat-deepseek = { version = "0.1.0", features = ["stream"] }
 ```

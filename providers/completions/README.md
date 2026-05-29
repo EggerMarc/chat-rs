@@ -2,10 +2,22 @@
 
 Generic OpenAI Chat Completions wire client for [chat-rs](https://github.com/EggerMarc/chat-rs). Targets the `/v1/chat/completions` wire spec — point it at any OAI-compatible server (vLLM, llama.cpp, LiteLLM, Together, Fireworks, your own gateway).
 
+## Install
+
+```toml
+[dependencies]
+chat-core = "0.2.1"
+chat-completions = "0.2.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["completions"] }`.
+
 ## Usage
 
 ```rust
-use chat_rs::{ChatBuilder, completions::ChatCompletionsBuilder, types::messages};
+use chat_completions::ChatCompletionsBuilder;
+use chat_core::{builder::ChatBuilder, types::messages};
 
 let client = ChatCompletionsBuilder::new()
     .with_base_url("http://localhost:8000/v1")
@@ -45,7 +57,8 @@ let client = ChatCompletionsBuilder::new()
 
 ## Feature Flags
 
+Streaming is gated on the `stream` feature:
+
 ```toml
-chat-rs = { version = "0.2.1", features = ["completions"] }
-chat-rs = { version = "0.2.1", features = ["completions", "stream"] }
+chat-completions = { version = "0.2.1", features = ["stream"] }
 ```

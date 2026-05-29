@@ -2,10 +2,22 @@
 
 [Ollama](https://ollama.com/) provider for [chat-rs](https://github.com/EggerMarc/chat-rs). Thin wrapper over [`chat-completions`](https://crates.io/crates/chat-completions) targeting Ollama's OpenAI-compatible endpoint at `http://localhost:11434/v1`, with extras (`.pull()` against the native `/api/pull`).
 
+## Install
+
+```toml
+[dependencies]
+chat-core = "0.2.1"
+chat-ollama = "0.2.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["ollama"] }`.
+
 ## Usage
 
 ```rust
-use chat_rs::{ChatBuilder, ollama::OllamaBuilder, types::messages};
+use chat_ollama::OllamaBuilder;
+use chat_core::{builder::ChatBuilder, types::messages};
 
 let client = OllamaBuilder::new()
     .with_model("llama3.2")
@@ -41,7 +53,8 @@ Override the base URL with `.with_base_url(...)` or supply a custom transport wi
 
 ## Feature Flags
 
+Streaming is gated on the `stream` feature:
+
 ```toml
-chat-rs = { version = "0.2.1", features = ["ollama"] }
-chat-rs = { version = "0.2.1", features = ["ollama", "stream"] }
+chat-ollama = { version = "0.2.1", features = ["stream"] }
 ```

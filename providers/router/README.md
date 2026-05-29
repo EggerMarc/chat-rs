@@ -2,16 +2,27 @@
 
 A provider router for [chat-rs](https://github.com/EggerMarc/chat-rs) that wraps multiple `CompletionProvider` instances with automatic fallback on transient errors.
 
+## Install
+
+```toml
+[dependencies]
+chat-core = "0.2.1"
+chat-router = "0.2.1"
+# plus whichever providers you want to route between:
+chat-claude = "0.2.1"
+chat-gemini = "0.2.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["router", "claude", "gemini"] }`.
+
 ## Usage
 
 ```rust
-use chat_rs::{
-    ChatBuilder,
-    claude::ClaudeBuilder,
-    gemini::GeminiBuilder,
-    router::RouterBuilder,
-    types::messages::{self, content},
-};
+use chat_claude::ClaudeBuilder;
+use chat_core::{builder::ChatBuilder, types::messages::{self, content}};
+use chat_gemini::GeminiBuilder;
+use chat_router::RouterBuilder;
 
 let claude = ClaudeBuilder::new()
     .with_model("claude-sonnet-4-20250514".to_string())
@@ -51,7 +62,7 @@ The `RoutingStrategy` trait allows custom provider ordering based on the message
 Enable the optional circuit breaker to automatically skip providers that have failed repeatedly:
 
 ```rust
-use chat_rs::router::{RouterBuilder, CircuitBreakerConfig};
+use chat_router::{RouterBuilder, CircuitBreakerConfig};
 
 let router = RouterBuilder::new()
     .add_provider(claude)
@@ -70,7 +81,7 @@ When a provider's circuit opens, the router skips it until the recovery timeout 
 Enable the `stream` feature to use `StreamRouterBuilder`, which wraps providers implementing `ChatProvider`:
 
 ```toml
-chat-rs = { version = "0.2.1", features = ["router", "claude", "gemini", "stream"] }
+chat-router = { version = "0.2.1", features = ["stream"] }
 ```
 
 ## Scope
@@ -79,8 +90,8 @@ The router supports completions and streaming. Embeddings are not supported — 
 
 ## Feature Flags
 
-Enable via the root crate:
+Streaming is gated on the `stream` feature:
 
 ```toml
-chat-rs = { version = "0.2.1", features = ["router", "claude", "gemini"] }
+chat-router = { version = "0.2.1", features = ["stream"] }
 ```

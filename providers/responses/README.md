@@ -2,10 +2,22 @@
 
 Generic OpenAI Responses API wire client for [chat-rs](https://github.com/EggerMarc/chat-rs). Symmetric counterpart to [`chat-completions`](https://crates.io/crates/chat-completions): owns the `/responses` endpoint wire types and SSE stream parsing. Point it at any server implementing the Responses API.
 
+## Install
+
+```toml
+[dependencies]
+chat-core = "0.2.1"
+chat-responses = "0.1.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["responses"] }`.
+
 ## Usage
 
 ```rust
-use chat_rs::{ChatBuilder, responses::ResponsesBuilder, types::messages};
+use chat_responses::ResponsesBuilder;
+use chat_core::{builder::ChatBuilder, types::messages};
 
 let client = ResponsesBuilder::new()
     .with_base_url("https://api.openai.com/v1")
@@ -50,7 +62,8 @@ Pluggable via `.with_transport()`. Defaults to HTTP/SSE via reqwest. WebSocket t
 
 ## Feature Flags
 
+Streaming is gated on the `stream` feature:
+
 ```toml
-chat-rs = { version = "0.2.1", features = ["responses"] }
-chat-rs = { version = "0.2.1", features = ["responses", "stream"] }
+chat-responses = { version = "0.1.0", features = ["stream"] }
 ```

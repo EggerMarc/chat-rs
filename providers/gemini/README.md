@@ -2,10 +2,22 @@
 
 Google Gemini provider for [chat-rs](https://github.com/EggerMarc/chat-rs).
 
+## Install
+
+```toml
+[dependencies]
+chat-core = "0.2.1"
+chat-gemini = "0.2.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["gemini"] }`.
+
 ## Usage
 
 ```rust
-use chat_rs::{ChatBuilder, gemini::GeminiBuilder, types::messages};
+use chat_gemini::GeminiBuilder;
+use chat_core::{builder::ChatBuilder, types::messages};
 
 let client = GeminiBuilder::new()
     .with_model("gemini-2.5-flash".to_string())
@@ -45,7 +57,8 @@ let client = GeminiBuilder::new()
 
 ## Feature Flags
 
+Streaming is gated on the `stream` feature:
+
 ```toml
-chat-rs = { version = "0.2.1", features = ["gemini"] }
-chat-rs = { version = "0.2.1", features = ["gemini", "stream"] }
+chat-gemini = { version = "0.2.1", features = ["stream"] }
 ```

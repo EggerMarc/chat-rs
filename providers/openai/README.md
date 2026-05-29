@@ -2,10 +2,22 @@
 
 OpenAI provider for [chat-rs](https://github.com/EggerMarc/chat-rs). Thin wrapper over [`chat-responses`](https://crates.io/crates/chat-responses) — presets `https://api.openai.com/v1` and `OPENAI_API_KEY`, adds the OpenAI-specific native tools (`web_search`, `image_generation`) and the `/embeddings` endpoint (which is **not** part of the Responses API).
 
+## Install
+
+```toml
+[dependencies]
+chat-core = "0.2.1"
+chat-openai = "0.3.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["openai"] }`.
+
 ## Usage
 
 ```rust
-use chat_rs::{ChatBuilder, openai::OpenAIBuilder, types::messages};
+use chat_openai::OpenAIBuilder;
+use chat_core::{builder::ChatBuilder, types::messages};
 
 let client = OpenAIBuilder::new()
     .with_model("gpt-4o")
@@ -37,7 +49,8 @@ Set `OPENAI_API_KEY` in your environment or call `.with_api_key()` on the builde
 The default transport is HTTP/SSE via reqwest. To use WebSocket streaming:
 
 ```rust
-use chat_rs::{openai::OpenAIBuilder, transport::AsyncWsTransport};
+use chat_openai::OpenAIBuilder;
+use chat_core::transport::AsyncWsTransport;
 
 let ws = AsyncWsTransport::new()
     .with_message_type("response.create");
@@ -69,7 +82,10 @@ For full direct control of the Responses wire (no OpenAI defaults), use [`chat-r
 ## Feature Flags
 
 ```toml
-chat-rs = { version = "0.2.1", features = ["openai"] }
-chat-rs = { version = "0.2.1", features = ["openai", "stream"] }
-chat-rs = { version = "0.2.1", features = ["openai", "stream", "tokio-tungstenite"] }
+# Streaming
+chat-openai = { version = "0.3.0", features = ["stream"] }
+
+# WebSocket transport (requires the chat-core feature)
+chat-openai = { version = "0.3.0", features = ["stream"] }
+chat-core   = { version = "0.2.1", features = ["tokio-tungstenite"] }
 ```

@@ -2,10 +2,22 @@
 
 Anthropic Claude provider for [chat-rs](https://github.com/EggerMarc/chat-rs).
 
+## Install
+
+```toml
+[dependencies]
+chat-core = "0.2.1"
+chat-claude = "0.2.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["claude"] }`.
+
 ## Usage
 
 ```rust
-use chat_rs::{ChatBuilder, claude::ClaudeBuilder, types::messages};
+use chat_claude::ClaudeBuilder;
+use chat_core::{builder::ChatBuilder, types::messages};
 
 let client = ClaudeBuilder::new()
     .with_model("claude-sonnet-4-20250514".to_string())
@@ -43,7 +55,8 @@ let client = ClaudeBuilder::new()
 
 ## Feature Flags
 
+Streaming is gated on the `stream` feature:
+
 ```toml
-chat-rs = { version = "0.2.1", features = ["claude"] }
-chat-rs = { version = "0.2.1", features = ["claude", "stream"] }
+chat-claude = { version = "0.2.1", features = ["stream"] }
 ```

@@ -2,10 +2,22 @@
 
 Local-inference provider for [chat-rs](https://github.com/EggerMarc/chat-rs), built on [mistral.rs](https://github.com/EricLBuehler/mistral.rs). Loads weights in-process — no HTTP, no daemon. Geared at local multimodal/agentic workflows: Qwen2.5-VL and similar text/image/audio models, structured outputs, and tool calling.
 
+## Install
+
+```toml
+[dependencies]
+chat-core = "0.2.1"
+chat-mistralrs = "0.1.2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["mistralrs"] }`.
+
 ## Usage
 
 ```rust
-use chat_rs::{ChatBuilder, mistralrs::MistralRsBuilder, types::messages};
+use chat_mistralrs::MistralRsBuilder;
+use chat_core::{builder::ChatBuilder, types::messages};
 
 let client = MistralRsBuilder::new()
     .with_model("Qwen/Qwen2.5-3B-Instruct-GGUF")
@@ -30,7 +42,7 @@ On first use, model files are fetched into the standard Hugging Face cache (`~/.
 ## Device Selection
 
 ```rust
-use chat_rs::mistralrs::DeviceChoice;
+use chat_mistralrs::{DeviceChoice, MistralRsBuilder};
 
 let client = MistralRsBuilder::new()
     .with_model("...")
@@ -45,7 +57,8 @@ Tracks the latest mistral.rs release without pinning; upstream churn is treated 
 
 ## Feature Flags
 
+Streaming is gated on the `stream` feature:
+
 ```toml
-chat-rs = { version = "0.2.1", features = ["mistralrs"] }
-chat-rs = { version = "0.2.1", features = ["mistralrs", "stream"] }
+chat-mistralrs = { version = "0.1.2", features = ["stream"] }
 ```

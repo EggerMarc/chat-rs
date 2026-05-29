@@ -2,10 +2,22 @@
 
 [Hugging Face Inference Providers (Router)](https://huggingface.co/docs/inference-providers/) provider for [chat-rs](https://github.com/EggerMarc/chat-rs). Thin wrapper over [`chat-completions`](https://crates.io/crates/chat-completions) targeting `https://router.huggingface.co/v1`. Routes any HF-hosted model through a single OpenAI-compatible endpoint, with provider selection via the model slug (`:fastest`, `:cheapest`, or a specific provider).
 
+## Install
+
+```toml
+[dependencies]
+chat-core = "0.2.1"
+chat-huggingface = "0.2.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["huggingface"] }`.
+
 ## Usage
 
 ```rust
-use chat_rs::{ChatBuilder, huggingface::HuggingFaceBuilder, types::messages};
+use chat_huggingface::HuggingFaceBuilder;
+use chat_core::{builder::ChatBuilder, types::messages};
 
 let client = HuggingFaceBuilder::new()
     .with_model("openai/gpt-oss-120b:fastest")
@@ -30,7 +42,8 @@ Override the base URL with `.with_base_url(...)` or supply a custom transport wi
 
 ## Feature Flags
 
+Streaming is gated on the `stream` feature:
+
 ```toml
-chat-rs = { version = "0.2.1", features = ["huggingface"] }
-chat-rs = { version = "0.2.1", features = ["huggingface", "stream"] }
+chat-huggingface = { version = "0.2.1", features = ["stream"] }
 ```
