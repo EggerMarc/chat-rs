@@ -159,3 +159,180 @@ impl<CP: StreamProvider> Chat<CP, Unstructured> {
         Ok(Box::pin(stream))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        error::ChatError,
+        types::{
+            messages::{
+                Messages,
+                content::{Content, RoleEnum},
+                parts::{PartEnum, Parts},
+            },
+            options::ChatOptions,
+            response::ChatResponse,
+            tools::ToolDeclarations,
+        },
+    };
+    use async_trait::async_trait;
+    use serde_json::json;
+    use std::collections::HashMap;
+    use std::marker::PhantomData;
+
+    /// Minimal `StreamProvider` that yields a pre-loaded event sequence,
+    /// then ends. Used to exercise the engine's accumulator without
+    /// touching a real network or wire protocol.
+    struct MockStreamProvider {
+        events: Vec<Result<StreamEvent, ChatError>>,
+    }
+
+    #[async_trait]
+    impl StreamProvider for MockStreamProvider {
+        async fn stream(
+            &mut self,
+            _messages: &mut Messages,
+            _tool_declarations: Option<&dyn ToolDeclarations>,
+            _options: Option<&ChatOptions>,
+        ) -> Result<
+            futures::stream::BoxStream<'static, Result<StreamEvent, ChatError>>,
+            ChatError,
+        > {
+            let events = std::mem::take(&mut self.events);
+            Ok(Box::pin(futures::stream::iter(events)))
+        }
+    }
+
+    fn chat_with(
+        events: Vec<Result<StreamEvent, ChatError>>,
+    ) -> Chat<MockStreamProvider, Unstructured> {
+        Chat {
+            model: MockStreamProvider { events },
+            output_shape: None,
+            model_options: None,
+            max_steps: Some(1),
+            max_retries: None,
+            retry_strategy: None,
+            before_strategy: None,
+            after_strategy: None,
+            scoped_collections: Vec::new(),
+            routing: HashMap::new(),
+            _output: PhantomData,
+        }
+    }
+
+    /// Helper: builds an empty `Done` response — the provider's "I'm done"
+    /// signal. The contract we're testing is that mid-stream `Structured`
+    /// events get folded into `content.parts` by the engine, not the
+    /// provider, so the provider's `Done` has no parts of its own.
+    fn done_event() -> StreamEvent {
+        StreamEvent::Done(ChatResponse {
+            content: Content {
+                role: RoleEnum::Model,
+                parts: Parts::default(),
+                complete_reason: Default::default(),
+            },
+            metadata: None,
+        })
+    }
+
+    async fn collect_stream(
+        chat: &mut Chat<MockStreamProvider, Unstructured>,
+        messages: &mut Messages,
+    ) -> Vec<StreamEvent> {
+        let mut s = chat.stream(messages).await.expect("stream open");
+        let mut out = Vec::new();
+        while let Some(ev) = s.next().await {
+            out.push(ev.expect("event ok"));
+        }
+        out
+    }
+
+    #[tokio::test]
+    async fn structured_events_flow_to_consumer_and_into_final_response() {
+        let mut chat = chat_with(vec![
+            Ok(StreamEvent::Structured(json!({"step": 1}))),
+            Ok(StreamEvent::Structured(json!({"step": 2}))),
+            Ok(done_event()),
+        ]);
+        let mut messages = Messages::default();
+
+        let events = collect_stream(&mut chat, &mut messages).await;
+
+        // Consumer sees: 2 Structured events + the final Done.
+        assert_eq!(events.len(), 3);
+        assert!(matches!(events[0], StreamEvent::Structured(_)));
+        assert!(matches!(events[1], StreamEvent::Structured(_)));
+
+        // Final Done carries a ChatResponse whose parts include both
+        // Structured values, in order.
+        let StreamEvent::Done(response) = &events[2] else {
+            panic!("expected Done event");
+        };
+        let structured: Vec<&serde_json::Value> = response
+            .content
+            .parts
+            .0
+            .iter()
+            .filter_map(|p| match p {
+                PartEnum::Structured(v) => Some(v),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(structured.len(), 2);
+        assert_eq!(structured[0], &json!({"step": 1}));
+        assert_eq!(structured[1], &json!({"step": 2}));
+    }
+
+    #[tokio::test]
+    async fn structured_interleaved_with_text_preserves_event_order() {
+        let mut chat = chat_with(vec![
+            Ok(StreamEvent::TextChunk("hello ".into())),
+            Ok(StreamEvent::Structured(json!({"step": 1}))),
+            Ok(StreamEvent::TextChunk("world".into())),
+            Ok(StreamEvent::Structured(json!({"step": 2}))),
+            Ok(done_event()),
+        ]);
+        let mut messages = Messages::default();
+
+        let events = collect_stream(&mut chat, &mut messages).await;
+
+        // Event order on the consumer side is exactly what the provider
+        // emitted, untouched by the accumulator.
+        assert_eq!(events.len(), 5);
+        assert!(matches!(events[0], StreamEvent::TextChunk(ref t) if t == "hello "));
+        assert!(matches!(events[1], StreamEvent::Structured(_)));
+        assert!(matches!(events[2], StreamEvent::TextChunk(ref t) if t == "world"));
+        assert!(matches!(events[3], StreamEvent::Structured(_)));
+
+        // Final response.parts contains only the Structured entries
+        // (no text — provider's Done was empty), in order.
+        let StreamEvent::Done(response) = &events[4] else {
+            panic!("expected Done event");
+        };
+        let parts: Vec<&PartEnum> = response.content.parts.0.iter().collect();
+        assert_eq!(parts.len(), 2);
+        assert!(matches!(parts[0], PartEnum::Structured(v) if v == &json!({"step": 1})));
+        assert!(matches!(parts[1], PartEnum::Structured(v) if v == &json!({"step": 2})));
+    }
+
+    #[tokio::test]
+    async fn no_structured_events_leaves_final_response_untouched() {
+        // Regression guard: the buffer-and-drain path must not corrupt
+        // the response when no Structured events appear.
+        let mut chat = chat_with(vec![
+            Ok(StreamEvent::TextChunk("just text".into())),
+            Ok(done_event()),
+        ]);
+        let mut messages = Messages::default();
+
+        let events = collect_stream(&mut chat, &mut messages).await;
+
+        assert_eq!(events.len(), 2);
+        let StreamEvent::Done(response) = &events[1] else {
+            panic!("expected Done event");
+        };
+        assert!(response.content.parts.0.is_empty());
+    }
+}
