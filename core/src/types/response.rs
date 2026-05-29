@@ -127,6 +127,17 @@ pub enum StreamEvent {
     ReasoningChunk(String),
     ToolCall(FunctionCall),
     ToolResult(FunctionResponse),
+    /// A complete structured object emitted mid-stream. Unlike
+    /// `TextChunk` / `ReasoningChunk` which are partial fragments,
+    /// each `Structured` event carries a whole `serde_json::Value`
+    /// that the consumer can `serde_json::from_value::<T>(v)` directly
+    /// for compile-time typing.
+    ///
+    /// The chat engine accumulates these into `ChatResponse.content.parts`
+    /// as `PartEnum::Structured` entries before yielding `Done`, so the
+    /// final response stays equivalent to a non-streaming `complete()`
+    /// call that produced the same content.
+    Structured(serde_json::Value),
     /// The chat loop paused because one or more tools need caller
     /// action (approval, scheduling, etc). This is the streaming
     /// equivalent of `ChatOutcome::Paused`. After receiving this event
@@ -148,6 +159,7 @@ impl fmt::Display for StreamEvent {
             StreamEvent::ToolResult(res) => {
                 writeln!(f, "[System: Tool '{}' executed successfully]\n", res.name)
             }
+            StreamEvent::Structured(value) => write!(f, "{}", value),
             StreamEvent::Paused(_) => write!(f, "\n[System: Paused — caller action required]\n"),
             StreamEvent::Done(_) => write!(f, ""),
         }
