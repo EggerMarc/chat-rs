@@ -7,7 +7,7 @@ A multi-provider LLM framework for Rust. Build type-safe chat clients with tool 
 
 ## Features
 
-- **Multi-provider** — Gemini, Claude, OpenAI, Ollama, Hugging Face, Cerebras, generic OpenAI-compatible servers, and Router today, more coming (see [Roadmap](ROADMAP.md))
+- **Multi-provider** — Gemini, Claude, OpenAI, DeepSeek, Ollama, Hugging Face, Cerebras, mistral.rs (local), generic OpenAI-compatible servers, generic Responses API servers, and Router today, more coming (see [Roadmap](ROADMAP.md))
 - **Router** — route requests across multiple providers with fallback and custom strategies (keyword, embedding, capability-based)
 - **Type-safe builder** — compile-time enforcement of valid configurations via type-state pattern
 - **Tool calling** — define tools with `#[tool]` in Rust, or load `@tool`-decorated Python scripts at runtime; the framework handles the call loop automatically
@@ -24,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-chat-rs = { version = "0.2.0", features = ["openai"] }
+chat-rs = { version = "0.2.1", features = ["openai"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -52,15 +52,15 @@ Enable providers via feature flags:
 
 ```toml
 # Pick one or more
-chat-rs = { version = "0.2.0", features = ["gemini"] }
-chat-rs = { version = "0.2.0", features = ["claude"] }
-chat-rs = { version = "0.2.0", features = ["openai"] }
-chat-rs = { version = "0.2.0", features = ["ollama"] }
-chat-rs = { version = "0.2.0", features = ["huggingface"] }
-chat-rs = { version = "0.2.0", features = ["cerebras"] }
-chat-rs = { version = "0.2.0", features = ["completions"] }
-chat-rs = { version = "0.2.0", features = ["router", "gemini", "claude"] }
-chat-rs = { version = "0.2.0", features = ["gemini", "claude", "openai", "stream"] }
+chat-rs = { version = "0.2.1", features = ["gemini"] }
+chat-rs = { version = "0.2.1", features = ["claude"] }
+chat-rs = { version = "0.2.1", features = ["openai"] }
+chat-rs = { version = "0.2.1", features = ["ollama"] }
+chat-rs = { version = "0.2.1", features = ["huggingface"] }
+chat-rs = { version = "0.2.1", features = ["cerebras"] }
+chat-rs = { version = "0.2.1", features = ["completions"] }
+chat-rs = { version = "0.2.1", features = ["router", "gemini", "claude"] }
+chat-rs = { version = "0.2.1", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
 | Provider | Feature | API Key Env Var | Builder |
@@ -68,13 +68,18 @@ chat-rs = { version = "0.2.0", features = ["gemini", "claude", "openai", "stream
 | Google Gemini | `gemini` | `GEMINI_API_KEY` | `GeminiBuilder` |
 | Anthropic Claude | `claude` | `CLAUDE_API_KEY` | `ClaudeBuilder` |
 | OpenAI | `openai` | `OPENAI_API_KEY` | `OpenAIBuilder` |
+| DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` | `DeepSeekBuilder` |
 | Ollama (local) | `ollama` | — (optional) | `OllamaBuilder` |
 | Hugging Face Router | `huggingface` | `HF_TOKEN` | `HuggingFaceBuilder` |
 | Cerebras | `cerebras` | `CEREBRAS_API_KEY` | `CerebrasBuilder` |
-| Generic OAI-compat | `completions` | depends on server | `ChatCompletionsBuilder` |
+| mistral.rs (local in-process) | `mistralrs` | — | `MistralRsBuilder` |
+| Generic Chat Completions | `completions` | depends on server | `ChatCompletionsBuilder` |
+| Generic Responses API | `responses` | depends on server | `ResponsesBuilder` |
 | Router | `router` | — | `RouterBuilder` |
 
-The `ollama`, `huggingface`, `cerebras`, and `completions` providers all share the same Chat Completions wire spec, factored into the `chat-completions` crate. Bring-your-own server (vLLM, llama.cpp, LiteLLM, etc.) via the generic `ChatCompletionsBuilder`.
+The `ollama`, `huggingface`, `cerebras`, `deepseek`, and `completions` providers all share the same Chat Completions wire spec, factored into the `chat-completions` crate. The `openai` provider is a thin wrapper over `chat-responses` (the Responses API wire crate). Bring-your-own server: use `ChatCompletionsBuilder` for `/v1/chat/completions` servers (vLLM, llama.cpp, LiteLLM, etc.) or `ResponsesBuilder` for `/responses` servers.
+
+For fully **local in-process** inference (no HTTP, no daemon), use the `mistralrs` provider — weights load into your process via [mistral.rs](https://github.com/EricLBuehler/mistral.rs).
 
 Swapping providers is a one-line change — replace the builder, everything else stays the same:
 
@@ -110,9 +115,27 @@ let client = CerebrasBuilder::new()
     .with_model("llama-3.3-70b")
     .build();
 
-// Bring-your-own OpenAI-compatible server (vLLM, llama.cpp, LiteLLM, ...)
+// DeepSeek
+let client = DeepSeekBuilder::new()
+    .with_model("deepseek-v4-pro")
+    .build();
+
+// mistral.rs (local, in-process — no HTTP)
+let client = MistralRsBuilder::new()
+    .with_model("Qwen/Qwen2.5-3B-Instruct-GGUF")
+    .with_gguf_file("qwen2.5-3b-instruct-q4_k_m.gguf")
+    .build().await?;
+
+// Bring-your-own Chat Completions server (vLLM, llama.cpp, LiteLLM, ...)
 let client = ChatCompletionsBuilder::new()
     .with_base_url("http://localhost:8000/v1")
+    .with_model("my-model")
+    .with_api_key("sk-...")
+    .build();
+
+// Bring-your-own Responses API server
+let client = ResponsesBuilder::new()
+    .with_base_url("https://your-gateway/v1")
     .with_model("my-model")
     .with_api_key("sk-...")
     .build();
@@ -164,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Load tools from Python scripts at runtime via the `python` feature (powered by `tools-rs` 0.3 + PyO3). Decorate functions with `@tool()` and point `ToolsBuilder` at a directory of `.py` files — they register alongside any native `#[tool]`s.
 
 ```toml
-chat-rs = { version = "0.2.0", features = ["gemini", "python"] }
+chat-rs = { version = "0.2.1", features = ["gemini", "python"] }
 ```
 
 ```python
@@ -225,7 +248,7 @@ println!("Name: {}, Likes: {:?}", response.content.name, response.content.likes)
 Enable the `stream` feature flag:
 
 ```toml
-chat-rs = { version = "0.2.0", features = ["gemini", "stream"] }
+chat-rs = { version = "0.2.1", features = ["gemini", "stream"] }
 ```
 
 ```rust
@@ -334,6 +357,12 @@ let client = OpenAIBuilder::new()
     .with_model("gpt-4o")
     .with_web_search(Some(SearchContextSizeEnum::High), None)
     .build();
+
+// OpenAI: Image Generation
+let client = OpenAIBuilder::new()
+    .with_model("gpt-4o")
+    .with_image_generation(ImageGenerationTool::default())
+    .build();
 ```
 
 ## OpenAI-Compatible Endpoints
@@ -355,8 +384,9 @@ Dedicated wrappers preset URL/env-var/auth for popular targets:
 - **Ollama** — `OllamaBuilder` defaults to `http://localhost:11434/v1`, honors `OLLAMA_HOST`, supports `.pull()` to fetch a model via Ollama's native API.
 - **Hugging Face Router** — `HuggingFaceBuilder` defaults to `https://router.huggingface.co/v1`, reads `HF_TOKEN`.
 - **Cerebras** — `CerebrasBuilder` defaults to `https://api.cerebras.ai/v1`, reads `CEREBRAS_API_KEY`.
+- **DeepSeek** — `DeepSeekBuilder` defaults to `https://api.deepseek.com/v1`, reads `DEEPSEEK_API_KEY`.
 
-`OpenAIBuilder::with_custom_url()` also exists for endpoints implementing the OpenAI **Responses API** (`POST /responses`), which is a different wire format from Chat Completions.
+For endpoints implementing the OpenAI **Responses API** (`POST /responses`, a different wire format from Chat Completions), use `ResponsesBuilder` from the `chat-responses` crate, or `OpenAIBuilder::with_custom_url()` if you want to keep the OpenAI-specific defaults and native tools.
 
 ## Router
 
@@ -430,7 +460,7 @@ let client = OpenAIBuilder::new()
 To use WebSocket transport (e.g. for OpenAI's Responses API over WS):
 
 ```toml
-chat-rs = { version = "0.2.0", features = ["openai", "stream", "tokio-tungstenite"] }
+chat-rs = { version = "0.2.1", features = ["openai", "stream", "tokio-tungstenite"] }
 ```
 
 ```rust
@@ -475,12 +505,15 @@ chat-rs (root)              ← Re-exports + feature flags
 ├── core/                   ← Traits, types, Chat engine, builder, Transport trait + impls
 ├── providers/
 │   ├── completions/        ← Generic OpenAI Chat Completions wire (`ChatCompletionsBuilder`)
+│   ├── responses/          ← Generic OpenAI Responses API wire (`ResponsesBuilder`)
 │   ├── gemini/             ← Google Gemini provider
 │   ├── claude/             ← Anthropic Claude provider
-│   ├── openai/             ← OpenAI Responses API provider
+│   ├── openai/             ← OpenAI (thin wrapper over `chat-responses` + embeddings + native tools)
 │   ├── ollama/             ← Ollama wrapper (local daemon, pull/ping)
 │   ├── huggingface/        ← Hugging Face Inference Providers (Router)
 │   ├── cerebras/           ← Cerebras Inference
+│   ├── deepseek/           ← DeepSeek
+│   ├── mistralrs/          ← Local in-process inference (mistral.rs)
 │   └── router/             ← Multi-provider router
 └── examples/
     ├── completions/        ← Generic OAI-compat examples
@@ -490,6 +523,8 @@ chat-rs (root)              ← Re-exports + feature flags
     ├── ollama/             ← Ollama examples
     ├── huggingface/        ← Hugging Face examples
     ├── cerebras/           ← Cerebras examples
+    ├── deepseek/           ← DeepSeek examples
+    ├── mistralrs/          ← mistral.rs (local) examples
     └── router/             ← Router strategy examples
 ```
 
@@ -545,6 +580,16 @@ cargo run --example huggingface-stream --features huggingface,stream
 # Cerebras
 cargo run --example cerebras-completion --features cerebras
 cargo run --example cerebras-stream --features cerebras,stream
+
+# DeepSeek
+cargo run --example deepseek-completion --features deepseek
+cargo run --example deepseek-stream --features deepseek,stream
+
+# mistral.rs (local in-process)
+cargo run --example mistralrs-completion --features mistralrs
+cargo run --example mistralrs-stream --features mistralrs,stream
+cargo run --example mistralrs-vision --features mistralrs,stream
+cargo run --example mistralrs-voice --features mistralrs,stream
 
 # Generic OpenAI-compatible server
 cargo run --example completions-completion --features completions

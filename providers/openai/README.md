@@ -1,6 +1,6 @@
 # chat-openai
 
-OpenAI provider for [chat-rs](https://github.com/EggerMarc/chat-rs). Uses the Responses API.
+OpenAI provider for [chat-rs](https://github.com/EggerMarc/chat-rs). Thin wrapper over [`chat-responses`](https://crates.io/crates/chat-responses) — presets `https://api.openai.com/v1` and `OPENAI_API_KEY`, adds the OpenAI-specific native tools (`web_search`, `image_generation`) and the `/embeddings` endpoint (which is **not** part of the Responses API).
 
 ## Usage
 
@@ -21,14 +21,16 @@ Set `OPENAI_API_KEY` in your environment or call `.with_api_key()` on the builde
 
 ## Capabilities
 
-- **Completions** — text generation with tool calling and structured output
-- **Streaming** — token-by-token output (requires `stream` feature)
-- **Embeddings** — vector embeddings via `.with_embeddings()`
-- **Reasoning effort** — `.with_reasoning_effort(effort)` for o1/o3 models
+- **Completions** — text generation with tool calling and structured output, via the Responses API
+- **Streaming** — SSE token streaming (requires `stream` feature)
+- **Embeddings** — vector embeddings via `.with_embeddings()` (uses OpenAI's `/embeddings`, not Responses)
+- **Reasoning effort** — `.with_reasoning_effort(effort)` for o1/o3/GPT-5 reasoning models
+- **Previous-response-id round-tripping** — server-side context resume (default on; disable with `.without_previous_response_id()`)
 
 ## Native Tools
 
 - **Web Search** — `.with_web_search(context_size, user_location)`
+- **Image Generation** — `.with_image_generation(tool)`
 
 ## Transport
 
@@ -52,19 +54,22 @@ You can also supply any custom `Transport` implementation via `.with_transport()
 
 ## Custom Endpoints
 
-Use local or proxy servers that implement the Responses API:
+Point at local or proxy servers implementing the Responses API:
 
 ```rust
 let client = OpenAIBuilder::new()
-    .with_model("llama3")
-    .with_custom_url("http://localhost:11434/v1".to_string())
-    .with_api_key("ollama".to_string())
+    .with_model("custom-model")
+    .with_custom_url("https://my-gateway/v1".to_string())
+    .with_api_key("...".to_string())
     .build();
 ```
+
+For full direct control of the Responses wire (no OpenAI defaults), use [`chat-responses`](https://crates.io/crates/chat-responses) directly.
 
 ## Feature Flags
 
 ```toml
-chat-rs = { version = "0.1.1", features = ["openai"] }
-chat-rs = { version = "0.1.1", features = ["openai", "stream"] }
+chat-rs = { version = "0.2.1", features = ["openai"] }
+chat-rs = { version = "0.2.1", features = ["openai", "stream"] }
+chat-rs = { version = "0.2.1", features = ["openai", "stream", "tokio-tungstenite"] }
 ```
