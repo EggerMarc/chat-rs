@@ -1,11 +1,23 @@
+//! OpenAI provider for chat-rs.
+//!
+//! Thin wrapper over [`chat_responses`] for the Responses API wire
+//! (completion + stream), plus the OpenAI-specific `/embeddings`
+//! endpoint and native tools (`web_search`, `image_generation`).
+//!
+//! The builder owns the OpenAI-specific surface (env var, native
+//! tools, custom-endpoint warnings) and hands wire-level state off to
+//! [`chat_responses::ResponsesBuilder`] at construction time.
+
 mod api;
 mod client;
 mod tools;
+
 use std::env;
 use std::marker::PhantomData;
 
 use chat_core::transport::Transport;
 use chat_core::types::provider_meta::ProviderMeta;
+use chat_responses::ResponsesBuilder;
 
 pub use crate::client::OpenAIClient;
 use crate::tools::{
@@ -18,6 +30,9 @@ pub use crate::tools::image_generation::{
 };
 
 pub use chat_core::transport::ReqwestTransport;
+
+const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
+const OPENAI_API_KEY_ENV: &str = "OPENAI_API_KEY";
 
 pub struct WithoutModel;
 pub struct WithModel;
@@ -37,9 +52,7 @@ pub struct OpenAIBuilder<
 > {
     model_name: Option<String>,
     api_key: Option<String>,
-    scheme: String,
-    host: String,
-    base_path: String,
+    base_url: String,
     native_tools: Vec<Box<dyn OpenAINativeTool>>,
     reasoning_effort: Option<String>,
     use_previous_response_id: bool,
@@ -62,9 +75,7 @@ impl OpenAIBuilder<WithoutModel, BaseEndpoint, BaseConfig, ReqwestTransport> {
         Self {
             model_name: None,
             api_key: None,
-            scheme: "https".to_string(),
-            host: "api.openai.com".to_string(),
-            base_path: "/v1".to_string(),
+            base_url: DEFAULT_OPENAI_BASE_URL.to_string(),
             native_tools: Vec::new(),
             reasoning_effort: None,
             use_previous_response_id: true,
@@ -83,9 +94,7 @@ impl<U, C, T: Transport> OpenAIBuilder<WithoutModel, U, C, T> {
         OpenAIBuilder {
             model_name: Some(model_name.into()),
             api_key: self.api_key,
-            scheme: self.scheme.clone(),
-            host: self.host.clone(),
-            base_path: self.base_path.clone(),
+            base_url: self.base_url,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -134,9 +143,7 @@ impl<M, U, C, T: Transport> OpenAIBuilder<M, U, C, T> {
         OpenAIBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            scheme: self.scheme.clone(),
-            host: self.host.clone(),
-            base_path: self.base_path.clone(),
+            base_url: self.base_url,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -152,17 +159,10 @@ impl<M, U, C, T: Transport> OpenAIBuilder<M, U, C, T> {
 
 impl<M, C, T: Transport> OpenAIBuilder<M, BaseEndpoint, C, T> {
     pub fn with_custom_url(self, base_url: String) -> OpenAIBuilder<M, CustomEndpoint, C, T> {
-        let parsed = url::Url::parse(&base_url).expect("Invalid URL");
-        let scheme = parsed.scheme().to_string();
-        let host = parsed.host_str().expect("No host in URL").to_string()
-            + &parsed.port().map(|p| format!(":{p}")).unwrap_or_default();
-        let base_path = parsed.path().trim_end_matches('/').to_string();
         OpenAIBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            scheme,
-            host,
-            base_path,
+            base_url,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -181,9 +181,7 @@ impl<M, T: Transport> OpenAIBuilder<M, BaseEndpoint, BaseConfig, T> {
         OpenAIBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            scheme: self.scheme.clone(),
-            host: self.host.clone(),
-            base_path: self.base_path.clone(),
+            base_url: self.base_url,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -225,9 +223,7 @@ impl<M, T: Transport> OpenAIBuilder<M, CustomEndpoint, BaseConfig, T> {
         OpenAIBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            scheme: self.scheme.clone(),
-            host: self.host.clone(),
-            base_path: self.base_path.clone(),
+            base_url: self.base_url,
             native_tools: self.native_tools,
             reasoning_effort: self.reasoning_effort,
             use_previous_response_id: self.use_previous_response_id,
@@ -291,7 +287,7 @@ impl<M, T: Transport> OpenAIBuilder<M, BaseEndpoint, CompletionConfig, T> {
 impl<M, T: Transport> OpenAIBuilder<M, CustomEndpoint, CompletionConfig, T> {
     pub fn with_reasoning_effort(mut self, effort: &str) -> Self {
         eprintln!(
-            "WARNING: 'reasoning_effort' is an OpenAI-specific feature (e.g. for o1/o3 models). Custom endpoints (like Ollama) may reject this request."
+            "WARNING: 'reasoning_effort' is an OpenAI-specific feature (e.g. for o1/o3 models). Custom endpoints may reject this request."
         );
         self.reasoning_effort = Some(effort.to_string());
         self
@@ -326,9 +322,7 @@ impl<M, U, T: Transport> OpenAIBuilder<M, U, BaseConfig, T> {
         OpenAIBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
-            scheme: self.scheme.clone(),
-            host: self.host.clone(),
-            base_path: self.base_path.clone(),
+            base_url: self.base_url,
             native_tools: vec![],
             reasoning_effort: None,
             use_previous_response_id: false,
@@ -349,31 +343,43 @@ impl<M, U, T: Transport> OpenAIBuilder<M, U, BaseConfig, T> {
 impl<U, C, T: Transport> OpenAIBuilder<WithModel, U, C, T> {
     /// Build the client.
     ///
-    /// Panics if no transport was provided via `.with_transport()` and
-    /// `T` is not the default `ReqwestTransport`.
+    /// Materializes OpenAI-specific native tools into JSON values and
+    /// hands wire-level state to [`ResponsesBuilder`]. The resulting
+    /// [`OpenAIClient`] wraps a [`chat_responses::ResponsesClient`].
     pub fn build(self) -> OpenAIClient<T> {
         let api_key = self
             .api_key
-            .or_else(|| env::var("OPENAI_API_KEY").ok())
+            .or_else(|| env::var(OPENAI_API_KEY_ENV).ok())
             .expect("No api key found");
 
         let transport = self.transport.expect(
             "No transport provided. Call .with_transport() or use the default OpenAIBuilder (which provides ReqwestTransport).",
         );
 
-        OpenAIClient {
-            model_name: self.model_name.unwrap(),
-            api_key,
-            scheme: self.scheme,
-            host: self.host,
-            base_path: self.base_path,
-            transport,
-            native_tools: self.native_tools,
-            reasoning_effort: self.reasoning_effort,
-            use_previous_response_id: self.use_previous_response_id,
-            last_response_id: None,
-            store: self.store,
-            meta: self.meta,
+        let extra_tool_declarations: Vec<serde_json::Value> = self
+            .native_tools
+            .iter()
+            .map(|t| t.to_tool_declaration())
+            .collect();
+
+        let mut rb = ResponsesBuilder::new()
+            .with_base_url(self.base_url)
+            .with_model(self.model_name.expect("model set"))
+            .with_api_key(api_key)
+            .with_transport(transport)
+            .with_tool_declarations(extra_tool_declarations)
+            .with_meta(self.meta);
+
+        if let Some(eff) = self.reasoning_effort {
+            rb = rb.with_reasoning_effort(eff);
         }
+        if !self.use_previous_response_id {
+            rb = rb.without_previous_response_id();
+        }
+        if let Some(s) = self.store {
+            rb = rb.with_store(s);
+        }
+
+        OpenAIClient { inner: rb.build() }
     }
 }

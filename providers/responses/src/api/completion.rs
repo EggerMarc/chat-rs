@@ -1,7 +1,7 @@
-use crate::api::types::error::handle_openai_error;
-use crate::api::types::request::OpenAIResponsesRequest;
+use crate::api::types::error::handle_responses_error;
+use crate::api::types::request::{ResponsesRequest, ResponsesRequestConfig};
 use crate::api::types::response::ResponsesApiResponse;
-use crate::client::OpenAIClient;
+use crate::client::ResponsesClient;
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::traits::CompletionProvider;
 use chat_core::transport::Transport;
@@ -12,7 +12,7 @@ use chat_core::types::response::ChatResponse;
 use chat_core::types::tools::ToolDeclarations;
 
 #[async_trait::async_trait]
-impl<T: Transport> CompletionProvider for OpenAIClient<T> {
+impl<T: Transport> CompletionProvider for ResponsesClient<T> {
     async fn complete(
         &mut self,
         messages: &mut Messages,
@@ -26,19 +26,18 @@ impl<T: Transport> CompletionProvider for OpenAIClient<T> {
             None
         };
 
-        let request_body =
-            OpenAIResponsesRequest::from_core(crate::api::types::request::ResponsesRequestConfig {
-                model_name: &self.model_name,
-                messages,
-                tool_declarations,
-                native_tools: self.native_tools.as_slice(),
-                reasoning_effort: self.reasoning_effort.clone(),
-                options,
-                output_shape: structured_output,
-                previous_response_id,
-                store: self.store,
-            })
-            .map_err(ChatFailure::from_err)?;
+        let request_body = ResponsesRequest::from_core(ResponsesRequestConfig {
+            model_name: &self.model_name,
+            messages,
+            tool_declarations,
+            extra_tool_declarations: &self.extra_tool_declarations,
+            reasoning_effort: self.reasoning_effort.clone(),
+            options,
+            output_shape: structured_output,
+            previous_response_id,
+            store: self.store,
+        })
+        .map_err(ChatFailure::from_err)?;
 
         let body = serde_json::to_vec(&request_body)
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
@@ -60,7 +59,7 @@ impl<T: Transport> CompletionProvider for OpenAIClient<T> {
             .await
             .map_err(ChatFailure::from_err)?;
 
-        let res = handle_openai_error(res)?;
+        let res = handle_responses_error(res)?;
 
         let oai_data: ResponsesApiResponse = serde_json::from_slice(&res.body)
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
@@ -86,16 +85,15 @@ impl<T: Transport> CompletionProvider for OpenAIClient<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::types::request::ResponsesRequestConfig;
 
     #[test]
     fn test_from_core_without_previous_response_id() {
         let messages = chat_core::types::messages::from_user(vec!["hello"]);
-        let req = OpenAIResponsesRequest::from_core(ResponsesRequestConfig {
+        let req = ResponsesRequest::from_core(ResponsesRequestConfig {
             model_name: "gpt-4o",
             messages: &messages,
             tool_declarations: None,
-            native_tools: &[],
+            extra_tool_declarations: &[],
             reasoning_effort: None,
             options: None,
             output_shape: None,
@@ -111,11 +109,11 @@ mod tests {
     #[test]
     fn test_from_core_with_previous_response_id() {
         let messages = chat_core::types::messages::from_user(vec!["hello"]);
-        let req = OpenAIResponsesRequest::from_core(ResponsesRequestConfig {
+        let req = ResponsesRequest::from_core(ResponsesRequestConfig {
             model_name: "gpt-4o",
             messages: &messages,
             tool_declarations: None,
-            native_tools: &[],
+            extra_tool_declarations: &[],
             reasoning_effort: None,
             options: None,
             output_shape: None,
