@@ -1,6 +1,6 @@
 [package]
 name = "chat-ollama"
-version = "0.2.1"
+version = "0.2.2"
 description = "Ollama provider for chat-rs (OpenAI-compatible endpoint)."
 edition.workspace = true
 authors.workspace = true
@@ -10,14 +10,14 @@ rust-version.workspace = true
 
 
 [dependencies]
-chat-completions = { path = "../completions", version = "0.2.1" }
+chat-completions = { path = "../completions", version = "0.2.2" }
 
 serde.workspace = true
 serde_json.workspace = true
 url.workspace = true
 
 [dev-dependencies]
-chat-core = { path = "../../core", version = "0.2.1", features = ["reqwest-transport"] }
+chat-core = { path = "../../core", version = "0.2.2", features = ["reqwest-transport"] }
 tokio.workspace = true
 
 [features]

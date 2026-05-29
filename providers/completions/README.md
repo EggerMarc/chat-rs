@@ -6,12 +6,12 @@ Generic OpenAI Chat Completions wire client for [chat-rs](https://github.com/Egg
 
 ```toml
 [dependencies]
-chat-core = "0.2.1"
-chat-completions = "0.2.1"
+chat-core = "0.2.2"
+chat-completions = "0.2.2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["completions"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.3.1", features = ["completions"] }`.
 
 ## Usage
 
@@ -60,5 +60,5 @@ let client = ChatCompletionsBuilder::new()
 Streaming is gated on the `stream` feature:
 
 ```toml
-chat-completions = { version = "0.2.1", features = ["stream"] }
+chat-completions = { version = "0.2.2", features = ["stream"] }
 ```

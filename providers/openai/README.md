@@ -6,12 +6,12 @@ OpenAI provider for [chat-rs](https://github.com/EggerMarc/chat-rs). Thin wrappe
 
 ```toml
 [dependencies]
-chat-core = "0.2.1"
-chat-openai = "0.3.0"
+chat-core = "0.2.2"
+chat-openai = "0.3.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["openai"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.3.1", features = ["openai"] }`.
 
 ## Usage
 
@@ -83,9 +83,9 @@ For full direct control of the Responses wire (no OpenAI defaults), use [`chat-r
 
 ```toml
 # Streaming
-chat-openai = { version = "0.3.0", features = ["stream"] }
+chat-openai = { version = "0.3.1", features = ["stream"] }
 
 # WebSocket transport (requires the chat-core feature)
-chat-openai = { version = "0.3.0", features = ["stream"] }
-chat-core   = { version = "0.2.1", features = ["tokio-tungstenite"] }
+chat-openai = { version = "0.3.1", features = ["stream"] }
+chat-core   = { version = "0.2.2", features = ["tokio-tungstenite"] }
 ```

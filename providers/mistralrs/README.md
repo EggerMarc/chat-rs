@@ -6,12 +6,12 @@ Local-inference provider for [chat-rs](https://github.com/EggerMarc/chat-rs), bu
 
 ```toml
 [dependencies]
-chat-core = "0.2.1"
-chat-mistralrs = "0.1.2"
+chat-core = "0.2.2"
+chat-mistralrs = "0.1.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["mistralrs"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.3.1", features = ["mistralrs"] }`.
 
 ## Usage
 
@@ -60,5 +60,5 @@ Tracks the latest mistral.rs release without pinning; upstream churn is treated 
 Streaming is gated on the `stream` feature:
 
 ```toml
-chat-mistralrs = { version = "0.1.2", features = ["stream"] }
+chat-mistralrs = { version = "0.1.3", features = ["stream"] }
 ```

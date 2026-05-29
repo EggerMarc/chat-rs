@@ -6,12 +6,12 @@ Generic OpenAI Responses API wire client for [chat-rs](https://github.com/EggerM
 
 ```toml
 [dependencies]
-chat-core = "0.2.1"
-chat-responses = "0.1.0"
+chat-core = "0.2.2"
+chat-responses = "0.1.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["responses"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.3.1", features = ["responses"] }`.
 
 ## Usage
 
@@ -65,5 +65,5 @@ Pluggable via `.with_transport()`. Defaults to HTTP/SSE via reqwest. WebSocket t
 Streaming is gated on the `stream` feature:
 
 ```toml
-chat-responses = { version = "0.1.0", features = ["stream"] }
+chat-responses = { version = "0.1.1", features = ["stream"] }
 ```

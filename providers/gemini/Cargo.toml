@@ -1,6 +1,6 @@
 [package]
 name = "chat-gemini"
-version = "0.2.1"
+version = "0.2.2"
 description = "Provider implementation of Gemini for chat-rs"
 edition.workspace = true
 authors.workspace = true
@@ -8,7 +8,7 @@ license.workspace = true
 
 
 [dependencies]
-chat-core = { path = "../../core", version = "0.2.1", features = ["reqwest-transport"] }
+chat-core = { path = "../../core", version = "0.2.2", features = ["reqwest-transport"] }
 
 async-trait.workspace = true
 serde.workspace = true
@@ -21,7 +21,7 @@ base64              = "0.22.1"
 tracing             = "0.1"
 
 [dev-dependencies]
-chat-core = { path = "../../core", version = "0.2.1", features = ["reqwest-transport", "testing"] }
+chat-core = { path = "../../core", version = "0.2.2", features = ["reqwest-transport", "testing"] }
 tokio.workspace = true
 serde_json.workspace = true
 

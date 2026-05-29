@@ -8,7 +8,7 @@ You usually don't depend on this crate directly — instead, depend on a provide
 
 ```toml
 [dependencies]
-chat-core = "0.2.1"
+chat-core = "0.2.2"
 ```
 
 ## What's in here

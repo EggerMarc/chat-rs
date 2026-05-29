@@ -6,12 +6,12 @@
 
 ```toml
 [dependencies]
-chat-core = "0.2.1"
-chat-ollama = "0.2.1"
+chat-core = "0.2.2"
+chat-ollama = "0.2.2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.3.0", features = ["ollama"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.3.1", features = ["ollama"] }`.
 
 ## Usage
 
@@ -56,5 +56,5 @@ Override the base URL with `.with_base_url(...)` or supply a custom transport wi
 Streaming is gated on the `stream` feature:
 
 ```toml
-chat-ollama = { version = "0.2.1", features = ["stream"] }
+chat-ollama = { version = "0.2.2", features = ["stream"] }
 ```
