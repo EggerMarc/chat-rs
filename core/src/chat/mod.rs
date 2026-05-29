@@ -20,6 +20,8 @@ pub mod embed;
 pub mod state;
 #[cfg(feature = "stream")]
 pub mod stream;
+#[cfg(feature = "stream")]
+pub mod input_stream;
 
 #[derive(Default)]
 pub struct Chat<CP, Output = Unstructured> {

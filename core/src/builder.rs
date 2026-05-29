@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use tools_rs::ToolCollection;
 
 #[cfg(feature = "stream")]
-use crate::chat::state::Streamed;
+use crate::chat::state::{InputStreamed, Streamed};
 use crate::{
     chat::{
         Chat,
@@ -71,6 +71,46 @@ impl<CP: CompletionProvider> ChatBuilder<CP, Unstructured> {
         if self.output_shape.is_some() {
             println!(
                 "Warning: Cannot call streamed responses with structured outputs. Output shape will be set to None"
+            );
+        }
+
+        ChatBuilder {
+            model: self.model,
+            max_steps: self.max_steps,
+            max_retries: self.max_retries,
+            retry_strategy: self.retry_strategy,
+            before_strategy: self.before_strategy,
+            after_strategy: self.after_strategy,
+            output_shape: None,
+            scoped_collections: self.scoped_collections,
+            model_options: self.model_options,
+            _output: std::marker::PhantomData,
+        }
+    }
+
+    /// Transition into the input-stream type-state. The resulting
+    /// `Chat<CP, InputStreamed<I>>` exposes a `stream(&mut messages, input)`
+    /// method that interleaves the model's output stream with a
+    /// caller-supplied `Stream<Item = PartEnum>` input source. Audio
+    /// chunks ride as `PartEnum::File`, text as `PartEnum::Text`,
+    /// tool results as `PartEnum::Tool`, etc. — no parallel input enum.
+    ///
+    /// `I` is just a type-marker at builder time; the actual stream
+    /// instance is passed at `chat.stream(...)` call time, so a single
+    /// `Chat` can be reused across multiple input streams of the same
+    /// type.
+    #[cfg(feature = "stream")]
+    pub fn with_input_stream<I>(self) -> ChatBuilder<CP, InputStreamed<I>>
+    where
+        CP: StreamProvider,
+        I: futures::Stream<Item = crate::types::messages::parts::PartEnum>
+            + Send
+            + Unpin
+            + 'static,
+    {
+        if self.output_shape.is_some() {
+            println!(
+                "Warning: Cannot call input-streamed responses with structured outputs. Output shape will be set to None"
             );
         }
 
