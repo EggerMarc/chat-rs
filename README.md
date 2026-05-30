@@ -24,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-chat-rs = { version = "0.3.1", features = ["openai"] }
+chat-rs = { version = "0.4.0", features = ["openai"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -52,15 +52,15 @@ Enable providers via feature flags:
 
 ```toml
 # Pick one or more
-chat-rs = { version = "0.3.1", features = ["gemini"] }
-chat-rs = { version = "0.3.1", features = ["claude"] }
-chat-rs = { version = "0.3.1", features = ["openai"] }
-chat-rs = { version = "0.3.1", features = ["ollama"] }
-chat-rs = { version = "0.3.1", features = ["huggingface"] }
-chat-rs = { version = "0.3.1", features = ["cerebras"] }
-chat-rs = { version = "0.3.1", features = ["completions"] }
-chat-rs = { version = "0.3.1", features = ["router", "gemini", "claude"] }
-chat-rs = { version = "0.3.1", features = ["gemini", "claude", "openai", "stream"] }
+chat-rs = { version = "0.4.0", features = ["gemini"] }
+chat-rs = { version = "0.4.0", features = ["claude"] }
+chat-rs = { version = "0.4.0", features = ["openai"] }
+chat-rs = { version = "0.4.0", features = ["ollama"] }
+chat-rs = { version = "0.4.0", features = ["huggingface"] }
+chat-rs = { version = "0.4.0", features = ["cerebras"] }
+chat-rs = { version = "0.4.0", features = ["completions"] }
+chat-rs = { version = "0.4.0", features = ["router", "gemini", "claude"] }
+chat-rs = { version = "0.4.0", features = ["gemini", "claude", "openai", "stream"] }
 ```
 
 | Provider | Feature | API Key Env Var | Builder |
@@ -187,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Load tools from Python scripts at runtime via the `python` feature (powered by `tools-rs` 0.3 + PyO3). Decorate functions with `@tool()` and point `ToolsBuilder` at a directory of `.py` files — they register alongside any native `#[tool]`s.
 
 ```toml
-chat-rs = { version = "0.3.1", features = ["gemini", "python"] }
+chat-rs = { version = "0.4.0", features = ["gemini", "python"] }
 ```
 
 ```python
@@ -248,7 +248,7 @@ println!("Name: {}, Likes: {:?}", response.content.name, response.content.likes)
 Enable the `stream` feature flag:
 
 ```toml
-chat-rs = { version = "0.3.1", features = ["gemini", "stream"] }
+chat-rs = { version = "0.4.0", features = ["gemini", "stream"] }
 ```
 
 ```rust
@@ -267,10 +267,48 @@ while let Some(chunk) = stream.next().await {
         StreamEvent::ReasoningChunk(thought) => print!("[thinking] {}", thought),
         StreamEvent::ToolCall(fc) => println!("[calling {}]", fc.name),
         StreamEvent::ToolResult(fr) => println!("[tool returned]"),
+        StreamEvent::Structured(value) => println!("[structured] {value}"),
         StreamEvent::Done(_) => break,
     }
 }
 ```
+
+`StreamEvent::Structured(Value)` is the streaming counterpart to `with_structured_output::<T>()` — providers can yield complete typed objects mid-stream (each event is a full `serde_json::Value`, not a fragment). The engine accumulates them into the final `ChatResponse.content.parts` so non-streaming consumers see them as `PartEnum::Structured` entries.
+
+## Input Streaming (bidirectional)
+
+Push input *into* the chat while the model is producing output — typed text, audio chunks, tool results, anything that fits a `PartEnum`. Useful for robotics, voice assistants, or any consumer where new context arrives during generation.
+
+Transition the builder into `InputStreamed<I>` via `.with_input_stream::<I>()`, then call `chat.stream(&mut messages, input)` with any `Stream<Item = PartEnum> + Send + Unpin + 'static`. On each input event the engine merges it into `Messages` per-variant (text/file/structured → push as user content; tool → resolve matching pending tool by call-id), drops the current provider stream, and re-enters with the updated state. For HTTP/SSE providers this is interrupt-and-restart; native-WS providers (planned OpenAI Realtime, Gemini Live) can hold their session open across calls in their client state — engine surface is identical either way.
+
+```rust
+use chat_rs::{ChatBuilder, PartEnum, StreamEvent, openai::OpenAIBuilder, types::messages};
+use futures::{StreamExt, channel::mpsc};
+
+let client = OpenAIBuilder::new().with_model("gpt-4o").build();
+
+let (input_tx, input_rx) = mpsc::unbounded::<PartEnum>();
+
+let mut chat = ChatBuilder::new()
+    .with_model(client)
+    .with_input_stream::<mpsc::UnboundedReceiver<PartEnum>>()
+    .build();
+
+let mut messages = messages::from_user(vec!["Tell me a long story about a rust crab."]);
+
+// Interrupt mid-generation with a follow-up:
+tokio::spawn(async move {
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    let _ = input_tx.unbounded_send(PartEnum::from("Wait — make the crab wear a hat.".to_string()));
+});
+
+let mut stream = chat.stream(&mut messages, input_rx).await?;
+while let Some(event) = stream.next().await {
+    if let StreamEvent::TextChunk(t) = event? { print!("{t}"); }
+}
+```
+
+See `examples/openai/input_stream.rs` for a complete runnable example.
 
 ## Human in the Loop
 
@@ -460,7 +498,7 @@ let client = OpenAIBuilder::new()
 To use WebSocket transport (e.g. for OpenAI's Responses API over WS):
 
 ```toml
-chat-rs = { version = "0.3.1", features = ["openai", "stream", "tokio-tungstenite"] }
+chat-rs = { version = "0.4.0", features = ["openai", "stream", "tokio-tungstenite"] }
 ```
 
 ```rust

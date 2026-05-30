@@ -6,12 +6,12 @@
 
 ```toml
 [dependencies]
-chat-core = "0.2.2"
-chat-cerebras = "0.2.2"
+chat-core = "0.3.0"
+chat-cerebras = "0.2.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.3.1", features = ["cerebras"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["cerebras"] }`.
 
 ## Usage
 
@@ -45,5 +45,5 @@ Override the base URL with `.with_base_url(...)` or supply a custom transport wi
 Streaming is gated on the `stream` feature of `chat-cerebras` (or on `chat-rs` if using the umbrella):
 
 ```toml
-chat-cerebras = { version = "0.2.2", features = ["stream"] }
+chat-cerebras = { version = "0.2.3", features = ["stream"] }
 ```

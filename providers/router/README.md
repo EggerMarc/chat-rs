@@ -6,15 +6,15 @@ A provider router for [chat-rs](https://github.com/EggerMarc/chat-rs) that wraps
 
 ```toml
 [dependencies]
-chat-core = "0.2.2"
-chat-router = "0.2.2"
+chat-core = "0.3.0"
+chat-router = "0.2.3"
 # plus whichever providers you want to route between:
-chat-claude = "0.2.2"
-chat-gemini = "0.2.2"
+chat-claude = "0.2.3"
+chat-gemini = "0.2.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.3.1", features = ["router", "claude", "gemini"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["router", "claude", "gemini"] }`.
 
 ## Usage
 
@@ -81,7 +81,7 @@ When a provider's circuit opens, the router skips it until the recovery timeout 
 Enable the `stream` feature to use `StreamRouterBuilder`, which wraps providers implementing `ChatProvider`:
 
 ```toml
-chat-router = { version = "0.2.2", features = ["stream"] }
+chat-router = { version = "0.2.3", features = ["stream"] }
 ```
 
 ## Scope
@@ -93,5 +93,5 @@ The router supports completions and streaming. Embeddings are not supported — 
 Streaming is gated on the `stream` feature:
 
 ```toml
-chat-router = { version = "0.2.2", features = ["stream"] }
+chat-router = { version = "0.2.3", features = ["stream"] }
 ```

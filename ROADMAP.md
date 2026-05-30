@@ -59,6 +59,8 @@ Tracking upcoming providers and features for chat-rs.
 - [x] **Pluggable transport layer** — `Transport` trait in `chat-core` with `send()` and `stream()`, `Request` with scheme/host/path separation. Three built-in implementations (feature-gated): `ReqwestTransport` (HTTP/SSE), `AsyncWsTransport` (tokio-tungstenite), `WsTransport` (tungstenite). BYO transports via trait impl. Providers are generic over `T: Transport`.
 - [x] **OpenAI WebSocket streaming** — `AsyncWsTransport` with `.with_message_type("response.create")` connects to `wss://api.openai.com/v1/responses`, authenticates once on handshake, streams events. Connection reuse across calls, terminal event detection, error frame handling.
 - [x] **Image generation** — `File` split into kind/source (`#[non_exhaustive]`). OpenAI `image_generation_call` and Gemini `inlineData` image parts decode into `PartEnum::File(File { kind: Image, .. })`. Claude has no image output upstream.
+- [x] **Mid-stream structured events** — `StreamEvent::Structured(Value)` variant for providers that emit complete typed objects mid-stream (robotics action steps, etc.). Engine accumulates into `ChatResponse.content.parts` as `PartEnum::Structured` for non-streaming-equivalent semantics. (chat-core 0.3.0)
+- [x] **Input-stream type-state** — `Chat<CP, InputStreamed<I>>::stream(&mut messages, input)` consumes a caller-supplied `Stream<Item = PartEnum>` alongside the model output. Audio/text/tool results merge case-by-case into `Messages`; engine restarts the provider stream on each input event. Same interrupt-and-restart pattern as HITL. Native-WS providers (planned Realtime/Live) keep their session open in client state; trait contract stays unchanged. (chat-core 0.3.0)
 
 ### Medium Term
 

@@ -8,7 +8,7 @@ You usually don't depend on this crate directly — instead, depend on a provide
 
 ```toml
 [dependencies]
-chat-core = "0.2.2"
+chat-core = "0.3.0"
 ```
 
 ## What's in here
@@ -19,6 +19,13 @@ chat-core = "0.2.2"
 - **`transport`** — `Transport` trait + three built-in impls (feature-gated): `ReqwestTransport` (HTTP/SSE, default), `AsyncWsTransport` (tokio-tungstenite), `WsTransport` (tungstenite)
 - **`types`** — `Messages`, `Content`, `Parts`, `Tool`, `ChatOptions`, `ChatResponse`, `StreamEvent`, `Metadata`, etc.
 - **`error`** — `ChatError`, `ChatFailure`
+
+## What's new in 0.3
+
+- **`StreamEvent::Structured(Value)`** — providers can yield complete structured objects mid-stream (each event is a whole `serde_json::Value`, not a fragment). The engine accumulates them into `ChatResponse.content.parts` as `PartEnum::Structured` so non-streaming consumers see them too. Drop-in for robotics consumers that produce a stream of typed action steps.
+- **`InputStreamed<I>` type-state** — `Chat<CP, InputStreamed<I>>::stream(&mut messages, input: I)` interleaves the model's output stream with a caller-supplied `Stream<Item = PartEnum>` input source. Audio bytes ride as `PartEnum::File`, text as `PartEnum::Text`, tool results as `PartEnum::Tool`. Each input event triggers a case-by-case merge into `Messages` and re-opens the provider stream with the updated state — same interrupt-and-restart pattern HITL already uses, just automated. Builder transition: `ChatBuilder::with_input_stream::<I>()`. Bounds: `I: Stream<Item = PartEnum> + Send + Unpin + 'static`.
+
+Both are additive — existing `Chat<CP, Unstructured>::stream` callers see no behavior change.
 
 ## Feature Flags
 
