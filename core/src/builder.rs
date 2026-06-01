@@ -89,24 +89,18 @@ impl<CP: CompletionProvider> ChatBuilder<CP, Unstructured> {
     }
 
     /// Transition into the input-stream type-state. The resulting
-    /// `Chat<CP, InputStreamed<I>>` exposes a `stream(&mut messages, input)`
-    /// method that interleaves the model's output stream with a
-    /// caller-supplied `Stream<Item = PartEnum>` input source. Audio
-    /// chunks ride as `PartEnum::File`, text as `PartEnum::Text`,
-    /// tool results as `PartEnum::Tool`, etc. — no parallel input enum.
-    ///
-    /// `I` is just a type-marker at builder time; the actual stream
-    /// instance is passed at `chat.stream(...)` call time, so a single
-    /// `Chat` can be reused across multiple input streams of the same
-    /// type.
+    /// `Chat<CP, InputStreamed>` exposes a `stream(&mut messages)` method
+    /// that returns a [`ChatStream`](crate::chat::input::ChatStream): the
+    /// output stream you iterate with `.next()`, carrying an input side you
+    /// push to with `.send()` (or `split()` into independent handles).
+    /// Audio rides as `PartEnum::File`, text as `PartEnum::Text`, tool
+    /// results as `PartEnum::Tool`, etc. — no parallel input enum, and a
+    /// continuous producer is mapped into `PartEnum` caller-side before it
+    /// reaches `send`.
     #[cfg(feature = "stream")]
-    pub fn with_input_stream<I>(self) -> ChatBuilder<CP, InputStreamed<I>>
+    pub fn with_input_stream(self) -> ChatBuilder<CP, InputStreamed>
     where
         CP: StreamProvider,
-        I: futures::Stream<Item = crate::types::messages::parts::PartEnum>
-            + Send
-            + Unpin
-            + 'static,
     {
         if self.output_shape.is_some() {
             println!(

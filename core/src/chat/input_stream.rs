@@ -1,26 +1,35 @@
-//! `Chat<CP, InputStreamed<I>>::stream` — engine path that interleaves
-//! a caller-supplied input stream of `PartEnum` values with the
-//! model's output stream of `StreamEvent`s.
+//! `Chat<CP, InputStreamed>::stream` — the bidirectional streaming engine.
 //!
-//! Pattern: same as `Chat<CP, Unstructured>::stream` (`super::stream`),
-//! but with a `futures::future::select` in the inner loop so input
-//! events can interrupt mid-generation. On each input event, the
-//! engine merges it into `Messages` per-variant, drops the current
-//! provider stream, and re-enters the provider with the updated
-//! state. That's the same interrupt-and-restart semantics HITL
-//! already uses (`Paused` → caller mutates Messages → `stream()`
-//! again), just automated and input-driven.
+//! Same loop as `Chat<CP, Unstructured>::stream` (`super::stream`), but the
+//! inner loop races the model's output against an internal input channel via
+//! `futures::future::select`, so caller-pushed input can interrupt
+//! mid-generation. On an input burst the engine merges it into `Messages`,
+//! drops the current provider stream, and re-enters the provider with the
+//! updated state — the same interrupt-and-restart semantics HITL uses
+//! (`Paused` → caller mutates Messages → `stream()` again), just automated.
 //!
-//! Native-WS providers (OpenAI Realtime, Gemini Live) that keep a
-//! single session open across calls can do so in their client state;
-//! the engine just sees a series of short `stream()` calls with
-//! updated `Messages` between them.
+//! What survives an interrupt: every completed step — tool calls and their
+//! results — is in `Messages` and re-sent on restart. Only the in-flight
+//! partial generation is discarded (cheap, side-effect-free; tools execute
+//! *between* steps, never during streaming, so an interrupt can never sever
+//! a running tool). The model reconciles old and new by re-reading the full
+//! transcript; the engine's only job is to never drop history.
+//!
+//! Input arrives over an `mpsc` channel fed by [`InputStream::send`]. The
+//! producer handle is `Clone + Send + 'static` (it borrows nothing), so it
+//! drops into a spawned task; the output side owns the `&mut Messages`
+//! borrow. Closing all producers flips the engine to draining the provider
+//! directly; a `cancel()` tears the whole thing down.
 
 use async_stream::try_stream;
-use futures::{Stream, StreamExt, future::Either, stream::BoxStream};
+use futures::{StreamExt, channel::mpsc, future::Either};
 
 use crate::{
-    chat::{Chat, state::InputStreamed},
+    chat::{
+        Chat,
+        input::{ChatStream, Input, InputStream, OutputStream},
+        state::InputStreamed,
+    },
     error::ChatFailure,
     traits::StreamProvider,
     types::{
@@ -34,54 +43,45 @@ use crate::{
     },
 };
 
-impl<CP: StreamProvider, I> Chat<CP, InputStreamed<I>>
-where
-    I: Stream<Item = PartEnum> + Send + Unpin + 'static,
-{
-    /// Streaming chat loop that also consumes an input stream of
-    /// `PartEnum` values. The input is interleaved with the model's
-    /// output: each input event triggers a case-by-case merge into
-    /// `Messages` and re-opens the provider stream so the model sees
-    /// the updated state.
+impl<CP: StreamProvider> Chat<CP, InputStreamed> {
+    /// Streaming chat loop that also accepts caller-pushed input. Returns a
+    /// [`ChatStream`]: iterate it with `.next()` for output events, push with
+    /// `.send()`, or `split()` it into independent input/output handles.
     ///
-    /// Input vocabulary (case-by-case merge):
-    /// - `PartEnum::Text` / `File` / `Structured` → pushed as a fresh
-    ///   `User` `Content` into `Messages`.
-    /// - `PartEnum::Tool` → resolves a matching pending `Tool` part on
-    ///   the most recent `Model` content by call-id (set its response).
-    /// - `PartEnum::Reasoning` / `Embeddings` → no-op (not meaningful
-    ///   as inbound).
+    /// Input vocabulary (case-by-case merge, see `apply_input_to_messages`):
+    /// - text / file / structured parts and whole `Content`s → pushed as
+    ///   user content, coalescing into the trailing user turn;
+    /// - a `Tool` part → resolves a matching pending tool call by id;
+    /// - reasoning / embeddings parts → no-op (not meaningful inbound).
     ///
-    /// Close: dropping or exhausting the input stream ends input
-    /// processing; the engine continues draining the provider until
-    /// `Done`. Cancel: drop the returned output stream.
+    /// Close: dropping all `InputStream` handles ends input; the engine then
+    /// drains the provider directly. Cancel: `cancel()` (or dropping the
+    /// output) tears the exchange down.
     pub async fn stream<'a>(
         &'a mut self,
         messages: &'a mut Messages,
-        mut input: I,
-    ) -> Result<BoxStream<'a, Result<StreamEvent, ChatFailure>>, ChatFailure> {
+    ) -> Result<ChatStream<'a>, ChatFailure> {
         if let Some(strategy) = self.before_strategy.as_mut() {
             strategy(messages, None).await;
         }
 
-        let mut input_open = true;
+        let (tx, mut rx) = mpsc::unbounded::<Input>();
 
         let stream = try_stream! {
             let max_steps = self.max_steps.unwrap_or(1);
             let mut last_metadata: Option<Metadata> = None;
+            let mut input_open = true;
 
             'step: for _ in 0..max_steps {
-                // Pre-step: same as Unstructured::stream — drain any
-                // already-resolved tools, yield ToolResult, pause if
-                // anything still needs caller action.
+                // Pre-step: execute any tools already resolved to Approved on
+                // the last Content (typically a just-resolved pause). Emit
+                // ToolResult events; pause again if the caller left some
+                // tools Pending.
                 if let Some(last) = messages.0.last_mut() {
                     let pass = self
                         .tool_call(last)
                         .await
-                        .map_err(|err| ChatFailure {
-                            err,
-                            metadata: last_metadata.clone(),
-                        })?;
+                        .map_err(|err| ChatFailure { err, metadata: last_metadata.clone() })?;
 
                     if pass.executed
                         && let Some(last) = messages.0.last()
@@ -99,14 +99,13 @@ where
                     }
                 }
 
-                let decls =
-                    crate::chat::tool_declarations_from(&self.scoped_collections);
+                let decls = crate::chat::tool_declarations_from(&self.scoped_collections);
                 let decls_dyn = decls
                     .as_ref()
                     .map(|d| d as &dyn crate::types::tools::ToolDeclarations);
 
-                // Restart loop: each input event drops the current
-                // provider stream and re-enters with mutated Messages.
+                // Restart loop: each input burst drops the current provider
+                // stream and re-enters with mutated Messages.
                 'restart: loop {
                     let mut provider_stream = self
                         .model
@@ -118,10 +117,18 @@ where
 
                     loop {
                         if input_open {
-                            // Race provider events against input events.
-                            let pn = provider_stream.next();
-                            let inp = input.next();
-                            match futures::future::select(Box::pin(pn), Box::pin(inp)).await {
+                            // Race provider events against input. The input
+                            // future borrows `rx` (which lives outside the
+                            // future), so losing the race and being dropped
+                            // is cancel-safe — no queued input is lost.
+                            let provider_next = provider_stream.next();
+                            let input_next = next_input(&mut rx);
+                            match futures::future::select(
+                                Box::pin(provider_next),
+                                Box::pin(input_next),
+                            )
+                            .await
+                            {
                                 Either::Left((Some(Ok(StreamEvent::Done(resp))), _)) => {
                                     final_response = Some(resp);
                                     break;
@@ -133,14 +140,16 @@ where
                                     Err(ChatFailure { err, metadata: last_metadata.clone() })?;
                                 }
                                 Either::Left((None, _)) => break,
-                                Either::Right((Some(part), _)) => {
-                                    apply_input_to_messages(messages, part);
+                                Either::Right((InputSignal::Apply(batch), _)) => {
+                                    for input in batch {
+                                        apply_input_to_messages(messages, input);
+                                    }
                                     continue 'restart;
                                 }
-                                Either::Right((None, _)) => {
-                                    // Input closed. From here on, poll
-                                    // the provider directly — no more
-                                    // `select` overhead per event.
+                                Either::Right((InputSignal::Cancelled, _)) => return,
+                                Either::Right((InputSignal::Closed, _)) => {
+                                    // All producers dropped — stop selecting
+                                    // and drain the provider directly.
                                     input_open = false;
                                 }
                             }
@@ -159,22 +168,28 @@ where
                         }
                     }
 
-                    // Process the final response — same logic as
-                    // Unstructured::stream's post-step.
                     if let Some(response) = final_response {
                         self.model.on_stream_done(&response);
 
                         if let Some(metadata) = response.metadata.clone() {
                             match &mut last_metadata {
-                                Some(existing) => { existing.extend(&metadata); },
-                                None => { last_metadata = Some(metadata); },
+                                Some(existing) => {
+                                    existing.extend(&metadata);
+                                }
+                                None => {
+                                    last_metadata = Some(metadata);
+                                }
                             }
                         }
 
                         messages.push(response.content.clone());
 
+                        // Post-step: apply strategy to tools the model emitted
+                        // this turn.
                         let pass = match messages.0.last_mut() {
-                            Some(last) => self.tool_call(last).await
+                            Some(last) => self
+                                .tool_call(last)
+                                .await
                                 .map_err(|err| ChatFailure { err, metadata: last_metadata.clone() })?,
                             None => crate::chat::ToolCallPass::default(),
                         };
@@ -195,9 +210,8 @@ where
                         }
 
                         if pass.executed {
-                            // Tools just ran; need another turn so the
-                            // model sees results. Restart the outer
-                            // step loop, not the inner restart loop.
+                            // Tools ran; need another turn so the model reacts
+                            // to the results.
                             continue 'step;
                         }
 
@@ -209,35 +223,73 @@ where
                         return;
                     }
 
-                    // No final response and no restart — exit the
-                    // restart loop and let the outer step loop decide
-                    // whether to retry.
+                    // No final response and no restart — let the outer step
+                    // loop decide whether to retry.
                     break 'restart;
                 }
             }
         };
 
-        Ok(Box::pin(stream))
+        Ok(ChatStream {
+            input: InputStream { tx },
+            output: OutputStream { inner: Box::pin(stream) },
+        })
     }
 }
 
-/// Case-by-case merge: each variant becomes a different mutation on
-/// `Messages`. Keep this function small and pattern-matchy — provider
-/// authors and downstream consumers will read this to understand the
-/// semantics.
-fn apply_input_to_messages(messages: &mut Messages, part: PartEnum) {
-    match part {
-        // User content: push as a fresh User Content. Each input part
-        // becomes its own Content so ordering is preserved precisely.
-        PartEnum::Text(_) | PartEnum::File(_) | PartEnum::Structured(_) => {
-            messages.push(content::from_user([part]));
+/// Outcome of draining the input channel for one burst.
+enum InputSignal {
+    /// One or more inputs to merge into `Messages`, then restart the provider.
+    Apply(Vec<Input>),
+    /// A `cancel()` was received — tear the exchange down.
+    Cancelled,
+    /// All producers dropped — input is closed for good.
+    Closed,
+}
+
+/// Park until at least one input is ready, then greedily drain everything
+/// already queued, so a burst of inputs triggers a single provider restart
+/// instead of one per item (and accretes into one user turn via the
+/// coalescing merge). A `Cancel` anywhere short-circuits the whole batch.
+///
+/// Cancel-safe under `select`: the only await is the blocking `rx.next()`;
+/// the greedy drain is synchronous, so dropping this future mid-flight never
+/// strands a half-consumed batch.
+async fn next_input(rx: &mut mpsc::UnboundedReceiver<Input>) -> InputSignal {
+    let first = match rx.next().await {
+        None => return InputSignal::Closed,
+        Some(Input::Cancel) => return InputSignal::Cancelled,
+        Some(input) => input,
+    };
+    let mut batch = vec![first];
+    while let Ok(extra) = rx.try_recv() {
+        if matches!(extra, Input::Cancel) {
+            return InputSignal::Cancelled;
         }
-        // Tool result: resolve a matching pending Tool on the most
-        // recent Model content by call-id. If no match, drop silently
-        // (provider/caller mismatch — out of scope here).
-        PartEnum::Tool(incoming) => {
+        batch.push(extra);
+    }
+    InputSignal::Apply(batch)
+}
+
+/// Case-by-case merge: each input becomes a different mutation on `Messages`.
+/// Text/file/structured parts and whole `Content`s go through `Messages::push`,
+/// which coalesces same-role content — so a burst accretes into the trailing
+/// user turn rather than fragmenting (also keeping strict role-alternation
+/// providers happy). A `Tool` part resolves a matching pending call by id.
+fn apply_input_to_messages(messages: &mut Messages, input: Input) {
+    match input {
+        // A whole turn — pushed as-is, coalescing if it shares the trailing
+        // role.
+        Input::Content(content) => {
+            messages.push(content);
+        }
+        // Tool result: resolve a matching pending Tool on the most recent
+        // Model content by call-id. No match → drop silently.
+        Input::Item(PartEnum::Tool(incoming)) => {
             let incoming_id = incoming.id.clone();
-            let Some(incoming_response) = incoming.response().cloned() else { return };
+            let Some(incoming_response) = incoming.response().cloned() else {
+                return;
+            };
             for c in messages.0.iter_mut().rev() {
                 if c.role != RoleEnum::Model {
                     continue;
@@ -253,8 +305,15 @@ fn apply_input_to_messages(messages: &mut Messages, part: PartEnum) {
                 }
             }
         }
+        // User content: pushed via `Messages::push` (coalesces into the
+        // trailing user turn).
+        Input::Item(part @ (PartEnum::Text(_) | PartEnum::File(_) | PartEnum::Structured(_))) => {
+            messages.push(content::from_user([part]));
+        }
         // Not meaningful as inbound — silently skip.
-        PartEnum::Reasoning(_) | PartEnum::Embeddings(_) => {}
+        Input::Item(PartEnum::Reasoning(_) | PartEnum::Embeddings(_)) => {}
+        // Defensive: Cancel is handled in `next_input` before this is called.
+        Input::Cancel => {}
     }
 }
 
@@ -264,24 +323,40 @@ mod tests {
     use crate::{
         error::ChatError,
         types::{
-            messages::{
-                content::{Content as TestContent, RoleEnum as TestRoleEnum},
-                parts::Parts,
-            },
+            messages::{content::Content as TestContent, parts::Parts},
             options::ChatOptions,
             tools::ToolDeclarations,
         },
     };
     use async_trait::async_trait;
+    use futures::stream::BoxStream;
     use std::collections::HashMap;
     use std::marker::PhantomData;
     use std::sync::{Arc, Mutex};
 
-    /// Mock provider that yields a pre-loaded event sequence each time
-    /// `stream()` is called. Tracks how many times `stream()` was
-    /// invoked so tests can verify the "restart on input" behavior.
+    /// One provider stream session. `pend: true` appends an infinite
+    /// `stream::pending()` after the events, simulating a long generation
+    /// that hasn't finished — which lets queued input win the `select` race
+    /// deterministically (a plain `iter` is always immediately ready, so the
+    /// provider would otherwise always win until exhaustion).
+    struct Session {
+        events: Vec<Result<StreamEvent, ChatError>>,
+        pend: bool,
+    }
+
+    impl Session {
+        fn ready(events: Vec<Result<StreamEvent, ChatError>>) -> Self {
+            Session { events, pend: false }
+        }
+        fn pending(events: Vec<Result<StreamEvent, ChatError>>) -> Self {
+            Session { events, pend: true }
+        }
+    }
+
+    /// Mock provider that yields one pre-loaded `Session` per `stream()` call
+    /// and counts invocations, so tests can assert the restart behavior.
     struct MockStreamProvider {
-        sessions: Arc<Mutex<Vec<Vec<Result<StreamEvent, ChatError>>>>>,
+        sessions: Arc<Mutex<Vec<Session>>>,
         invocations: Arc<Mutex<usize>>,
     }
 
@@ -294,17 +369,24 @@ mod tests {
             _options: Option<&ChatOptions>,
         ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
             *self.invocations.lock().unwrap() += 1;
-            let events = {
+            let session = {
                 let mut s = self.sessions.lock().unwrap();
-                if s.is_empty() { Vec::new() } else { s.remove(0) }
+                if s.is_empty() {
+                    Session::ready(Vec::new())
+                } else {
+                    s.remove(0)
+                }
             };
-            Ok(Box::pin(futures::stream::iter(events)))
+            let base = futures::stream::iter(session.events);
+            if session.pend {
+                Ok(Box::pin(base.chain(futures::stream::pending())))
+            } else {
+                Ok(Box::pin(base))
+            }
         }
     }
 
-    fn chat_with(
-        sessions: Vec<Vec<Result<StreamEvent, ChatError>>>,
-    ) -> (Chat<MockStreamProvider, InputStreamed<futures::stream::Iter<std::vec::IntoIter<PartEnum>>>>, Arc<Mutex<usize>>) {
+    fn chat_with(sessions: Vec<Session>) -> (Chat<MockStreamProvider, InputStreamed>, Arc<Mutex<usize>>) {
         let invocations = Arc::new(Mutex::new(0usize));
         let chat = Chat {
             model: MockStreamProvider {
@@ -330,7 +412,7 @@ mod tests {
         parts.push(PartEnum::from(text.to_string()));
         StreamEvent::Done(ChatResponse {
             content: TestContent {
-                role: TestRoleEnum::Model,
+                role: RoleEnum::Model,
                 parts,
                 complete_reason: Default::default(),
             },
@@ -339,17 +421,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn empty_input_stream_behaves_like_plain_stream() {
-        let (mut chat, invocations) = chat_with(vec![vec![
+    async fn no_input_behaves_like_plain_stream() {
+        let (mut chat, invocations) = chat_with(vec![Session::ready(vec![
             Ok(StreamEvent::TextChunk("hello".into())),
             Ok(done("hello")),
-        ]]);
+        ])]);
         let mut messages = Messages::default();
-        let input = futures::stream::iter(Vec::<PartEnum>::new());
 
-        let mut s = chat.stream(&mut messages, input).await.expect("stream open");
+        // Don't send anything; the combined handle keeps its own input alive,
+        // but the provider still drives to Done and the stream ends.
+        let mut stream = chat.stream(&mut messages).await.expect("stream open");
         let mut events = Vec::new();
-        while let Some(ev) = s.next().await {
+        while let Some(ev) = stream.next().await {
             events.push(ev.expect("ok"));
         }
 
@@ -359,23 +442,82 @@ mod tests {
         assert!(matches!(events[1], StreamEvent::Done(_)));
     }
 
+    #[tokio::test]
+    async fn input_restarts_provider_and_merges_into_messages() {
+        // Session 1 streams a partial chunk then pends forever; the queued
+        // input wins the select, gets merged, and triggers a restart. Session
+        // 2 completes.
+        let (mut chat, invocations) = chat_with(vec![
+            Session::pending(vec![Ok(StreamEvent::TextChunk("partial".into()))]),
+            Session::ready(vec![Ok(done("final"))]),
+        ]);
+        let mut messages = Messages::default();
+
+        let mut stream = chat.stream(&mut messages).await.expect("stream open");
+        stream.send("interrupt".to_string()).expect("send");
+        while let Some(ev) = stream.next().await {
+            let _ = ev.expect("ok");
+        }
+        drop(stream); // release the &mut messages borrow
+
+        assert_eq!(*invocations.lock().unwrap(), 2, "provider restarted on input");
+        assert!(
+            messages.0.iter().any(|c| c.role == RoleEnum::User
+                && c.parts
+                    .0
+                    .iter()
+                    .any(|p| matches!(p, PartEnum::Text(t) if t.0 == "interrupt"))),
+            "the interrupt was merged as user content"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_ends_the_stream() {
+        // Provider never completes; only cancel can end it.
+        let (mut chat, invocations) = chat_with(vec![Session::pending(Vec::new())]);
+        let mut messages = Messages::default();
+
+        let mut stream = chat.stream(&mut messages).await.expect("stream open");
+        stream.cancel();
+        let next = stream.next().await;
+
+        assert!(next.is_none(), "cancel terminates the output");
+        assert_eq!(*invocations.lock().unwrap(), 1);
+    }
+
     #[test]
     fn apply_text_input_pushes_user_content() {
         let mut messages = Messages::default();
-        apply_input_to_messages(&mut messages, PartEnum::from("hello".to_string()));
+        apply_input_to_messages(&mut messages, Input::Item(PartEnum::from("hello".to_string())));
         assert_eq!(messages.0.len(), 1);
         assert_eq!(messages.0[0].role, RoleEnum::User);
         assert!(matches!(&messages.0[0].parts.0[0], PartEnum::Text(t) if t.0 == "hello"));
     }
 
     #[test]
-    fn apply_structured_input_pushes_user_content() {
+    fn consecutive_text_inputs_coalesce_into_one_turn() {
         let mut messages = Messages::default();
-        let value = serde_json::json!({"action": "move", "to": "kitchen"});
-        apply_input_to_messages(&mut messages, PartEnum::Structured(value.clone()));
+        apply_input_to_messages(&mut messages, Input::Item(PartEnum::from("audio-ish".to_string())));
+        apply_input_to_messages(
+            &mut messages,
+            Input::Item(PartEnum::from("actually, that".to_string())),
+        );
+        // Both land in a single user turn, distinct parts preserved.
         assert_eq!(messages.0.len(), 1);
         assert_eq!(messages.0[0].role, RoleEnum::User);
-        assert!(matches!(&messages.0[0].parts.0[0], PartEnum::Structured(v) if v == &value));
+        assert_eq!(messages.0[0].parts.0.len(), 2);
+    }
+
+    #[test]
+    fn apply_content_input_pushes_turn() {
+        let mut messages = Messages::default();
+        apply_input_to_messages(
+            &mut messages,
+            Input::Content(content::from_user(["hi", "there"])),
+        );
+        assert_eq!(messages.0.len(), 1);
+        assert_eq!(messages.0[0].role, RoleEnum::User);
+        assert_eq!(messages.0[0].parts.0.len(), 2);
     }
 
     #[test]
@@ -383,33 +525,10 @@ mod tests {
         let mut messages = Messages::default();
         apply_input_to_messages(
             &mut messages,
-            PartEnum::Reasoning(crate::types::messages::reasoning::Reasoning::new(
-                "thinking out loud".to_string(),
+            Input::Item(PartEnum::Reasoning(
+                crate::types::messages::reasoning::Reasoning::new("thinking".to_string()),
             )),
         );
-        assert!(messages.0.is_empty(), "reasoning should not produce content");
-    }
-
-    #[tokio::test]
-    async fn input_event_restarts_provider_with_updated_messages() {
-        // First session yields a TextChunk then ends (no Done) — the
-        // input event will interrupt it. Second session yields Done.
-        // We verify the provider was called twice.
-        let (mut chat, invocations) = chat_with(vec![
-            vec![Ok(StreamEvent::TextChunk("partial".into()))],
-            vec![Ok(done("final"))],
-        ]);
-        let mut messages = Messages::default();
-        let input = futures::stream::iter(vec![PartEnum::from("interrupt".to_string())]);
-
-        let mut s = chat.stream(&mut messages, input).await.expect("stream open");
-        while let Some(ev) = s.next().await {
-            let _ = ev.expect("ok");
-        }
-
-        // The provider should have been re-invoked after the input
-        // event triggered a restart.
-        let n = *invocations.lock().unwrap();
-        assert!(n >= 2, "expected at least 2 provider invocations, got {n}");
+        assert!(messages.0.is_empty());
     }
 }
