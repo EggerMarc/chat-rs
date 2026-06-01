@@ -135,6 +135,7 @@ struct ToolCallState {
     announced: bool,
 }
 
+#[derive(Default)]
 struct StreamState {
     text_buf: String,
     reasoning_buf: String,
@@ -143,20 +144,6 @@ struct StreamState {
     id: Option<String>,
     model: Option<String>,
     usage: Option<Usage>,
-}
-
-impl Default for StreamState {
-    fn default() -> Self {
-        Self {
-            text_buf: String::new(),
-            reasoning_buf: String::new(),
-            tool_calls: BTreeMap::new(),
-            finish_reason: None,
-            id: None,
-            model: None,
-            usage: None,
-        }
-    }
 }
 
 impl StreamState {

@@ -85,10 +85,7 @@ fn flatten_text_only(parts: &[PartEnum]) -> Result<String, ChatFailure> {
         match part {
             PartEnum::Text(t) => append_line(&mut buf, t.as_str()),
             PartEnum::File(f) => {
-                return Err(unsupported(&format!(
-                    "file parts with mimetype {}",
-                    f.mime
-                )));
+                return Err(unsupported(&format!("file parts with mimetype {}", f.mime)));
             }
             PartEnum::Tool(_) => return Err(unsupported("tool parts")),
             PartEnum::Structured(_) => return Err(unsupported("structured parts in input")),
@@ -115,10 +112,7 @@ fn split_text_and_media(
                 audio.push(decode_audio(f)?);
             }
             PartEnum::File(f) => {
-                return Err(unsupported(&format!(
-                    "file parts with mimetype {}",
-                    f.mime
-                )));
+                return Err(unsupported(&format!("file parts with mimetype {}", f.mime)));
             }
             PartEnum::Tool(_) => return Err(unsupported("tool parts")),
             PartEnum::Structured(_) => return Err(unsupported("structured parts in input")),

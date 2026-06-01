@@ -159,7 +159,7 @@ impl PartEnum {
     /// Used by deserialization shims and tests. Runtime flows should instead
     /// construct a Pending tool and call [`Tool::complete`] after execution.
     pub fn from_function_response(fr: FunctionResponse) -> PartEnum {
-        let id = fr.id.clone().unwrap_or_else(CallId::new);
+        let id = fr.id.clone().unwrap_or_default();
         let call = FunctionCall {
             id: Some(id.clone()),
             name: fr.name.clone(),

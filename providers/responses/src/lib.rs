@@ -34,9 +34,9 @@ pub use crate::api::types::error::{
 };
 pub use crate::api::types::request::{ReasoningConfig, ResponsesRequest, ResponsesRequestConfig};
 pub use crate::api::types::response::{
-    ResponsesApiResponse, ResponsesContentPart, ResponsesFunctionCall, ResponsesImageGenerationCall,
-    ResponsesMessage, ResponsesOutputItem, ResponsesReasoning, ResponsesSummaryPart, ResponsesUsage,
-    ResponsesWebSearchCall, output_items_to_parts,
+    ResponsesApiResponse, ResponsesContentPart, ResponsesFunctionCall,
+    ResponsesImageGenerationCall, ResponsesMessage, ResponsesOutputItem, ResponsesReasoning,
+    ResponsesSummaryPart, ResponsesUsage, ResponsesWebSearchCall, output_items_to_parts,
 };
 pub use crate::client::ResponsesClient;
 pub use chat_core::error::{ChatError, ChatFailure};

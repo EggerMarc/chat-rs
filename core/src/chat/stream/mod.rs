@@ -275,7 +275,11 @@ fn collect_tool_results(pass: &ToolCallPass, messages: &Messages) -> Vec<Functio
         return Vec::new();
     }
     match messages.0.last() {
-        Some(last) => last.parts.tools().filter_map(|t| t.response().cloned()).collect(),
+        Some(last) => last
+            .parts
+            .tools()
+            .filter_map(|t| t.response().cloned())
+            .collect(),
         None => Vec::new(),
     }
 }
@@ -336,10 +340,8 @@ mod tests {
             _messages: &mut Messages,
             _tool_declarations: Option<&dyn ToolDeclarations>,
             _options: Option<&ChatOptions>,
-        ) -> Result<
-            futures::stream::BoxStream<'static, Result<StreamEvent, ChatError>>,
-            ChatError,
-        > {
+        ) -> Result<futures::stream::BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError>
+        {
             let events = std::mem::take(&mut self.events);
             Ok(Box::pin(futures::stream::iter(events)))
         }

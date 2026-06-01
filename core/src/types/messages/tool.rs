@@ -58,7 +58,7 @@ impl Tool {
     /// Create a new Tool in `Pending` state from a model-emitted call.
     /// Uses the call's existing id, or mints a fresh one.
     pub fn new(call: FunctionCall) -> Self {
-        let id = call.id.clone().unwrap_or_else(CallId::new);
+        let id = call.id.clone().unwrap_or_default();
         Self {
             id,
             call,

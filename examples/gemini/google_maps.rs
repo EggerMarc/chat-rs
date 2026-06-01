@@ -9,7 +9,7 @@ use chat_rs::{
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-2.5-flash".to_string())
-        .with_google_maps(Some((34.050_481, -118.248_526)), false)
+        .with_google_maps(Some((34.050_48, -118.248_53)), false)
         .with_google_search()
         .build();
 

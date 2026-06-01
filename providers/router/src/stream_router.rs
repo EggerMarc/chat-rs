@@ -38,16 +38,16 @@ impl CompletionProvider for StreamRouter {
             self.providers.iter().map(|p| p.metadata()).collect();
         let order = resolve_order(&self.strategy, messages, &metadata)
             .await
-            .map_err(|e| ChatFailure::from_err(e))?;
+            .map_err(ChatFailure::from_err)?;
 
         let mut last_failure: Option<ChatFailure> = None;
         let mut tried_any = false;
 
         for idx in order {
-            if let Some(cb) = &self.circuit_breaker {
-                if !cb.is_available(idx) {
-                    continue;
-                }
+            if let Some(cb) = &self.circuit_breaker
+                && !cb.is_available(idx)
+            {
+                continue;
             }
 
             let provider = match self.providers.get_mut(idx) {
@@ -81,29 +81,27 @@ impl CompletionProvider for StreamRouter {
             }
         }
 
-        if !tried_any {
-            if let Some(cb) = &self.circuit_breaker {
-                if let Some(idx) = cb.longest_open() {
-                    if let Some(provider) = self.providers.get_mut(idx) {
-                        match provider
-                            .complete(messages, tool_declarations, options, structured_output)
-                            .await
-                        {
-                            Ok(response) => {
-                                if let Some(cb) = &mut self.circuit_breaker {
-                                    cb.record_success(idx);
-                                }
-                                self.last_used = Some(idx);
-                                return Ok(response);
-                            }
-                            Err(failure) => {
-                                if let Some(cb) = &mut self.circuit_breaker {
-                                    cb.record_failure(idx);
-                                }
-                                return Err(failure);
-                            }
-                        }
+        if !tried_any
+            && let Some(cb) = &self.circuit_breaker
+            && let Some(idx) = cb.longest_open()
+            && let Some(provider) = self.providers.get_mut(idx)
+        {
+            match provider
+                .complete(messages, tool_declarations, options, structured_output)
+                .await
+            {
+                Ok(response) => {
+                    if let Some(cb) = &mut self.circuit_breaker {
+                        cb.record_success(idx);
                     }
+                    self.last_used = Some(idx);
+                    return Ok(response);
+                }
+                Err(failure) => {
+                    if let Some(cb) = &mut self.circuit_breaker {
+                        cb.record_failure(idx);
+                    }
+                    return Err(failure);
                 }
             }
         }
@@ -137,10 +135,10 @@ impl StreamProvider for StreamRouter {
         let mut tried_any = false;
 
         for idx in order {
-            if let Some(cb) = &self.circuit_breaker {
-                if !cb.is_available(idx) {
-                    continue;
-                }
+            if let Some(cb) = &self.circuit_breaker
+                && !cb.is_available(idx)
+            {
+                continue;
             }
 
             let provider = match self.providers.get_mut(idx) {
@@ -171,26 +169,24 @@ impl StreamProvider for StreamRouter {
             }
         }
 
-        if !tried_any {
-            if let Some(cb) = &self.circuit_breaker {
-                if let Some(idx) = cb.longest_open() {
-                    if let Some(provider) = self.providers.get_mut(idx) {
-                        match provider.stream(messages, tool_declarations, options).await {
-                            Ok(stream) => {
-                                if let Some(cb) = &mut self.circuit_breaker {
-                                    cb.record_success(idx);
-                                }
-                                self.last_used = Some(idx);
-                                return Ok(stream);
-                            }
-                            Err(err) => {
-                                if let Some(cb) = &mut self.circuit_breaker {
-                                    cb.record_failure(idx);
-                                }
-                                return Err(err);
-                            }
-                        }
+        if !tried_any
+            && let Some(cb) = &self.circuit_breaker
+            && let Some(idx) = cb.longest_open()
+            && let Some(provider) = self.providers.get_mut(idx)
+        {
+            match provider.stream(messages, tool_declarations, options).await {
+                Ok(stream) => {
+                    if let Some(cb) = &mut self.circuit_breaker {
+                        cb.record_success(idx);
                     }
+                    self.last_used = Some(idx);
+                    return Ok(stream);
+                }
+                Err(err) => {
+                    if let Some(cb) = &mut self.circuit_breaker {
+                        cb.record_failure(idx);
+                    }
+                    return Err(err);
                 }
             }
         }
@@ -199,10 +195,10 @@ impl StreamProvider for StreamRouter {
     }
 
     fn on_stream_done(&mut self, response: &ChatResponse) {
-        if let Some(idx) = self.last_used {
-            if let Some(provider) = self.providers.get_mut(idx) {
-                provider.on_stream_done(response);
-            }
+        if let Some(idx) = self.last_used
+            && let Some(provider) = self.providers.get_mut(idx)
+        {
+            provider.on_stream_done(response);
         }
     }
 }

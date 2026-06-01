@@ -2,18 +2,10 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;
 
+#[derive(Default)]
 pub struct ProviderMeta {
     pub description: Option<String>,
     pub data: HashMap<String, Box<dyn Any + Send + Sync>>,
-}
-
-impl Default for ProviderMeta {
-    fn default() -> Self {
-        Self {
-            description: None,
-            data: HashMap::new(),
-        }
-    }
 }
 
 impl fmt::Debug for ProviderMeta {

@@ -49,16 +49,16 @@ impl CompletionProvider for Router {
             self.providers.iter().map(|p| p.metadata()).collect();
         let order = resolve_order(&self.strategy, messages, &metadata)
             .await
-            .map_err(|e| ChatFailure::from_err(e))?;
+            .map_err(ChatFailure::from_err)?;
 
         let mut last_failure: Option<ChatFailure> = None;
         let mut tried_any = false;
 
         for idx in order {
-            if let Some(cb) = &self.circuit_breaker {
-                if !cb.is_available(idx) {
-                    continue;
-                }
+            if let Some(cb) = &self.circuit_breaker
+                && !cb.is_available(idx)
+            {
+                continue;
             }
 
             let provider = match self.providers.get_mut(idx) {
@@ -92,28 +92,26 @@ impl CompletionProvider for Router {
         }
 
         // All circuits were open — try the one open the longest as a last resort
-        if !tried_any {
-            if let Some(cb) = &self.circuit_breaker {
-                if let Some(idx) = cb.longest_open() {
-                    if let Some(provider) = self.providers.get_mut(idx) {
-                        match provider
-                            .complete(messages, tool_declarations, options, structured_output)
-                            .await
-                        {
-                            Ok(response) => {
-                                if let Some(cb) = &mut self.circuit_breaker {
-                                    cb.record_success(idx);
-                                }
-                                return Ok(response);
-                            }
-                            Err(failure) => {
-                                if let Some(cb) = &mut self.circuit_breaker {
-                                    cb.record_failure(idx);
-                                }
-                                return Err(failure);
-                            }
-                        }
+        if !tried_any
+            && let Some(cb) = &self.circuit_breaker
+            && let Some(idx) = cb.longest_open()
+            && let Some(provider) = self.providers.get_mut(idx)
+        {
+            match provider
+                .complete(messages, tool_declarations, options, structured_output)
+                .await
+            {
+                Ok(response) => {
+                    if let Some(cb) = &mut self.circuit_breaker {
+                        cb.record_success(idx);
                     }
+                    return Ok(response);
+                }
+                Err(failure) => {
+                    if let Some(cb) = &mut self.circuit_breaker {
+                        cb.record_failure(idx);
+                    }
+                    return Err(failure);
                 }
             }
         }
