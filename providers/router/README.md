@@ -6,15 +6,15 @@ A provider router for [chat-rs](https://github.com/EggerMarc/chat-rs) that wraps
 
 ```toml
 [dependencies]
-chat-core = "0.3.0"
-chat-router = "0.2.3"
+chat-core = "0.4.0"
+chat-router = "0.2.4"
 # plus whichever providers you want to route between:
-chat-claude = "0.2.3"
-chat-gemini = "0.2.3"
+chat-claude = "0.2.4"
+chat-gemini = "0.2.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["router", "claude", "gemini"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.5.0", features = ["router", "claude", "gemini"] }`.
 
 ## Usage
 

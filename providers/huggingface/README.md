@@ -6,12 +6,12 @@
 
 ```toml
 [dependencies]
-chat-core = "0.3.0"
-chat-huggingface = "0.2.3"
+chat-core = "0.4.0"
+chat-huggingface = "0.2.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["huggingface"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.5.0", features = ["huggingface"] }`.
 
 ## Usage
 

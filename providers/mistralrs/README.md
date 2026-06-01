@@ -6,12 +6,12 @@ Local-inference provider for [chat-rs](https://github.com/EggerMarc/chat-rs), bu
 
 ```toml
 [dependencies]
-chat-core = "0.3.0"
-chat-mistralrs = "0.1.4"
+chat-core = "0.4.0"
+chat-mistralrs = "0.1.5"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["mistralrs"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.5.0", features = ["mistralrs"] }`.
 
 ## Usage
 

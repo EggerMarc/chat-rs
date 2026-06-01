@@ -6,12 +6,12 @@ Generic OpenAI Chat Completions wire client for [chat-rs](https://github.com/Egg
 
 ```toml
 [dependencies]
-chat-core = "0.3.0"
-chat-completions = "0.2.3"
+chat-core = "0.4.0"
+chat-completions = "0.2.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["completions"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.5.0", features = ["completions"] }`.
 
 ## Usage
 
