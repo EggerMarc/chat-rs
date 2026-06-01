@@ -52,12 +52,11 @@ impl StreamProvider for MistralRsClient {
                 match item {
                     MResponse::Chunk(chunk) => {
                         if let Some(choice) = chunk.choices.into_iter().next() {
-                            if let Some(piece) = choice.delta.content {
-                                if !piece.is_empty() {
+                            if let Some(piece) = choice.delta.content
+                                && !piece.is_empty() {
                                     accumulated.push_str(&piece);
                                     yield StreamEvent::TextChunk(piece);
                                 }
-                            }
                             if let Some(reason) = choice.finish_reason {
                                 finish_reason = Some(reason);
                             }
@@ -73,12 +72,11 @@ impl StreamProvider for MistralRsClient {
                             }
                             // If the streaming path never emitted text,
                             // fall back to the final message content.
-                            if accumulated.is_empty() {
-                                if let Some(text) = &choice.message.content {
+                            if accumulated.is_empty()
+                                && let Some(text) = &choice.message.content {
                                     accumulated = text.clone();
                                     yield StreamEvent::TextChunk(text.clone());
                                 }
-                            }
                         }
                         last_usage = Some(usage_from_m(full.usage));
                         break;

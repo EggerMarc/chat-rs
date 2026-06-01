@@ -148,6 +148,7 @@ pub struct GeminiFunctionCallingConfig {
 }
 
 impl GeminiRequest {
+    #[allow(clippy::too_many_arguments)]
     pub fn from_core(
         messages: &Messages,
         tool_declarations: Option<&dyn ToolDeclarations>,
@@ -173,39 +174,43 @@ impl GeminiRequest {
             for core_part in &content.parts.0 {
                 match core_part {
                     PartEnum::Text(t) => {
-                        let mut gp = GeminiPart::default();
-                        gp.text = Some(t.0.clone());
-                        assistant_parts.push(gp);
+                        assistant_parts.push(GeminiPart {
+                            text: Some(t.0.clone()),
+                            ..Default::default()
+                        });
                     }
                     PartEnum::Reasoning(r) => {
-                        let mut gp = GeminiPart::default();
-                        gp.text = Some(r.text.clone());
-                        gp.thought = true;
-                        gp.thought_signature = r.signature.clone();
-                        assistant_parts.push(gp);
+                        assistant_parts.push(GeminiPart {
+                            text: Some(r.text.clone()),
+                            thought: true,
+                            thought_signature: r.signature.clone(),
+                            ..Default::default()
+                        });
                     }
                     PartEnum::Tool(tool) => {
                         let (fc, maybe_fr) = tool.to_tuple();
-                        let mut call_part = GeminiPart::default();
-                        call_part.function_call = Some(GeminiFunctionCall {
-                            name: fc.name.clone(),
-                            args: fc.arguments.clone(),
-                            id: fc.id.clone().map(Into::into),
+                        assistant_parts.push(GeminiPart {
+                            function_call: Some(GeminiFunctionCall {
+                                name: fc.name.clone(),
+                                args: fc.arguments.clone(),
+                                id: fc.id.clone().map(Into::into),
+                            }),
+                            thought_signature: fc.id.clone().map(Into::into),
+                            ..Default::default()
                         });
-                        call_part.thought_signature = fc.id.clone().map(Into::into);
-                        assistant_parts.push(call_part);
 
                         if let Some(fr) = maybe_fr {
-                            let mut resp_part = GeminiPart::default();
-                            resp_part.function_response = Some(GeminiFunctionResponse {
-                                name: fr.name.clone(),
-                                response: if fr.result.is_object() {
-                                    fr.result.clone()
-                                } else {
-                                    json!({ "content": fr.result })
-                                },
+                            function_parts.push(GeminiPart {
+                                function_response: Some(GeminiFunctionResponse {
+                                    name: fr.name.clone(),
+                                    response: if fr.result.is_object() {
+                                        fr.result.clone()
+                                    } else {
+                                        json!({ "content": fr.result })
+                                    },
+                                }),
+                                ..Default::default()
                             });
-                            function_parts.push(resp_part);
                         }
                     }
                     PartEnum::File(file) => {
@@ -228,9 +233,10 @@ impl GeminiRequest {
                         assistant_parts.push(gp);
                     }
                     PartEnum::Structured(json_val) => {
-                        let mut gp = GeminiPart::default();
-                        gp.text = Some(json_val.to_string());
-                        assistant_parts.push(gp);
+                        assistant_parts.push(GeminiPart {
+                            text: Some(json_val.to_string()),
+                            ..Default::default()
+                        });
                     }
                     PartEnum::Embeddings(_) => {
                         println!("Skipping Embeddings part in Gemini completion request.");

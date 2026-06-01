@@ -100,16 +100,14 @@ fn ask_user(tool_name: &str, args: &serde_json::Value) -> Decision {
     println!("│ args: {args}");
     println!("└───────────────────────────────────");
 
-    loop {
-        match prompt("  approve? [y/n/reason]: ")
-            .unwrap_or_default()
-            .as_str()
-        {
-            "y" | "Y" | "yes" => return Decision::Approve,
-            "n" | "N" | "no" => return Decision::Reject("denied by user".into()),
-            "" => return Decision::Reject("denied by user".into()),
-            other => return Decision::Reject(other.into()),
-        }
+    match prompt("  approve? [y/n/reason]: ")
+        .unwrap_or_default()
+        .as_str()
+    {
+        "y" | "Y" | "yes" => Decision::Approve,
+        "n" | "N" | "no" => Decision::Reject("denied by user".into()),
+        "" => Decision::Reject("denied by user".into()),
+        other => Decision::Reject(other.into()),
     }
 }
 

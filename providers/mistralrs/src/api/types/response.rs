@@ -60,8 +60,8 @@ pub(crate) fn map_finish_reason(reason: Option<&str>) -> CompleteReasonEnum {
 
 pub(crate) fn usage_from_m(u: MUsage) -> CoreUsage {
     CoreUsage {
-        input_tokens: u.prompt_tokens as usize,
-        output_tokens: u.completion_tokens as usize,
-        total_tokens: u.total_tokens as usize,
+        input_tokens: u.prompt_tokens,
+        output_tokens: u.completion_tokens,
+        total_tokens: u.total_tokens,
     }
 }
