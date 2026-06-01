@@ -6,12 +6,12 @@ Google Gemini provider for [chat-rs](https://github.com/EggerMarc/chat-rs).
 
 ```toml
 [dependencies]
-chat-core = "0.3.0"
-chat-gemini = "0.2.3"
+chat-core = "0.4.0"
+chat-gemini = "0.2.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["gemini"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.5.0", features = ["gemini"] }`.
 
 ## Usage
 

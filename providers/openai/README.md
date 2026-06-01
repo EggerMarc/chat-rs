@@ -6,12 +6,12 @@ OpenAI provider for [chat-rs](https://github.com/EggerMarc/chat-rs). Thin wrappe
 
 ```toml
 [dependencies]
-chat-core = "0.3.0"
-chat-openai = "0.3.2"
+chat-core = "0.4.0"
+chat-openai = "0.3.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["openai"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.5.0", features = ["openai"] }`.
 
 ## Usage
 

@@ -6,12 +6,12 @@ Generic OpenAI Responses API wire client for [chat-rs](https://github.com/EggerM
 
 ```toml
 [dependencies]
-chat-core = "0.3.0"
-chat-responses = "0.1.2"
+chat-core = "0.4.0"
+chat-responses = "0.1.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
-Or via the umbrella crate: `chat-rs = { version = "0.4.0", features = ["responses"] }`.
+Or via the umbrella crate: `chat-rs = { version = "0.5.0", features = ["responses"] }`.
 
 ## Usage
 

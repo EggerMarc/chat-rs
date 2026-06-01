@@ -8,7 +8,7 @@ You usually don't depend on this crate directly — instead, depend on a provide
 
 ```toml
 [dependencies]
-chat-core = "0.3.0"
+chat-core = "0.4.0"
 ```
 
 ## What's in here
@@ -20,12 +20,17 @@ chat-core = "0.3.0"
 - **`types`** — `Messages`, `Content`, `Parts`, `Tool`, `ChatOptions`, `ChatResponse`, `StreamEvent`, `Metadata`, etc.
 - **`error`** — `ChatError`, `ChatFailure`
 
+## What's new in 0.4
+
+- **Bidirectional streaming, redesigned.** `Chat<CP, InputStreamed>::stream(&mut messages)` now returns a **`ChatStream`** instead of taking a caller-supplied input stream. It *is* the output stream you iterate with `.next()`, and it carries an input side you push to with `.send()` — the inverse of `.next()`, one verb for every input. `split()` peels it into independent `(InputStream, OutputStream)` halves (the `InputStream` is `Clone + Send + 'static`, so it drops into a task and clones into multiple producers); `cancel()` tears the exchange down. Builder transition: `ChatBuilder::with_input_stream()` (no longer generic).
+
+  Pushed input rides as `PartEnum` (audio = `File`, text = `Text`, tool result = `Tool`), mapped caller-side before `send`. It coalesces into the trailing user turn via `Messages::push` and restarts the provider stream — the same interrupt-and-restart pattern HITL uses, now push-driven. Completed tool work survives interrupts (tools run *between* steps, never mid-stream); only the in-flight partial generation is discarded.
+
 ## What's new in 0.3
 
 - **`StreamEvent::Structured(Value)`** — providers can yield complete structured objects mid-stream (each event is a whole `serde_json::Value`, not a fragment). The engine accumulates them into `ChatResponse.content.parts` as `PartEnum::Structured` so non-streaming consumers see them too. Drop-in for robotics consumers that produce a stream of typed action steps.
-- **`InputStreamed<I>` type-state** — `Chat<CP, InputStreamed<I>>::stream(&mut messages, input: I)` interleaves the model's output stream with a caller-supplied `Stream<Item = PartEnum>` input source. Audio bytes ride as `PartEnum::File`, text as `PartEnum::Text`, tool results as `PartEnum::Tool`. Each input event triggers a case-by-case merge into `Messages` and re-opens the provider stream with the updated state — same interrupt-and-restart pattern HITL already uses, just automated. Builder transition: `ChatBuilder::with_input_stream::<I>()`. Bounds: `I: Stream<Item = PartEnum> + Send + Unpin + 'static`.
 
-Both are additive — existing `Chat<CP, Unstructured>::stream` callers see no behavior change.
+Both are additive over `Chat<CP, Unstructured>::stream`, which is unchanged.
 
 ## Feature Flags
 
