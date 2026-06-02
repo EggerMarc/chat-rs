@@ -1,0 +1,63 @@
+---
+title: Getting Started
+description: Install chat-rs and make your first completion.
+---
+
+## Install
+
+Add the umbrella crate and enable the providers you want as feature flags:
+
+```toml title="Cargo.toml"
+[dependencies]
+chat-rs = { version = "0.5.1", features = ["openai"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Each provider is also published as its own crate (e.g. `chat-openai`,
+`chat-openrouter`) if you prefer to depend on it directly.
+
+## Your first completion
+
+```rust title="main.rs"
+use chat_rs::{ChatBuilder, openai::OpenAIBuilder, parts, types::messages};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // OPENAI_API_KEY is read from the environment.
+    let client = OpenAIBuilder::new().with_model("gpt-4o").build();
+    let mut chat = ChatBuilder::new().with_model(client).build();
+
+    let mut messages = messages::from_user(parts!["Say hello in one sentence."]);
+    let res = chat.complete(&mut messages).await?.expect_complete();
+    println!("{:#?}", res.content);
+
+    Ok(())
+}
+```
+
+## Streaming
+
+Enable the `stream` feature and call `stream()` instead of `complete()`:
+
+```rust
+use chat_rs::StreamEvent;
+use futures::StreamExt;
+
+let mut stream = chat.stream(&mut messages).await.map_err(|e| e.err)?;
+while let Some(chunk) = stream.next().await {
+    if let Ok(StreamEvent::TextChunk(text)) = chunk {
+        print!("{text}");
+    }
+}
+```
+
+## Feature flags
+
+Providers and capabilities are gated behind Cargo features so you only compile
+what you use:
+
+| Feature | Enables |
+| --- | --- |
+| `openai`, `claude`, `gemini`, `openrouter`, … | the matching provider |
+| `stream` | streaming (`StreamProvider`, `StreamEvent`) |
+| `router` | the multi-provider router |

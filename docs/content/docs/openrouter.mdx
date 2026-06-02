@@ -1,0 +1,55 @@
+---
+title: OpenRouter
+description: Access hundreds of models through OpenRouter's unified gateway.
+---
+
+[OpenRouter](https://openrouter.ai/) is a unified gateway in front of hundreds
+of models from many vendors. The model slug is vendor-prefixed, e.g.
+`anthropic/claude-sonnet-4`, `openai/gpt-4o`, or `google/gemini-2.5-pro`.
+
+`chat-openrouter` speaks **both** OpenAI-compatible wires and lets you pick one
+in the builder:
+
+- **Responses API (Beta)** — the default. Wraps `chat-responses` and returns a
+  `ResponsesClient`.
+- **Chat Completions** — opt in with `.with_completions()`. Wraps
+  `chat-completions` and returns a `ChatCompletionsClient`.
+
+## Install
+
+```toml title="Cargo.toml"
+[dependencies]
+chat-rs = { version = "0.5.1", features = ["openrouter"] }
+```
+
+Or depend on the standalone crate: `chat-openrouter = "0.1.0"`.
+
+## Usage
+
+```rust
+use chat_openrouter::OpenRouterBuilder;
+
+// Default: Responses API.
+let client = OpenRouterBuilder::new()
+    .with_model("anthropic/claude-sonnet-4")
+    .build();
+
+// Opt in to Chat Completions instead.
+let client = OpenRouterBuilder::new()
+    .with_completions()
+    .with_model("openai/gpt-4o")
+    .build();
+```
+
+Set `OPENROUTER_API_KEY` in your environment or call `.with_api_key()`.
+
+## Notes
+
+- **Stateless.** The OpenRouter Responses API persists no server-side state and
+  has no `previous_response_id` round-trip, so the builder always sends the full
+  conversation each turn.
+- **Reasoning.** `.with_reasoning_effort("high")` is available on the Responses
+  wire for reasoning-capable models (Chat Completions has no such field).
+- **No WebSocket.** OpenRouter is HTTP + SSE only; the builder stays generic over
+  `Transport`, so a custom transport can still be supplied via
+  `.with_transport(...)`.

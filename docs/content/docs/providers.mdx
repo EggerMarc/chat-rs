@@ -1,0 +1,42 @@
+---
+title: Providers
+description: The providers chat-rs ships with and how they are wired.
+---
+
+Every provider implements the same traits, so switching providers is a one-line
+change at construction time. Set the listed API-key environment variable (or
+call `.with_api_key(...)`) and select the feature flag.
+
+| Provider | Feature | API Key Env Var | Builder |
+| --- | --- | --- | --- |
+| Google Gemini | `gemini` | `GEMINI_API_KEY` | `GeminiBuilder` |
+| Anthropic Claude | `claude` | `CLAUDE_API_KEY` | `ClaudeBuilder` |
+| OpenAI | `openai` | `OPENAI_API_KEY` | `OpenAIBuilder` |
+| DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` | `DeepSeekBuilder` |
+| Cerebras | `cerebras` | `CEREBRAS_API_KEY` | `CerebrasBuilder` |
+| OpenRouter | `openrouter` | `OPENROUTER_API_KEY` | `OpenRouterBuilder` |
+| Hugging Face Router | `huggingface` | `HF_TOKEN` | `HuggingFaceBuilder` |
+| Ollama (local) | `ollama` | — | `OllamaBuilder` |
+| mistral.rs (local) | `mistralrs` | — | `MistralRsBuilder` |
+| Generic Chat Completions | `completions` | depends on server | `ChatCompletionsBuilder` |
+| Generic Responses API | `responses` | depends on server | `ResponsesBuilder` |
+
+## Wire crates
+
+Providers don't reimplement the wire protocol — they wrap one of two shared wire
+crates:
+
+- **`chat-completions`** — the OpenAI Chat Completions wire. Used by Ollama,
+  Hugging Face, Cerebras, DeepSeek, and any OpenAI-compatible server via
+  `ChatCompletionsBuilder::with_base_url(...)`.
+- **`chat-responses`** — the OpenAI Responses API wire. Used by `chat-openai`
+  and `chat-openrouter`.
+
+This means a new OpenAI-compatible provider is usually just a thin wrapper that
+presets a base URL and an API-key env var.
+
+## Routing
+
+The `router` feature lets you dispatch across multiple providers by keyword,
+capability, or embedding similarity — see `RouterBuilder` and the
+`examples/router` directory in the repository.

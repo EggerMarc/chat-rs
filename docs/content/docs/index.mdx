@@ -1,0 +1,43 @@
+---
+title: Introduction
+description: A unified, type-safe Rust framework for Large Language Models.
+---
+
+**chat-rs** lets you build LLM clients with ease and attach them to your tools.
+It provides one unified, type-safe API across many providers — Google Gemini,
+Anthropic Claude, OpenAI, OpenRouter, and the whole OpenAI-compatible ecosystem
+— with compile-time-safe builders, automatic retry loops, streaming, and native
+tool execution.
+
+## Why chat-rs
+
+- **One API, many providers.** Swap providers without rewriting your call sites.
+  Every provider implements the same `CompletionProvider` / `StreamProvider`
+  traits.
+- **Type-state builders.** Misconfiguration is a compile error, not a runtime
+  surprise — required fields like the model are enforced by the type system.
+- **Streaming first.** Token-by-token output (SSE and, where supported,
+  WebSocket) behind a single `StreamEvent` enum.
+- **Tools & HITL.** Native tool calling and human-in-the-loop pause/resume
+  flows.
+- **Pluggable transport.** Bring your own HTTP/WS transport, or use the built-in
+  `reqwest` / `tungstenite` implementations.
+
+## Architecture at a glance
+
+`chat-core` defines the shared types and traits. Wire crates implement the
+on-the-wire protocols:
+
+- `chat-completions` — the OpenAI Chat Completions wire.
+- `chat-responses` — the OpenAI Responses API wire.
+
+Provider crates are thin wrappers that preset URLs, auth, and provider-specific
+niceties on top of a wire crate. For example, `chat-openai` and
+`chat-openrouter` wrap `chat-responses`; `chat-deepseek` and `chat-cerebras`
+wrap `chat-completions`.
+
+<Cards>
+  <Card title="Getting started" href="/docs/getting-started" />
+  <Card title="Providers" href="/docs/providers" />
+  <Card title="OpenRouter" href="/docs/openrouter" />
+</Cards>
