@@ -18,8 +18,11 @@
 //! - On first launch macOS will ask for microphone permission. Grant it in
 //!   System Settings → Privacy & Security → Microphone.
 //! - Run with the Metal backend for sane speed:
-//!     cargo run --release --example mistralrs-voice \
-//!       --features "mistralrs stream chat-mistralrs/metal"
+//!
+//!   ```bash
+//!   cargo run --release --example mistralrs-voice \
+//!     --features "mistralrs stream chat-mistralrs/metal"
+//!   ```
 //!
 //! Expect a few minutes on first run while ~6 GB of weights download into
 //! `~/.cache/huggingface/`. With `IsqType::Q4K` the loaded model lives in

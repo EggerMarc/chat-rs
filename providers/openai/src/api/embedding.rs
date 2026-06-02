@@ -22,7 +22,10 @@ impl<T: Transport> EmbeddingsProvider for OpenAIClient<T> {
             host: self.inner.host.clone(),
             path: format!("{}/embeddings", self.inner.base_path),
             headers: vec![
-                ("Authorization".into(), format!("Bearer {}", self.inner.api_key)),
+                (
+                    "Authorization".into(),
+                    format!("Bearer {}", self.inner.api_key),
+                ),
                 ("Content-Type".into(), "application/json".into()),
             ],
             body,

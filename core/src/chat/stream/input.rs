@@ -55,7 +55,9 @@ impl<CP: StreamProvider> Chat<CP, InputStreamed> {
 
         Ok(ChatStream {
             input: InputStream { tx },
-            output: OutputStream { inner: Box::pin(output) },
+            output: OutputStream {
+                inner: Box::pin(output),
+            },
         })
     }
 }
@@ -170,7 +172,10 @@ mod tests {
 
     impl Session {
         fn ready(events: Vec<Result<StreamEvent, ChatError>>) -> Self {
-            Session { events, pend: false }
+            Session {
+                events,
+                pend: false,
+            }
         }
         fn pending(events: Vec<Result<StreamEvent, ChatError>>) -> Self {
             Session { events, pend: true }
@@ -279,7 +284,11 @@ mod tests {
         }
         drop(stream);
 
-        assert_eq!(*invocations.lock().unwrap(), 2, "provider restarted on input");
+        assert_eq!(
+            *invocations.lock().unwrap(),
+            2,
+            "provider restarted on input"
+        );
         assert!(
             messages.0.iter().any(|c| c.role == RoleEnum::User
                 && c.parts
@@ -306,7 +315,10 @@ mod tests {
     #[test]
     fn apply_text_input_pushes_user_content() {
         let mut messages = Messages::default();
-        apply_input_to_messages(&mut messages, Input::Item(PartEnum::from("hello".to_string())));
+        apply_input_to_messages(
+            &mut messages,
+            Input::Item(PartEnum::from("hello".to_string())),
+        );
         assert_eq!(messages.0.len(), 1);
         assert_eq!(messages.0[0].role, RoleEnum::User);
         assert!(matches!(&messages.0[0].parts.0[0], PartEnum::Text(t) if t.0 == "hello"));
@@ -315,7 +327,10 @@ mod tests {
     #[test]
     fn consecutive_text_inputs_coalesce_into_one_turn() {
         let mut messages = Messages::default();
-        apply_input_to_messages(&mut messages, Input::Item(PartEnum::from("audio-ish".to_string())));
+        apply_input_to_messages(
+            &mut messages,
+            Input::Item(PartEnum::from("audio-ish".to_string())),
+        );
         apply_input_to_messages(
             &mut messages,
             Input::Item(PartEnum::from("actually, that".to_string())),

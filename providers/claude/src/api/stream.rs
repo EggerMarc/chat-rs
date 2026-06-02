@@ -171,15 +171,14 @@ fn parse_claude_event_stream(
             {
                 match event_type.as_str() {
                     "message_start" => {
-                        if let Ok(data) = serde_json::from_str::<Value>(&json_str) {
-                            if let Some(msg) = data.get("message") {
+                        if let Ok(data) = serde_json::from_str::<Value>(&json_str)
+                            && let Some(msg) = data.get("message") {
                                 message_id = msg.get("id").and_then(|v| v.as_str()).map(str::to_string);
                                 model = msg.get("model").and_then(|v| v.as_str()).map(str::to_string);
                                 if let Some(u) = msg.get("usage") {
                                     input_tokens = u.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
                                 }
                             }
-                        }
                     }
                     "content_block_start" => {
                         // Check if it's a tool_use block to start accumulating input
@@ -192,11 +191,10 @@ fn parse_claude_event_stream(
                                 tool_input_buffer.clear();
                             }
                         }
-                        if let Ok(Some(part)) = sse_event_to_part("content_block_start", &json_str) {
-                            if let Some(event) = final_parts.merge_chunk(part) {
+                        if let Ok(Some(part)) = sse_event_to_part("content_block_start", &json_str)
+                            && let Some(event) = final_parts.merge_chunk(part) {
                                 yield event;
                             }
-                        }
                     }
                     "content_block_delta" => {
                         // Handle tool input accumulation separately
@@ -215,11 +213,10 @@ fn parse_claude_event_stream(
                             }
                         }
 
-                        if let Ok(Some(part)) = sse_event_to_part("content_block_delta", &json_str) {
-                            if let Some(event) = final_parts.merge_chunk(part) {
+                        if let Ok(Some(part)) = sse_event_to_part("content_block_delta", &json_str)
+                            && let Some(event) = final_parts.merge_chunk(part) {
                                 yield event;
                             }
-                        }
                     }
                     "content_block_stop" => {
                         // If we were accumulating tool input, finalize the Tool part's

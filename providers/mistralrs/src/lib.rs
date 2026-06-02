@@ -20,6 +20,11 @@
 //!
 //! See `providers/AGENTS.md` for the overall provider architecture.
 
+// Conversions here return the engine-wide `ChatFailure`/`ChatError`, whose
+// size is fixed by the trait surface; boxing per-function would just diverge
+// from it, so allow the large-Err lint crate-wide.
+#![allow(clippy::result_large_err)]
+
 pub mod api;
 pub mod builder;
 pub mod client;

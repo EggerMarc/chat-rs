@@ -61,6 +61,9 @@ pub struct CompletionsUsage {
 }
 
 impl CompletionsUsage {
+    // Consumes a wire usage into the core type; renaming to `into_` would be a
+    // public surface change.
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_core(self) -> Usage {
         Usage {
             input_tokens: self.prompt_tokens.unwrap_or(0),

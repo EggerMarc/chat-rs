@@ -167,10 +167,9 @@ impl<P, Output> Chat<P, Output> {
                             tool_ids.push(tool.id.clone());
                         }
                         Some(PauseReason::Scheduled { .. }) => {
-                            let prev = std::mem::replace(
-                                &mut pass.pause,
-                                Some(PauseReason::AwaitingApproval { tool_ids: vec![] }),
-                            );
+                            let prev = pass
+                                .pause
+                                .replace(PauseReason::AwaitingApproval { tool_ids: vec![] });
                             if let Some(PauseReason::Scheduled {
                                 tool_ids: sch_ids,
                                 earliest,

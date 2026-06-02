@@ -51,7 +51,9 @@ impl<T: Transport> chat_core::traits::StreamProvider for OpenAIClient<T> {
         >,
         chat_core::error::ChatError,
     > {
-        self.inner.stream(messages, tool_declarations, options).await
+        self.inner
+            .stream(messages, tool_declarations, options)
+            .await
     }
 
     fn on_stream_done(&mut self, response: &ChatResponse) {

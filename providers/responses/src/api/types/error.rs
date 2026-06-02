@@ -14,6 +14,9 @@ pub struct ResponsesErrorDetail {
     pub status: Option<String>,
 }
 
+// `ChatFailure` is the engine-wide error type; its size is fixed by the trait
+// surface, so boxing here would just diverge from it.
+#[allow(clippy::result_large_err)]
 /// Maps a raw transport response into a `ChatFailure`. Recognises the
 /// `{ "error": { "code", "message", "status" } }` envelope used by
 /// OpenAI and the providers (Groq, future) that adopt the Responses

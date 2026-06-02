@@ -35,7 +35,6 @@ mod tests {
             input_tokens: 100,
             output_tokens: 50,
             total_tokens: 150,
-            ..Default::default()
         };
         assert_eq!(usage.input_tokens, 100);
         assert_eq!(usage.output_tokens, 50);
@@ -48,8 +47,6 @@ mod tests {
             input_tokens: 100,
             output_tokens: 50,
             total_tokens: 170,
-            //reasoning_tokens: 20,
-            ..Default::default()
         };
         //assert_eq!(usage.reasoning_tokens, 20);
         assert_eq!(usage.total_tokens, 170);
@@ -101,7 +98,6 @@ mod tests {
             input_tokens: 75,
             output_tokens: 25,
             total_tokens: 100,
-            ..Default::default()
         };
 
         let cloned = usage.clone();
@@ -116,21 +112,18 @@ mod tests {
             input_tokens: 100,
             output_tokens: 50,
             total_tokens: 150,
-            ..Default::default()
         };
 
         let usage2 = Usage {
             input_tokens: 100,
             output_tokens: 50,
             total_tokens: 150,
-            ..Default::default()
         };
 
         let usage3 = Usage {
             input_tokens: 200,
             output_tokens: 100,
             total_tokens: 300,
-            ..Default::default()
         };
 
         assert_eq!(usage1, usage2);

@@ -38,8 +38,8 @@ pub use chat_core::{
 
 #[cfg(feature = "stream")]
 pub use chat_core::{
-    chat::stream::{ChatStream, Input, InputStream, IntoInput, OutputStream, SendError},
     chat::state::{InputStreamed, Streamed},
+    chat::stream::{ChatStream, Input, InputStream, IntoInput, OutputStream, SendError},
     traits::ChatProvider,
     traits::StreamProvider,
     types::response::StreamEvent,

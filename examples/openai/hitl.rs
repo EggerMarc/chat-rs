@@ -100,16 +100,14 @@ fn ask_user(tool_name: &str, args: &serde_json::Value) -> Decision {
     println!("│ args: {args}");
     println!("└───────────────────────────────────");
 
-    loop {
-        match prompt("  approve? [y/n/reason]: ")
-            .unwrap_or_default()
-            .as_str()
-        {
-            "y" | "Y" | "yes" => return Decision::Approve,
-            "n" | "N" | "no" => return Decision::Reject("denied by user".into()),
-            "" => return Decision::Reject("denied by user".into()),
-            other => return Decision::Reject(other.into()),
-        }
+    let input = prompt("  approve? [y/n/reason]: ").unwrap_or_default();
+    // Normalize for matching: trims whitespace (incl. a Windows `\r`) and folds
+    // case, so "Y", "yes", "y\r" all approve. The reason keeps its original case.
+    let answer = input.trim();
+    match answer.to_lowercase().as_str() {
+        "y" | "yes" => Decision::Approve,
+        "n" | "no" | "" => Decision::Reject("denied by user".into()),
+        _ => Decision::Reject(answer.to_string()),
     }
 }
 

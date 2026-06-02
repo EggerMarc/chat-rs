@@ -18,6 +18,8 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         components: clippy, rustfmt
+    - name: Install ALSA (cpal dev-dependency, used by the voice example)
+      run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
     - name: Format check
       run: cargo fmt --all -- --check
     - name: Clippy
@@ -30,6 +32,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
+    - name: Install ALSA (cpal dev-dependency, used by the voice example)
+      run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
     - name: Build
       run: cargo build --verbose
     - name: Run tests
