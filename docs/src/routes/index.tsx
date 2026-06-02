@@ -22,94 +22,281 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }`;
 
-const FEATURES = [
+const PRIMITIVES = [
   {
-    title: "One API, many providers",
-    body: "Swap between OpenAI, Claude, Gemini, OpenRouter, DeepSeek, Ollama and more without touching your call sites.",
+    label: "Messages",
+    body: "The unit of exchange. Roles, turns, and ordering, consistent across every provider.",
   },
   {
-    title: "Type-state builders",
-    body: "Required configuration is enforced at compile time — misuse is a type error, not a runtime panic.",
+    label: "Content",
+    body: "Text, images, audio, video, documents, and structured data — text is never privileged.",
   },
   {
-    title: "Streaming first",
-    body: "Token-by-token output over SSE (and WebSocket where supported) behind a single StreamEvent enum.",
+    label: "Tools",
+    body: "Definitions, invocations, and results. The mechanism, not the policy.",
   },
   {
-    title: "Tools & human-in-the-loop",
-    body: "Native tool calling with pause/resume flows for approvals and side-effecting actions.",
+    label: "Streams",
+    body: "Interaction as an event stream — produced and consumed incrementally.",
   },
   {
-    title: "Pluggable transport",
-    body: "Bring your own HTTP/WS transport, or use the built-in reqwest and tungstenite implementations.",
+    label: "Events",
+    body: "One StreamEvent surface for text, reasoning, tool calls, and structured output.",
   },
   {
-    title: "Composable wires",
-    body: "Shared Chat Completions and Responses API wire crates — new OpenAI-compatible providers are thin wrappers.",
+    label: "Embeddings",
+    body: "Vector representations exposed as a first-class capability of a provider.",
   },
 ];
+
+const MODEL = [
+  {
+    label: "Streaming",
+    title: "Streaming is the core interaction model",
+    body: "Not an optional feature. A model may emit text, reasoning, tool calls, structured outputs, or multimodal content; applications may supply information incrementally rather than as a single request. The same model serves conversational, voice, robotic, and realtime systems without new abstractions.",
+  },
+  {
+    label: "Multimodal",
+    title: "No privileged data type",
+    body: "Messages carry multiple forms of content. Provider-specific representations are translated into a common internal one, so applications reason about content consistently — without provider formats leaking into your code.",
+  },
+  {
+    label: "Tools",
+    title: "Tool execution is model interaction",
+    body: "A model may request information or actions; the application decides which tools exist and how they run. The runtime represents definitions, invocations, and results — it does not define planners, retries, or approval systems.",
+  },
+  {
+    label: "Providers",
+    title: "Capabilities, not vendors",
+    body: "Reason about streaming, embeddings, structured outputs, multimodal inputs, and tool calling without coupling to a specific vendor. Integrations preserve a stable programming model as providers evolve.",
+  },
+];
+
+const IS = [
+  "model interaction",
+  "content representation",
+  "streaming",
+  "events",
+  "tool invocation",
+  "embeddings",
+  "provider integration",
+  "capability abstraction",
+];
+
+const IS_NOT = [
+  "agent frameworks",
+  "workflow engines",
+  "DAG execution",
+  "planning systems",
+  "memory architectures",
+  "vector storage",
+  "business logic",
+  "application state",
+];
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="font-label text-xs uppercase tracking-[0.2em] text-fd-muted-foreground">
+      {children}
+    </p>
+  );
+}
+
+function SectionBar({ index, title }: { index: string; title: string }) {
+  return (
+    <div className="border-b border-fd-border px-4 py-3 sm:px-6">
+      <h2 className="font-label flex items-baseline gap-3 text-lg sm:text-2xl">
+        <span className="text-fd-primary">{index}</span>
+        <span className="tracking-tight text-fd-foreground">{title}</span>
+      </h2>
+    </div>
+  );
+}
 
 function Home() {
   return (
     <HomeLayout {...baseOptions()}>
-      <main className="flex flex-1 flex-col">
-        <section className="mx-auto flex max-w-4xl flex-col items-center gap-6 px-4 py-24 text-center">
-          <span className="rounded-full border border-fd-border px-3 py-1 text-sm text-fd-muted-foreground">
-            Rust · LLM clients · type-safe
-          </span>
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-            Build LLM clients with ease
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col border-x border-fd-border">
+        {/* Hero */}
+        <section className="flex flex-col gap-6 px-4 py-20 sm:px-6 sm:py-28">
+          <Eyebrow>A Creology runtime · Rust</Eyebrow>
+          <h1 className="max-w-3xl text-balance text-3xl font-medium leading-[1.1] tracking-tight sm:text-5xl">
+            A runtime for model interaction.
           </h1>
-          <p className="max-w-2xl text-lg text-fd-muted-foreground">
-            <span className="font-semibold text-fd-foreground">chat-rs</span> is
-            a unified, type-safe Rust framework for Large Language Models. One
-            API across every major provider, with streaming, tools, and
-            automatic retries.
+          <p className="max-w-2xl text-base leading-relaxed text-fd-muted-foreground">
+            <span className="text-fd-foreground">chat-rs</span> provides one
+            consistent set of abstractions for working with language models and
+            other intelligent systems — regardless of provider, modality, or
+            deployment target. It is the interaction layer, and nothing above
+            it.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <Link
               to="/docs/$"
               params={{ _splat: "getting-started" }}
-              className="rounded-lg bg-fd-primary px-5 py-2.5 font-medium text-fd-primary-foreground transition-opacity hover:opacity-90"
+              className="inline-flex items-center border border-fd-primary px-5 py-2.5 text-sm font-medium text-fd-primary transition-colors hover:bg-fd-primary hover:text-fd-primary-foreground"
             >
               Get started
             </Link>
             <a
               href="https://github.com/EggerMarc/chat-rs"
-              className="rounded-lg border border-fd-border px-5 py-2.5 font-medium transition-colors hover:bg-fd-accent"
+              className="inline-flex items-center border border-fd-border px-5 py-2.5 text-sm font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
             >
               View on GitHub
             </a>
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-3xl px-4 pb-16">
-          <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card">
-            <div className="flex items-center gap-1.5 border-b border-fd-border px-4 py-2.5">
-              <span className="h-3 w-3 rounded-full bg-red-400" />
-              <span className="h-3 w-3 rounded-full bg-yellow-400" />
-              <span className="h-3 w-3 rounded-full bg-green-400" />
-              <span className="ml-2 text-xs text-fd-muted-foreground">
-                main.rs
-              </span>
-            </div>
-            <pre className="overflow-x-auto p-4 text-sm leading-relaxed">
-              <code>{SAMPLE}</code>
-            </pre>
+        {/* Code sample */}
+        <section className="border-t border-fd-border bg-fd-card">
+          <div className="flex items-center gap-2 border-b border-fd-border px-4 py-2.5 sm:px-6">
+            <span className="font-label text-xs uppercase tracking-[0.2em] text-fd-muted-foreground">
+              main.rs
+            </span>
+          </div>
+          <pre className="overflow-x-auto px-4 py-5 text-sm leading-relaxed sm:px-6">
+            <code>{SAMPLE}</code>
+          </pre>
+        </section>
+
+        {/* 01 — Primitives */}
+        <section className="border-t border-fd-border">
+          <SectionBar index="01" title="The primitives" />
+          <p className="max-w-2xl px-4 pt-6 text-sm leading-relaxed text-fd-muted-foreground sm:px-6">
+            Model interaction is a more stable abstraction than most
+            application-level AI concepts. chat-rs focuses on the lower-level
+            concepts that appear regardless of orchestration strategy, and makes
+            them available in a consistent, composable way.
+          </p>
+          <div className="mt-6 grid grid-cols-1 gap-px border-t border-fd-border bg-fd-border sm:grid-cols-2 lg:grid-cols-3">
+            {PRIMITIVES.map((p, i) => (
+              <div key={p.label} className="bg-fd-background p-5 sm:p-6">
+                <div className="mb-3 flex items-baseline gap-2">
+                  <span className="font-label text-xs text-fd-primary">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <h3 className="font-label text-xs uppercase tracking-[0.2em] text-fd-muted-foreground">
+                    {p.label}
+                  </h3>
+                </div>
+                <p className="text-sm leading-relaxed text-fd-foreground">
+                  {p.body}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
-        <section className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-4 px-4 pb-24 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f) => (
-            <div
-              key={f.title}
-              className="rounded-xl border border-fd-border bg-fd-card p-5"
-            >
-              <h3 className="mb-1.5 font-semibold">{f.title}</h3>
-              <p className="text-sm text-fd-muted-foreground">{f.body}</p>
-            </div>
-          ))}
+        {/* 02 — Interaction model */}
+        <section className="border-t border-fd-border">
+          <SectionBar index="02" title="The interaction model" />
+          <div className="grid grid-cols-1 gap-px bg-fd-border lg:grid-cols-2">
+            {MODEL.map((m, i) => (
+              <div key={m.label} className="bg-fd-background p-5 sm:p-8">
+                <div className="mb-4 flex items-baseline gap-2">
+                  <span className="font-label text-xs text-fd-primary">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <Eyebrow>{m.label}</Eyebrow>
+                </div>
+                <h3 className="mb-2 text-base font-semibold tracking-tight">
+                  {m.title}
+                </h3>
+                <p className="max-w-md text-sm leading-relaxed text-fd-muted-foreground">
+                  {m.body}
+                </p>
+              </div>
+            ))}
+          </div>
         </section>
+
+        {/* 03 — Scope */}
+        <section className="border-t border-fd-border">
+          <SectionBar index="03" title="Scope" />
+          <div className="grid grid-cols-1 gap-px bg-fd-border md:grid-cols-2">
+            <div className="bg-fd-background p-5 sm:p-8">
+              <Eyebrow>Responsible for</Eyebrow>
+              <ul className="mt-5 space-y-2.5">
+                {IS.map((item, i) => (
+                  <li key={item} className="flex items-baseline gap-3 text-sm">
+                    <span className="font-label text-xs text-fd-primary">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="text-fd-foreground">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-fd-background p-5 sm:p-8">
+              <Eyebrow>Not responsible for</Eyebrow>
+              <ul className="mt-5 space-y-2.5">
+                {IS_NOT.map((item, i) => (
+                  <li key={item} className="flex items-baseline gap-3 text-sm">
+                    <span className="font-label text-xs text-fd-muted-foreground">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="text-fd-muted-foreground line-through decoration-fd-border">
+                      {item}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <p className="max-w-2xl px-4 py-6 text-sm leading-relaxed text-fd-muted-foreground sm:px-6">
+            These systems can be built using chat-rs, but they do not belong to
+            the runtime itself. The preferred approach is to strengthen existing
+            primitives rather than introduce new layers of orchestration.
+          </p>
+        </section>
+
+        {/* CTA */}
+        <section className="border-t border-fd-border px-4 py-16 sm:px-6">
+          <Eyebrow>Start here</Eyebrow>
+          <h2 className="mt-4 max-w-2xl text-balance text-2xl font-medium tracking-tight sm:text-3xl">
+            A stable programming model as providers evolve.
+          </h2>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Link
+              to="/docs/$"
+              params={{ _splat: "getting-started" }}
+              className="inline-flex items-center border border-fd-primary px-5 py-2.5 text-sm font-medium text-fd-primary transition-colors hover:bg-fd-primary hover:text-fd-primary-foreground"
+            >
+              Read the docs
+            </Link>
+            <a
+              href="https://github.com/EggerMarc/chat-rs"
+              className="inline-flex items-center border border-fd-border px-5 py-2.5 text-sm font-medium text-fd-foreground transition-colors hover:bg-fd-accent"
+            >
+              View on GitHub
+            </a>
+          </div>
+        </section>
+
+        {/* Colophon */}
+        <footer className="flex flex-col gap-4 border-t border-fd-border px-4 py-10 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <span className="font-label text-xs uppercase tracking-[0.2em] text-fd-muted-foreground">
+            Open source · MIT
+          </span>
+          <a
+            href="https://creology.co"
+            className="inline-flex items-center gap-2 text-fd-muted-foreground transition-opacity hover:opacity-80"
+          >
+            <span className="font-label text-xs uppercase tracking-[0.2em]">
+              Built by
+            </span>
+            <img
+              src="/logo-light.webp"
+              alt="Creology"
+              className="brand-on-dark h-6 w-auto"
+            />
+            <img
+              src="/logo-dark.webp"
+              alt="Creology"
+              className="brand-on-light h-6 w-auto"
+            />
+          </a>
+        </footer>
       </main>
     </HomeLayout>
   );

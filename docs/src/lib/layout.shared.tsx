@@ -6,7 +6,21 @@ import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: "chat-rs",
+      title: (
+        <span className="flex items-center gap-2">
+          <img
+            src="/icon-light.webp"
+            alt=""
+            className="brand-on-dark h-5 w-5"
+          />
+          <img
+            src="/icon-dark.webp"
+            alt=""
+            className="brand-on-light h-5 w-5"
+          />
+          <span className="font-semibold tracking-tight">chat-rs</span>
+        </span>
+      ),
     },
     links: [
       {

@@ -4,7 +4,88 @@
 
 @source "../node_modules/fumadocs-ui/dist/**/*.js";
 
+/*
+ * Creology design language, mapped onto Fumadocs' --color-fd-* tokens.
+ * Swiss-grid editorial meets engineering blueprint: warm charcoal ground,
+ * a single burnt-orange accent, hairline rules, square corners. Dark is the
+ * primary mode; light is the same document on warm off-white paper.
+ */
+
+/* Light mode — warm off-white paper (the alternate). */
+:root {
+  --color-fd-background: oklch(0.95 0.006 75);
+  --color-fd-foreground: oklch(0.25 0.008 75);
+  --color-fd-muted: oklch(0.92 0.008 75);
+  --color-fd-muted-foreground: oklch(0.48 0.02 50);
+  --color-fd-popover: oklch(1 0 0);
+  --color-fd-popover-foreground: oklch(0.25 0.008 75);
+  --color-fd-card: oklch(1 0 0);
+  --color-fd-card-foreground: oklch(0.25 0.008 75);
+  --color-fd-border: oklch(0.84 0.012 75);
+  --color-fd-primary: oklch(0.646 0.222 41.116);
+  --color-fd-primary-foreground: oklch(0.98 0.016 73.684);
+  --color-fd-secondary: oklch(0.955 0.01 75);
+  --color-fd-secondary-foreground: oklch(0.25 0.02 50);
+  --color-fd-accent: oklch(0.9 0.012 75);
+  --color-fd-accent-foreground: oklch(0.25 0.008 75);
+  --color-fd-ring: oklch(0.646 0.222 41.116);
+}
+
+/* Dark mode — warm charcoal printed on dark stock (the default). */
+.dark {
+  --color-fd-background: oklch(0.25 0.008 75);
+  --color-fd-foreground: oklch(0.95 0.006 75);
+  --color-fd-muted: oklch(0.22 0.005 75);
+  --color-fd-muted-foreground: oklch(0.7 0.015 75);
+  --color-fd-popover: oklch(0.22 0.005 75);
+  --color-fd-popover-foreground: oklch(0.95 0.006 75);
+  --color-fd-card: oklch(0.22 0.005 75);
+  --color-fd-card-foreground: oklch(0.95 0.006 75);
+  --color-fd-border: oklch(1 0 0 / 16%);
+  --color-fd-primary: oklch(0.705 0.213 47.604);
+  --color-fd-primary-foreground: oklch(0.98 0.016 73.684);
+  --color-fd-secondary: oklch(0.27 0.01 75);
+  --color-fd-secondary-foreground: oklch(0.95 0.006 75);
+  --color-fd-accent: oklch(0.3 0.01 75);
+  --color-fd-accent-foreground: oklch(0.95 0.006 75);
+  --color-fd-ring: oklch(0.705 0.213 47.604);
+}
+
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Orbit — the "engineering drawing" voice for indices, eyebrows, tags. */
+.font-label {
+  font-family: "Orbit", ui-monospace, monospace;
+  font-feature-settings: "tnum" 1;
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
+}
+
+/* Architectural hairlines — a touch heavier than a UI 1px line. */
+.rule {
+  border-color: var(--color-fd-border);
+  border-width: 1.5px;
+}
+
+/* Brand mark / wordmark swap: light asset on dark stock, dark on paper. */
+.brand-on-light {
+  display: block;
+}
+.brand-on-dark {
+  display: none;
+}
+.dark .brand-on-light {
+  display: none;
+}
+.dark .brand-on-dark {
+  display: block;
 }
