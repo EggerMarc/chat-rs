@@ -38,11 +38,11 @@
 use std::env;
 use std::marker::PhantomData;
 
-pub use chat_completions::{ChatCompletionsClient, ReqwestTransport};
 use chat_completions::ChatCompletionsBuilder;
+pub use chat_completions::{ChatCompletionsClient, ReqwestTransport};
 use chat_core::transport::Transport;
-pub use chat_responses::ResponsesClient;
 use chat_responses::ResponsesBuilder;
+pub use chat_responses::ResponsesClient;
 
 /// Default OpenRouter base URL. The Responses API lives at
 /// `{base_url}/responses`, Chat Completions at `{base_url}/chat/completions`.
