@@ -72,6 +72,7 @@ chat-rs = { version = "0.5.0", features = ["gemini", "claude", "openai", "stream
 | Ollama (local) | `ollama` | — (optional) | `OllamaBuilder` |
 | Hugging Face Router | `huggingface` | `HF_TOKEN` | `HuggingFaceBuilder` |
 | Cerebras | `cerebras` | `CEREBRAS_API_KEY` | `CerebrasBuilder` |
+| OpenRouter | `openrouter` | `OPENROUTER_API_KEY` | `OpenRouterBuilder` |
 | mistral.rs (local in-process) | `mistralrs` | — | `MistralRsBuilder` |
 | Generic Chat Completions | `completions` | depends on server | `ChatCompletionsBuilder` |
 | Generic Responses API | `responses` | depends on server | `ResponsesBuilder` |
@@ -565,6 +566,7 @@ chat-rs (root)              ← Re-exports + feature flags
     ├── huggingface/        ← Hugging Face examples
     ├── cerebras/           ← Cerebras examples
     ├── deepseek/           ← DeepSeek examples
+    ├── openrouter/         ← OpenRouter examples
     ├── mistralrs/          ← mistral.rs (local) examples
     └── router/             ← Router strategy examples
 ```
@@ -625,6 +627,10 @@ cargo run --example cerebras-stream --features cerebras,stream
 # DeepSeek
 cargo run --example deepseek-completion --features deepseek
 cargo run --example deepseek-stream --features deepseek,stream
+
+# OpenRouter
+cargo run --example openrouter-completion --features openrouter
+cargo run --example openrouter-stream --features openrouter,stream
 
 # mistral.rs (local in-process)
 cargo run --example mistralrs-completion --features mistralrs

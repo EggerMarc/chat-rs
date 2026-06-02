@@ -1,0 +1,32 @@
+[package]
+name = "chat-openrouter"
+version = "0.1.0"
+description = "OpenRouter provider for chat-rs (OpenAI-compatible Responses API)."
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+
+[dependencies]
+chat-core = { path = "../../core", version = "0.4.0", features = ["reqwest-transport"] }
+chat-responses = { path = "../responses", version = "0.1.3" }
+chat-completions = { path = "../completions", version = "0.2.4" }
+
+futures = { workspace = true, optional = true }
+async-stream = { workspace = true, optional = true }
+
+[dev-dependencies]
+chat-core = { path = "../../core", version = "0.4.0", features = ["reqwest-transport", "testing"] }
+tokio.workspace = true
+
+[features]
+default = []
+stream = [
+    "chat-core/stream",
+    "chat-responses/stream",
+    "chat-completions/stream",
+    "dep:async-stream",
+    "dep:futures",
+]
