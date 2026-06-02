@@ -192,10 +192,6 @@ impl<CP: CompletionProvider, Output> ChatBuilder<CP, Output> {
     }
 
     pub fn build(self) -> Chat<CP, Output> {
-        // Build routing table: tool name → index into scoped_collections.
-        // Collisions across collections are a programming error — we
-        // keep the first and ignore later ones with a warning. (Could
-        // be promoted to a hard error via a builder method later.)
         let mut routing: HashMap<String, usize> = HashMap::new();
         for (idx, coll) in self.scoped_collections.iter().enumerate() {
             for name in coll.names() {

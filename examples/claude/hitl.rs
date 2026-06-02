@@ -26,8 +26,6 @@ use futures::StreamExt;
 use serde::Deserialize;
 use tools_rs::{FunctionCall, ToolCollection, tool};
 
-// ── 1. App-defined metadata schema ────────────────────────────────────────
-
 #[derive(Debug, Default, Clone, Deserialize)]
 #[serde(default)]
 struct ApprovalMeta {
@@ -44,8 +42,6 @@ enum Safety {
     SideEffect,
     Destructive,
 }
-
-// ── 2. Tools ──────────────────────────────────────────────────────────────
 
 #[tool(requires_approval = true, safety = "destructive")]
 /// Deletes files matching a glob pattern.
@@ -65,8 +61,6 @@ async fn read_file(path: String) -> String {
     format!("(pretend) contents of {path}: hello world")
 }
 
-// ── 3. Strategy ───────────────────────────────────────────────────────────
-
 fn approval_strategy(_call: &FunctionCall, meta: &ApprovalMeta) -> Action {
     if meta.requires_approval {
         Action::RequireApproval
@@ -75,15 +69,12 @@ fn approval_strategy(_call: &FunctionCall, meta: &ApprovalMeta) -> Action {
     }
 }
 
-// ── 4. User interaction ───────────────────────────────────────────────────
-
 fn prompt(label: &str) -> io::Result<String> {
     print!("{label}");
     io::stdout().flush()?;
     let mut line = String::new();
     let bytes = io::stdin().lock().read_line(&mut line)?;
     if bytes == 0 {
-        // EOF
         return Ok(String::new());
     }
     Ok(line.trim_end_matches('\n').to_string())
@@ -101,8 +92,6 @@ fn ask_user(tool_name: &str, args: &serde_json::Value) -> Decision {
     println!("└───────────────────────────────────");
 
     let input = prompt("  approve? [y/n/reason]: ").unwrap_or_default();
-    // Normalize for matching: trims whitespace (incl. a Windows `\r`) and folds
-    // case, so "Y", "yes", "y\r" all approve. The reason keeps its original case.
     let answer = input.trim();
     match answer.to_lowercase().as_str() {
         "y" | "yes" => Decision::Approve,
@@ -132,14 +121,6 @@ fn resolve_pending(reason: &PauseReason, messages: &mut Messages) {
     }
 }
 
-// ── 5. Stream one turn, handling pauses in-line ───────────────────────────
-//
-// Drives `chat.stream()` to exhaustion. If the stream yields a `Paused`
-// event, resolves the pending tools in place and re-enters the stream
-// by calling `chat.stream()` again on the same mutated `Messages`. The
-// core loop's pre-step picks up the newly-approved tools and continues
-// from where the previous stream left off.
-
 async fn run_turn<CP: StreamProvider>(
     chat: &mut Chat<CP, Unstructured>,
     messages: &mut Messages,
@@ -158,9 +139,7 @@ async fn run_turn<CP: StreamProvider>(
                         print!("{t}");
                         io::stdout().flush()?;
                     }
-                    StreamEvent::ReasoningChunk(_) => {
-                        // skip thinking tokens in this example
-                    }
+                    StreamEvent::ReasoningChunk(_) => {}
                     StreamEvent::ToolCall(call) => {
                         println!("\n  [calling {}...]", call.name);
                     }
@@ -175,9 +154,7 @@ async fn run_turn<CP: StreamProvider>(
                         paused_reason = Some(reason);
                         break;
                     }
-                    StreamEvent::Done(_) => {
-                        // end of turn
-                    }
+                    StreamEvent::Done(_) => {}
                     _ => {}
                 }
             }
@@ -186,9 +163,6 @@ async fn run_turn<CP: StreamProvider>(
         match paused_reason {
             Some(reason) => {
                 resolve_pending(&reason, messages);
-                // Loop around: re-enter chat.stream() with the resolved
-                // tools still on the last Content. The pre-step pass
-                // runs them and then continues the model's response.
             }
             None => {
                 println!();
@@ -205,8 +179,6 @@ fn truncate(s: &str, max: usize) -> String {
     let end = s.char_indices().nth(max).map(|(i, _)| i).unwrap_or(s.len());
     format!("{}…", &s[..end])
 }
-
-// ── 6. Main REPL ──────────────────────────────────────────────────────────
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -31,6 +31,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Model:\t{:?}", response.embeddings);
             flag = 0;
         }
-        //println!("Metadata:\t{:?}", response.metadata);
     }
 }

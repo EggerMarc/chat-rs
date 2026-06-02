@@ -94,13 +94,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stdin = io::stdin();
 
     loop {
-        // --- Wait for user to start ---
         prompt("Press enter to start recording (Ctrl+C to quit) ")?;
         if read_line(&stdin)?.is_none() {
             break;
         }
 
-        // --- Capture mic into a shared f32 buffer ---
         let samples = Arc::new(Mutex::new(Vec::<f32>::with_capacity(
             sample_rate as usize * 30,
         )));
@@ -111,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if read_line(&stdin)?.is_none() {
             break;
         }
-        drop(stream); // stops capture
+        drop(stream);
 
         let captured: Vec<f32> = {
             let guard = samples.lock().unwrap();
@@ -124,7 +122,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let secs = captured.len() as f32 / sample_rate as f32 / channels as f32;
         eprintln!("Captured {secs:.1}s of audio. Encoding...");
 
-        // --- Wrap as a chat-rs File part ---
         let wav_bytes = encode_wav(&captured, sample_rate, channels)?;
         messages.push(content::from_user(parts![
             "Transcribe the attached audio verbatim on the `Heard:` line, \
@@ -132,7 +129,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             File::from_bytes_with_mime(wav_bytes, "audio/wav"),
         ]));
 
-        // --- Stream response to stdout, accumulate for history ---
         eprint!("\nAssistant: ");
         io::stderr().flush()?;
         let mut stream = client.stream(&mut messages, None, None).await?;
@@ -152,7 +148,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        // --- Push assistant turn for multi-turn context ---
         messages.push(content::from_model(parts![assistant_text]));
     }
 

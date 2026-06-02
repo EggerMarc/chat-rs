@@ -142,7 +142,7 @@ pub struct GeminiToolConfig {
 #[derive(Debug, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GeminiFunctionCallingConfig {
-    pub mode: String, // "AUTO", "ANY", "NONE"
+    pub mode: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_function_names: Option<Vec<String>>,
 }
@@ -165,9 +165,6 @@ impl GeminiRequest {
         let mut system_parts = Vec::new();
 
         for content in &messages.0 {
-            // A single core Content can carry both Tool calls (assistant
-            // side) and their responses (Gemini "function" role). We split
-            // them into two gemini_contents entries.
             let mut assistant_parts: Vec<GeminiPart> = Vec::new();
             let mut function_parts: Vec<GeminiPart> = Vec::new();
 
@@ -246,7 +243,6 @@ impl GeminiRequest {
 
             if content.role == RoleEnum::System {
                 system_parts.extend(assistant_parts);
-                // System messages should not carry function responses.
                 continue;
             }
 
@@ -444,7 +440,7 @@ impl EmbeddingsTask {
             EmbeddingsTask::Clustering => Some("CLUSTERING"),
             EmbeddingsTask::RetrievalDocument => Some("RETRIEVAL_DOCUMENT"),
             EmbeddingsTask::RetrievalQuery => Some("RETRIEVAL_QUERY"),
-            EmbeddingsTask::Embed => None, // "TASK_TYPE_UNSPECIFIED"
+            EmbeddingsTask::Embed => None,
         }
     }
 }

@@ -15,8 +15,6 @@ pub struct CompletionsErrorDetail {
     pub kind: Option<String>,
 }
 
-// `ChatFailure` is the engine-wide error type (carries metadata); its size is
-// fixed by the trait surface, so boxing here would just diverge from it.
 #[allow(clippy::result_large_err)]
 pub fn handle_error(res: Response) -> Result<Response, ChatFailure> {
     let status = res.status;

@@ -43,12 +43,6 @@ impl<CP: StreamProvider> Chat<CP, InputStreamed> {
             strategy(messages, None).await;
         }
 
-        // Unbounded by design: `send` is sync, infallible, and never drops —
-        // the load-bearing ergonomic. The engine greedily drains the channel on
-        // every restart, and this HTTP interrupt-and-restart path is for
-        // discrete text/tool input, not high-rate streams (those belong on
-        // native-WS, which doesn't use this channel). A bounded channel is a
-        // future option if audio-over-HTTP ever becomes real.
         let (tx, rx) = mpsc::unbounded::<Input>();
 
         let output = self.run_stream(messages, Some(rx));
@@ -103,13 +97,9 @@ pub(super) async fn next_input(rx: &mut mpsc::UnboundedReceiver<Input>) -> Input
 /// providers happy). A `Tool` part resolves a matching pending call by id.
 pub(super) fn apply_input_to_messages(messages: &mut Messages, input: Input) {
     match input {
-        // A whole turn — pushed as-is, coalescing if it shares the trailing
-        // role.
         Input::Content(content) => {
             messages.push(content);
         }
-        // Tool result: resolve a matching pending Tool on the most recent
-        // Model content by call-id. No match → drop silently.
         Input::Item(PartEnum::Tool(incoming)) => {
             let incoming_id = incoming.id.clone();
             let Some(incoming_response) = incoming.response().cloned() else {
@@ -130,14 +120,10 @@ pub(super) fn apply_input_to_messages(messages: &mut Messages, input: Input) {
                 }
             }
         }
-        // User content: pushed via `Messages::push` (coalesces into the
-        // trailing user turn).
         Input::Item(part @ (PartEnum::Text(_) | PartEnum::File(_) | PartEnum::Structured(_))) => {
             messages.push(content::from_user([part]));
         }
-        // Not meaningful as inbound — silently skip.
         Input::Item(PartEnum::Reasoning(_) | PartEnum::Embeddings(_)) => {}
-        // Defensive: Cancel is handled in `next_input` before this is called.
         Input::Cancel => {}
     }
 }

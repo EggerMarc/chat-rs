@@ -13,7 +13,6 @@ use crate::types::messages::tool::{Tool, ToolStatus};
 #[repr(transparent)]
 pub struct Parts(pub Vec<PartEnum>);
 
-// Immutable iterator
 impl IntoIterator for Parts {
     type Item = PartEnum;
     type IntoIter = std::vec::IntoIter<PartEnum>;
@@ -23,7 +22,6 @@ impl IntoIterator for Parts {
     }
 }
 
-// Borrowed iterator: &Parts
 impl<'a> IntoIterator for &'a Parts {
     type Item = &'a PartEnum;
     type IntoIter = Iter<'a, PartEnum>;
@@ -33,7 +31,6 @@ impl<'a> IntoIterator for &'a Parts {
     }
 }
 
-// Mutable borrowed iterator: &mut Parts
 impl<'a> IntoIterator for &'a mut Parts {
     type Item = &'a mut PartEnum;
     type IntoIter = IterMut<'a, PartEnum>;
@@ -384,17 +381,12 @@ impl Parts {
                 Some(event)
             }
             PartEnum::Tool(new_tool) => {
-                // Try to merge into the last part if it's a Tool that hasn't
-                // resolved yet — streaming chunks only ever update an
-                // in-flight call. Resolved tools are frozen.
                 if let Some(PartEnum::Tool(last)) = self.0.last_mut()
                     && !last.is_resolved()
                 {
                     let last_fc = &mut last.call;
                     let new_fc = &new_tool.call;
 
-                    // A continuation chunk has an empty name and no id —
-                    // it carries only an argument fragment for the previous call.
                     let is_continuation = new_fc.name.is_empty() && new_fc.id.is_none();
                     let same_call = is_continuation
                         || (last_fc.name == new_fc.name
@@ -423,7 +415,6 @@ impl Parts {
                     }
                 }
 
-                // New, distinct tool call — push as its own part.
                 let emitted = StreamEvent::ToolCall(new_tool.call.clone());
                 self.push(PartEnum::Tool(new_tool));
                 Some(emitted)

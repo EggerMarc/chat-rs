@@ -53,7 +53,6 @@ function Home() {
   return (
     <HomeLayout {...baseOptions()}>
       <main className="flex flex-1 flex-col">
-        {/* Hero */}
         <section className="mx-auto flex max-w-4xl flex-col items-center gap-6 px-4 py-24 text-center">
           <span className="rounded-full border border-fd-border px-3 py-1 text-sm text-fd-muted-foreground">
             Rust · LLM clients · type-safe
@@ -84,7 +83,6 @@ function Home() {
           </div>
         </section>
 
-        {/* Code sample */}
         <section className="mx-auto w-full max-w-3xl px-4 pb-16">
           <div className="overflow-hidden rounded-xl border border-fd-border bg-fd-card">
             <div className="flex items-center gap-1.5 border-b border-fd-border px-4 py-2.5">
@@ -101,7 +99,6 @@ function Home() {
           </div>
         </section>
 
-        {/* Features */}
         <section className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-4 px-4 pb-24 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f) => (
             <div

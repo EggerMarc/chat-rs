@@ -8,9 +8,6 @@ use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Expect:
-    // cargo run -- image1.jpg image2.png
-
     let image_paths: Vec<PathBuf> = env::args().skip(1).map(PathBuf::from).collect();
 
     if image_paths.is_empty() {

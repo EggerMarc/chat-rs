@@ -59,11 +59,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     StreamEvent::TextChunk(text) => {
                         print!("{}", text);
                     }
-                    // Thoughts print in dim gray (\x1b[90m)
                     StreamEvent::ReasoningChunk(reasoning) => {
                         print!("\x1b[90m{}\x1b[0m", reasoning);
                     }
-                    // Tools print in yellow (\x1b[33m)
                     StreamEvent::ToolCall(tool_call) => {
                         print!(
                             "\n\x1b[33m[Agent is executing tool: {}]\x1b[0m\n",
@@ -77,9 +75,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             tool_result.result.to_string().len()
                         );
                     }
-                    StreamEvent::Done(_) => {
-                        // Stream is fully complete for this turn
-                    }
+                    StreamEvent::Done(_) => {}
                     _ => {}
                 },
                 Err(failure) => {

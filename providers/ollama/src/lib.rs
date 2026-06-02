@@ -236,10 +236,6 @@ impl<T: Transport> OllamaBuilder<WithModel, T> {
             )));
         }
 
-        // Non-streaming pull returns a single JSON object. Honor the
-        // documented `status` field; "success" is the only happy value.
-        // Some Ollama versions return only `{}` on success, so an
-        // absent/empty status is treated as OK.
         #[derive(Deserialize)]
         struct PullResponse {
             #[serde(default)]
@@ -292,7 +288,6 @@ mod tests {
 
     #[test]
     fn parses_host_with_v1_path() {
-        // Path is intentionally discarded — pull lives outside /v1.
         let b = OllamaBuilder::with_host("http://localhost:11434/v1");
         assert_eq!(b.scheme, "http");
         assert_eq!(b.host, "localhost:11434");

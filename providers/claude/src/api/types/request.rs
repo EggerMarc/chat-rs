@@ -89,10 +89,6 @@ impl ClaudeRequest {
                 RoleEnum::System => unreachable!(),
             };
 
-            // Claude requires tool_use blocks to live in assistant turns
-            // and tool_result blocks to live in following user turns. A
-            // single core Content can carry both — we split into two
-            // sequential Claude messages.
             let mut assistant_blocks: Vec<Value> = Vec::new();
             let mut tool_result_blocks: Vec<Value> = Vec::new();
 
@@ -188,7 +184,6 @@ impl ClaudeRequest {
             push_message(&mut claude_messages, "user", tool_result_blocks);
         }
 
-        // Build tools list
         let mut tools_list: Vec<ClaudeTool> = Vec::new();
 
         if let Some(decls) = tool_declarations {
@@ -219,7 +214,6 @@ impl ClaudeRequest {
             }
         }
 
-        // Structured output via synthetic tool
         let mut tool_choice = None;
         if let Some(schema) = structured_output {
             let schema_val = serde_json::to_value(schema)
@@ -237,7 +231,6 @@ impl ClaudeRequest {
             }));
         }
 
-        // Options
         let mut temperature = None;
         let mut top_p = None;
         let mut max_tokens = DEFAULT_MAX_TOKENS;
@@ -258,7 +251,6 @@ impl ClaudeRequest {
             Some(Value::Array(system_blocks))
         };
 
-        // Thinking config — when enabled, temperature must be unset (Claude requires it)
         let thinking = thinking_budget.map(|budget| {
             temperature = None;
             ThinkingConfig {

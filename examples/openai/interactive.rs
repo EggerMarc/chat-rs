@@ -40,10 +40,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_max_steps(8)
         .build();
 
-    // One long-lived stdin reader, feeding lines into a channel. Owning stdin
-    // in a single task avoids fighting over it across turns; the main loop
-    // pulls a line as a turn's prompt, and pulls further lines mid-turn as
-    // barge-in.
     let (lines_tx, mut lines_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     tokio::spawn(async move {
         let mut reader = BufReader::new(tokio::io::stdin()).lines();
@@ -62,10 +58,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         print!("\n\x1b[1;32m> \x1b[0m");
         std::io::stdout().flush()?;
 
-        // The turn's opening prompt.
         let prompt = match lines_rx.recv().await {
             Some(line) => line,
-            None => break, // stdin closed (EOF)
+            None => break,
         };
         if prompt.trim() == "/quit" {
             break;
@@ -77,7 +72,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut stdout = std::io::stdout().lock();
         loop {
             tokio::select! {
-                // Model output.
                 event = output.next() => {
                     match event {
                         Some(Ok(StreamEvent::TextChunk(text))) => {
@@ -90,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         Some(Ok(StreamEvent::Done(_))) | None => {
                             writeln!(stdout)?;
-                            break; // turn over → next prompt
+                            break;
                         }
                         Some(Ok(_)) => {}
                         Some(Err(failure)) => {
@@ -99,8 +93,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 }
-                // A line typed mid-reply → barge in. `send` only fails if the
-                // turn already finished, in which case it's the next prompt.
                 line = lines_rx.recv() => {
                     match line {
                         Some(l) if l.trim() == "/quit" => break 'session,

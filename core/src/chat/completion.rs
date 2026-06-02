@@ -92,9 +92,6 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
     async fn call_loop(&mut self, messages: &mut Messages) -> Result<LoopStep, ChatFailure> {
         let mut last_metadata: Option<Metadata> = None;
 
-        // First attempt to resume any existing pending work on the last
-        // Content before calling the model. Lets `resume()` pick up where
-        // `complete()` paused without re-entering the provider.
         if let Some(last) = messages.0.last_mut() {
             let pre = self.tool_call(last).await.map_err(|err| ChatFailure {
                 err,
@@ -103,14 +100,9 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
             if let Some(reason) = pre.pause {
                 return Ok(LoopStep::Paused(reason, last_metadata));
             }
-            // If any tools just ran, fall through into the normal loop
-            // so the model sees the results.
         }
 
         for _ in 0..self.max_steps.unwrap_or(1) {
-            // Split the borrows manually: `decls` views only
-            // `scoped_collections`, leaving `self.model` free to borrow
-            // mutably for the `complete()` call.
             let decls = crate::chat::tool_declarations_from(&self.scoped_collections);
             let decls_dyn = decls
                 .as_ref()
@@ -138,9 +130,6 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
 
             messages.push(response.content.clone());
 
-            // Walk the just-pushed Content: run tools whose strategy
-            // says Execute, leave tools that need approval/deferral in
-            // a non-resolved state, and return Paused if any remain.
             let pass = match messages.0.last_mut() {
                 Some(last) => self.tool_call(last).await.map_err(|err| ChatFailure {
                     err,
@@ -206,10 +195,6 @@ impl<CP: CompletionProvider, Output> Chat<CP, Output> {
             let original_len = messages.len();
             match self.call_loop(messages).await {
                 Ok(LoopStep::Paused(reason, _metadata)) => {
-                    // Pause short-circuits the retry loop — metadata from
-                    // the paused step isn't currently surfaced to the
-                    // caller (ChatOutcome::Paused carries no metadata).
-                    // Add it to PauseReason's envelope if that changes.
                     return Ok(ChatOutcome::Paused { reason });
                 }
                 Ok(LoopStep::Complete(response)) => {

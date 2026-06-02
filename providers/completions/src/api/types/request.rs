@@ -88,7 +88,6 @@ impl ChatCompletionsRequest {
             }));
         }
 
-        // Tools (function calling)
         if let Some(decls) = tool_declarations {
             let value = decls.json().map_err(|e| ChatError::Other(e.to_string()))?;
             if let Value::Array(arr) = value {
@@ -139,10 +138,6 @@ fn push_content(content: &Content, out: &mut Vec<Value>) {
         RoleEnum::System => "system",
     };
 
-    // Assistant tool calls are emitted as a single assistant message
-    // with `tool_calls`. Tool results follow as separate `role: "tool"`
-    // messages keyed by `tool_call_id`. Other parts (text, images,
-    // files) live in the message's `content` array.
     let mut content_parts: Vec<Value> = Vec::new();
     let mut tool_calls: Vec<Value> = Vec::new();
     let mut tool_results: Vec<Value> = Vec::new();
@@ -153,8 +148,6 @@ fn push_content(content: &Content, out: &mut Vec<Value>) {
                 content_parts.push(json!({"type": "text", "text": t.0}));
             }
             PartEnum::Reasoning(r) => {
-                // Chat Completions has no native reasoning channel; surface
-                // the summary text inline so it isn't silently dropped.
                 content_parts.push(json!({"type": "text", "text": r.text}));
             }
             PartEnum::Tool(tool) => {
@@ -194,8 +187,6 @@ fn push_content(content: &Content, out: &mut Vec<Value>) {
                         "image_url": {"url": url}
                     }));
                 }
-                // Non-image files have no portable encoding in the Chat
-                // Completions spec — providers diverge. Skip silently.
             }
             PartEnum::Structured(_) | PartEnum::Embeddings(_) => {}
         }
@@ -209,14 +200,11 @@ fn push_content(content: &Content, out: &mut Vec<Value>) {
         message.insert("role".into(), json!(role));
 
         if content_parts.is_empty() {
-            // Assistant turn with only tool calls — content must be null
-            // per spec (some servers reject empty arrays).
             message.insert("content".into(), Value::Null);
         } else if content_parts.len() == 1
             && let Some(t) = content_parts[0].get("text").and_then(|v| v.as_str())
             && content_parts[0].get("type").and_then(|v| v.as_str()) == Some("text")
         {
-            // Collapse single text part to string form — broadest server support.
             message.insert("content".into(), json!(t));
         } else {
             message.insert("content".into(), Value::Array(content_parts));
@@ -231,10 +219,6 @@ fn push_content(content: &Content, out: &mut Vec<Value>) {
 
     out.extend(tool_results);
 }
-
-// ---------------------------------------------------------------------------
-// Embeddings request
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Serialize)]
 pub struct ChatCompletionsEmbeddingRequest {

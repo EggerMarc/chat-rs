@@ -8,7 +8,6 @@ use std::fs;
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     dotenvy::dotenv().ok();
 
-    // Image output requires a Gemini model that supports it.
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-2.5-flash-image-preview".to_string())
         .with_image_output()

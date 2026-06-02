@@ -244,7 +244,7 @@ fn stream_frames(
 
                 let is_done = is_terminal_event(event_type);
                 if tx.send(Ok(text)).is_err() {
-                    return; // receiver dropped
+                    return;
                 }
                 if is_done {
                     return;

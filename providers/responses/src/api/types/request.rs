@@ -132,7 +132,6 @@ impl ResponsesRequest {
             }));
         }
 
-        // Build tools list
         let mut tools_list = Vec::new();
         if let Some(decls) = tool_declarations {
             let value = decls.json().map_err(|e| ChatError::Other(e.to_string()))?;
@@ -151,15 +150,9 @@ impl ResponsesRequest {
             req.tools = Some(tools_list);
         }
 
-        // Build input items
         if let Some(prev_id) = previous_response_id {
             req.previous_response_id = Some(prev_id);
 
-            // OpenAI's stored response already contains everything up to
-            // and including the last Model message. We need to send any
-            // *new* information since then: tool results that resolve
-            // function_calls in that boundary Model message, plus any
-            // user/system content the caller appended afterwards.
             let boundary = messages.0.iter().rposition(|c| c.role == RoleEnum::Model);
 
             let mut input = Vec::new();

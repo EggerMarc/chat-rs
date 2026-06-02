@@ -36,6 +36,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|err| err.err)?
             .expect_complete();
         println!("Model:\t{:?}", response.content.parts.last());
-        //println!("Metadata:\t{:?}", response.metadata);
     }
 }

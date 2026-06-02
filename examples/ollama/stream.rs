@@ -47,7 +47,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(chunk_res) = stream.next().await {
             match chunk_res {
                 Ok(StreamEvent::ReasoningChunk(thought)) => {
-                    // Dim grey so reasoning is visually distinct from the answer.
                     print!("\x1b[90m{thought}\x1b[0m");
                     in_reasoning = true;
                     std::io::stdout().flush()?;

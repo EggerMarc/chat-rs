@@ -16,10 +16,6 @@ use serde::Deserialize;
 use serde_json::Value;
 use tools_rs::FunctionCall;
 
-// ---------------------------------------------------------------------------
-// Responses API types
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Deserialize)]
 pub struct ResponsesApiResponse {
     pub id: Option<String>,
@@ -94,10 +90,6 @@ pub enum ResponsesSummaryPart {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResponsesWebSearchCall {}
 
-// ---------------------------------------------------------------------------
-// Usage (supports both completions and responses field names)
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Deserialize)]
 pub struct ResponsesUsage {
     #[serde(alias = "prompt_tokens")]
@@ -106,10 +98,6 @@ pub struct ResponsesUsage {
     pub output_tokens: Option<usize>,
     pub total_tokens: Option<usize>,
 }
-
-// ---------------------------------------------------------------------------
-// Conversion to core types
-// ---------------------------------------------------------------------------
 
 fn append_content_part(parts: &mut Parts, content_part: &ResponsesContentPart) {
     match content_part {

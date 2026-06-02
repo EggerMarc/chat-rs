@@ -174,9 +174,6 @@ impl Transport for AsyncWsTransport {
 
         let text = wrap_ws_body(req.body, self.message_type.as_deref())?;
 
-        // Take the connection so the stream can use it without holding
-        // the lock for the entire duration. It's returned to the mutex
-        // when the stream reaches a terminal event.
         let mut guard = self.conn.lock().await;
         let mut ws = guard
             .take()
@@ -199,7 +196,6 @@ impl Transport for AsyncWsTransport {
                         let event = frame_to_event(&text)?;
 
                         if event.0 == "error" {
-                            // Parse server error details from the frame.
                             let (status, msg) = serde_json::from_str::<serde_json::Value>(&event.1)
                                 .ok()
                                 .map(|v| {
@@ -218,7 +214,6 @@ impl Transport for AsyncWsTransport {
                         let is_done = is_terminal_event(&event.0);
                         yield event;
                         if is_done {
-                            // Return the connection for reuse.
                             let mut guard = conn.lock().await;
                             *guard = Some(ws);
                             return;
@@ -238,7 +233,6 @@ impl Transport for AsyncWsTransport {
                     }
                 }
             }
-            // Stream ended without terminal event — connection is gone.
         };
 
         Ok(Box::pin(stream))

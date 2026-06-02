@@ -39,14 +39,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut stream = chat.stream(&mut messages).await.map_err(|f| f.err)?;
 
-    // Peel off a producer handle. It's `Clone + Send + 'static` (it borrows
-    // nothing), so it moves into the task; the combined `stream` keeps its
-    // own handle and stays our reader. After a short delay, push a follow-up
-    // — the engine merges it and re-enters the provider with it.
     let input = stream.input();
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_secs(2)).await;
-        // `is_err()` means the output already finished — nothing to add.
         let _ = input.send("Hold on — make the crab wear a tiny hat too.");
     });
 
