@@ -83,6 +83,13 @@ impl CompletionProvider for Router {
                     return Ok(response);
                 }
                 Err(failure) => {
+                    // Non-retryable errors (bad request, invalid response, …)
+                    // won't fare better on another provider and shouldn't be
+                    // masked behind a later failure — surface immediately. Only
+                    // retryable failures fall through to the next provider.
+                    if !failure.err.is_retryable() {
+                        return Err(failure);
+                    }
                     if let Some(cb) = &mut self.circuit_breaker {
                         cb.record_failure(idx);
                     }
