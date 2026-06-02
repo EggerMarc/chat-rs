@@ -20,4 +20,10 @@ tokio.workspace = true
 
 [features]
 default = []
-stream = ["chat-responses/stream", "chat-completions/stream"]
+stream = [
+    "chat-core/stream",
+    "chat-responses/stream",
+    "chat-completions/stream",
+    "dep:async-stream",
+    "dep:futures",
+]
