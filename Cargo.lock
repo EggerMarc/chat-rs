@@ -902,9 +902,11 @@ dependencies = [
 name = "chat-openrouter"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "chat-completions",
  "chat-core",
  "chat-responses",
+ "futures",
  "tokio",
 ]
 

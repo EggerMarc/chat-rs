@@ -566,6 +566,7 @@ chat-rs (root)              ← Re-exports + feature flags
     ├── huggingface/        ← Hugging Face examples
     ├── cerebras/           ← Cerebras examples
     ├── deepseek/           ← DeepSeek examples
+    ├── openrouter/         ← OpenRouter examples
     ├── mistralrs/          ← mistral.rs (local) examples
     └── router/             ← Router strategy examples
 ```
@@ -626,6 +627,10 @@ cargo run --example cerebras-stream --features cerebras,stream
 # DeepSeek
 cargo run --example deepseek-completion --features deepseek
 cargo run --example deepseek-stream --features deepseek,stream
+
+# OpenRouter
+cargo run --example openrouter-completion --features openrouter
+cargo run --example openrouter-stream --features openrouter,stream
 
 # mistral.rs (local in-process)
 cargo run --example mistralrs-completion --features mistralrs

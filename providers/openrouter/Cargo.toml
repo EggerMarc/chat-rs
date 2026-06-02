@@ -14,6 +14,9 @@ chat-core = { path = "../../core", version = "0.4.0", features = ["reqwest-trans
 chat-responses = { path = "../responses", version = "0.1.3" }
 chat-completions = { path = "../completions", version = "0.2.4" }
 
+futures = { workspace = true, optional = true }
+async-stream = { workspace = true, optional = true }
+
 [dev-dependencies]
 chat-core = { path = "../../core", version = "0.4.0", features = ["reqwest-transport", "testing"] }
 tokio.workspace = true
