@@ -90,6 +90,11 @@ pub mod deepseek {
     pub use chat_deepseek::*;
 }
 
+#[cfg(feature = "openrouter")]
+pub mod openrouter {
+    pub use chat_openrouter::*;
+}
+
 #[cfg(feature = "router")]
 pub mod router {
     pub use chat_router::*;
@@ -128,6 +133,9 @@ pub mod prelude {
 
     #[cfg(feature = "deepseek")]
     pub use crate::deepseek;
+
+    #[cfg(feature = "openrouter")]
+    pub use crate::openrouter;
 
     #[cfg(feature = "router")]
     pub use crate::router;

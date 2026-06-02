@@ -72,6 +72,7 @@ chat-rs = { version = "0.5.0", features = ["gemini", "claude", "openai", "stream
 | Ollama (local) | `ollama` | — (optional) | `OllamaBuilder` |
 | Hugging Face Router | `huggingface` | `HF_TOKEN` | `HuggingFaceBuilder` |
 | Cerebras | `cerebras` | `CEREBRAS_API_KEY` | `CerebrasBuilder` |
+| OpenRouter | `openrouter` | `OPENROUTER_API_KEY` | `OpenRouterBuilder` |
 | mistral.rs (local in-process) | `mistralrs` | — | `MistralRsBuilder` |
 | Generic Chat Completions | `completions` | depends on server | `ChatCompletionsBuilder` |
 | Generic Responses API | `responses` | depends on server | `ResponsesBuilder` |
