@@ -42,16 +42,16 @@ while let Some(chunk_res) = stream.next().await {
 }
 ```
 
-## Opting in explicitly
+There is no separate builder call to turn output streaming on. As long as the
+provider implements `StreamProvider` and the `stream` feature is enabled, a
+normal chat exposes `stream` right next to `complete`.
 
-You can also reach for streaming on purpose with `.with_streamed_response()`. This requires the provider to implement `StreamProvider`, and it switches the builder into a streamed chat.
+## Sending input while it streams
 
-```rust
-let mut chat = ChatBuilder::new()
-    .with_model(client)
-    .with_streamed_response()
-    .build();
-```
+To push more input while the model is still responding, switch the builder into
+the input-stream state with `.with_input_stream()`. The returned stream then
+carries a producer handle you can `send` to, for full-duplex exchanges. See
+[Responses: input streaming](/docs/providers/responses) for the full pattern.
 
 ## StreamEvent variants
 

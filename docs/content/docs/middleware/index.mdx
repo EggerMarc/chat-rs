@@ -58,6 +58,34 @@ The returned future is `'static`, so it cannot borrow `messages` across an
 `await`. Do any reading or mutation of `messages` synchronously, then move the
 owned values you need into the async block (as `tokens` is moved above).
 
+## Retrieval and external services (RAG)
+
+Because a before strategy can mutate `Messages` and reach the outside world, it
+is a natural place to bring in extra information. Retrieval-augmented generation
+fits here: look up relevant documents and inject them as context before the
+model runs.
+
+```rust
+.with_before_strategy(Box::new(|messages, _metadata| {
+    // Fetch relevant context, then add it to the conversation.
+    let docs = my_vector_store.search_blocking("recent question");
+    for doc in docs {
+        messages.push(content::from_system(parts![doc.text]));
+    }
+    Box::pin(async {})
+}))
+```
+
+The lookup happens synchronously here, before the returned future, which keeps it
+inside the `'static` constraint. If your retrieval is itself async, run it before
+you call `complete` and pass the results in, or keep a blocking handle to your
+store for use inside the hook.
+
+The same hook is a clean home for anything external: a feature flag check, a
+policy or moderation pass, a call to another model, or pulling state from a
+device or service. The after strategy is the mirror image, good for persisting
+the transcript or recording usage once the run finishes.
+
 <Cards>
   <Card title="Retries" href="/docs/middleware/retries" />
 </Cards>

@@ -5,7 +5,7 @@ description: Turn text into vectors with the same chat builder you already use, 
 
 Embeddings turn text into a vector of floats you can use for search, clustering, or similarity. chat-rs exposes this through the same builder you use for chat, so you do not need a separate client. Opt in with `.with_embeddings()` and call `chat.embed(&mut messages)`.
 
-This works with any provider that implements `EmbeddingsProvider`. Today that includes Gemini, OpenAI, Ollama, and mistral.rs.
+This works with any provider that implements `EmbeddingsProvider`. Today that includes Gemini, OpenAI, Ollama, and mistral.rs. Where a provider supports it, you can also ask for a specific vector size, covered in [Choosing dimensions](#choosing-dimensions-with-gemini) below.
 
 ## A local Ollama example
 

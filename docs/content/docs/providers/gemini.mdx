@@ -64,7 +64,7 @@ Native tools (see [native tools](/docs/tools/native)) are added on the builder:
 - `with_function_calling_mode(&str, Option<Vec<String>>)` sets the calling mode
   (for example `"ANY"`) and an optional allow-list of function names.
 
-You can combine several of these on one client:
+You can combine several native tools on one client:
 
 ```rust
 let client = GeminiBuilder::new()
@@ -73,6 +73,12 @@ let client = GeminiBuilder::new()
     .with_google_search()
     .build();
 ```
+
+<Callout type="warn">
+Gemini does not allow native tools and your own `#[tool]` functions in the same
+request. Use one or the other per request, or route tool-calling work to another
+provider. See [combining native and custom tools](/docs/tools/native#combining-native-and-custom-tools).
+</Callout>
 
 For embeddings, switch the builder into embedding mode:
 

@@ -43,6 +43,29 @@ def get_weather(city: str) -> str:
 You can put several `@tool()`-decorated functions in one file, and several files
 in one directory. Every decorated function found gets registered.
 
+## Metadata on Python tools
+
+Python tools carry metadata too. Just like Rust's `#[tool(key = value)]`, the
+`@tool` decorator accepts keyword arguments, so you can tag a tool with whatever
+your strategy needs, for example gating approval or marking a cost tier.
+
+```python
+from tools_rs import tool
+
+
+@tool(requires_approval=True, cost_tier=2)
+def delete_account(user_id: str) -> str:
+    """Permanently delete a user account.
+
+    Args:
+        user_id: The account to delete.
+    """
+    ...
+```
+
+That metadata travels with the tool exactly as it does for Rust tools, so the
+same [strategy approach](/docs/tools/context) decides what happens on each call.
+
 ## Load them and run
 
 `ToolsBuilder` scans a directory for decorated functions and returns a tool
