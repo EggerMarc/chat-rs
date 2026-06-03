@@ -1,6 +1,6 @@
 {
-  "short_name": "TanStack App",
-  "name": "Create TanStack App Sample",
+  "short_name": "chat-rs",
+  "name": "chat-rs documentation",
   "icons": [
     {
       "src": "favicon.ico",
