@@ -27,21 +27,21 @@ use chat_core::{
 
 use crate::{
     api::types::{
-        request::{ChatCompletionsRequest, CompletionsRequestConfig},
+        request::{CompletionsRequest, CompletionsRequestConfig},
         response::{CompletionsUsage, finish_reason_to_core},
     },
-    client::ChatCompletionsClient,
+    client::CompletionsClient,
 };
 
 #[async_trait::async_trait]
-impl<T: Transport> StreamProvider for ChatCompletionsClient<T> {
+impl<T: Transport> StreamProvider for CompletionsClient<T> {
     async fn stream(
         &mut self,
         messages: &mut Messages,
         tool_declarations: Option<&dyn ToolDeclarations>,
         options: Option<&ChatOptions>,
     ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError> {
-        let mut request_body = ChatCompletionsRequest::from_core(CompletionsRequestConfig {
+        let mut request_body = CompletionsRequest::from_core(CompletionsRequestConfig {
             model_name: &self.model_name,
             messages,
             tool_declarations,

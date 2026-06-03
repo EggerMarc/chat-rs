@@ -1,7 +1,7 @@
 use crate::api::types::error::handle_error;
-use crate::api::types::request::{ChatCompletionsRequest, CompletionsRequestConfig};
-use crate::api::types::response::ChatCompletionsResponse;
-use crate::client::ChatCompletionsClient;
+use crate::api::types::request::{CompletionsRequest, CompletionsRequestConfig};
+use crate::api::types::response::CompletionsResponse;
+use crate::client::CompletionsClient;
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::traits::CompletionProvider;
 use chat_core::transport::Transport;
@@ -12,7 +12,7 @@ use chat_core::types::response::ChatResponse;
 use chat_core::types::tools::ToolDeclarations;
 
 #[async_trait::async_trait]
-impl<T: Transport> CompletionProvider for ChatCompletionsClient<T> {
+impl<T: Transport> CompletionProvider for CompletionsClient<T> {
     async fn complete(
         &mut self,
         messages: &mut Messages,
@@ -20,7 +20,7 @@ impl<T: Transport> CompletionProvider for ChatCompletionsClient<T> {
         options: Option<&ChatOptions>,
         structured_output: Option<&schemars::Schema>,
     ) -> Result<ChatResponse, ChatFailure> {
-        let request_body = ChatCompletionsRequest::from_core(CompletionsRequestConfig {
+        let request_body = CompletionsRequest::from_core(CompletionsRequestConfig {
             model_name: &self.model_name,
             messages,
             tool_declarations,
@@ -48,7 +48,7 @@ impl<T: Transport> CompletionProvider for ChatCompletionsClient<T> {
 
         let res = handle_error(res)?;
 
-        let parsed: ChatCompletionsResponse = serde_json::from_slice(&res.body)
+        let parsed: CompletionsResponse = serde_json::from_slice(&res.body)
             .map_err(|e| ChatFailure::from_err(ChatError::InvalidResponse(e.to_string())))?;
 
         parsed

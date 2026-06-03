@@ -5,9 +5,9 @@
 //! and the rest of the OAI-compatible ecosystem. Bring your own base URL.
 //!
 //! ```no_run
-//! use chat_completions::ChatCompletionsBuilder;
+//! use chat_completions::CompletionsBuilder;
 //!
-//! let client = ChatCompletionsBuilder::new()
+//! let client = CompletionsBuilder::new()
 //!     .with_base_url("http://localhost:8000/v1")
 //!     .with_model("my-model")
 //!     .with_api_key("sk-...")
@@ -21,7 +21,7 @@ use std::marker::PhantomData;
 
 use chat_core::types::provider_meta::ProviderMeta;
 
-pub use crate::client::ChatCompletionsClient;
+pub use crate::client::CompletionsClient;
 pub use chat_core::error::{ChatError, ChatFailure};
 pub use chat_core::transport::{Request, ReqwestTransport, Response, Transport, TransportError};
 
@@ -31,7 +31,7 @@ pub struct WithModel;
 pub struct WithoutUrl;
 pub struct WithUrl;
 
-pub struct ChatCompletionsBuilder<M = WithoutModel, U = WithoutUrl, T: Transport = ReqwestTransport>
+pub struct CompletionsBuilder<M = WithoutModel, U = WithoutUrl, T: Transport = ReqwestTransport>
 {
     model_name: Option<String>,
     api_key: Option<String>,
@@ -45,13 +45,13 @@ pub struct ChatCompletionsBuilder<M = WithoutModel, U = WithoutUrl, T: Transport
     _u: PhantomData<U>,
 }
 
-impl Default for ChatCompletionsBuilder<WithoutModel, WithoutUrl, ReqwestTransport> {
+impl Default for CompletionsBuilder<WithoutModel, WithoutUrl, ReqwestTransport> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ChatCompletionsBuilder<WithoutModel, WithoutUrl, ReqwestTransport> {
+impl CompletionsBuilder<WithoutModel, WithoutUrl, ReqwestTransport> {
     pub fn new() -> Self {
         Self {
             model_name: None,
@@ -68,7 +68,7 @@ impl ChatCompletionsBuilder<WithoutModel, WithoutUrl, ReqwestTransport> {
     }
 }
 
-impl<M, U, T: Transport> ChatCompletionsBuilder<M, U, T> {
+impl<M, U, T: Transport> CompletionsBuilder<M, U, T> {
     pub fn with_api_key(mut self, api_key: impl Into<String>) -> Self {
         self.api_key = Some(api_key.into());
         self
@@ -94,8 +94,8 @@ impl<M, U, T: Transport> ChatCompletionsBuilder<M, U, T> {
     }
 
     /// Supply a custom transport, replacing the default.
-    pub fn with_transport<T2: Transport>(self, transport: T2) -> ChatCompletionsBuilder<M, U, T2> {
-        ChatCompletionsBuilder {
+    pub fn with_transport<T2: Transport>(self, transport: T2) -> CompletionsBuilder<M, U, T2> {
+        CompletionsBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
             scheme: self.scheme,
@@ -110,12 +110,12 @@ impl<M, U, T: Transport> ChatCompletionsBuilder<M, U, T> {
     }
 }
 
-impl<U, T: Transport> ChatCompletionsBuilder<WithoutModel, U, T> {
+impl<U, T: Transport> CompletionsBuilder<WithoutModel, U, T> {
     pub fn with_model(
         self,
         model_name: impl Into<String>,
-    ) -> ChatCompletionsBuilder<WithModel, U, T> {
-        ChatCompletionsBuilder {
+    ) -> CompletionsBuilder<WithModel, U, T> {
+        CompletionsBuilder {
             model_name: Some(model_name.into()),
             api_key: self.api_key,
             scheme: self.scheme,
@@ -130,13 +130,13 @@ impl<U, T: Transport> ChatCompletionsBuilder<WithoutModel, U, T> {
     }
 }
 
-impl<M, T: Transport> ChatCompletionsBuilder<M, WithoutUrl, T> {
+impl<M, T: Transport> CompletionsBuilder<M, WithoutUrl, T> {
     /// Set the base URL of the OpenAI-compatible server.
     ///
     /// Example: `http://localhost:11434/v1`, `https://api.cerebras.ai/v1`.
     /// The path portion is preserved as the base, and completion/embedding
     /// endpoints are appended (`/chat/completions`, `/embeddings`).
-    pub fn with_base_url(self, base_url: impl AsRef<str>) -> ChatCompletionsBuilder<M, WithUrl, T> {
+    pub fn with_base_url(self, base_url: impl AsRef<str>) -> CompletionsBuilder<M, WithUrl, T> {
         let parsed = url::Url::parse(base_url.as_ref()).expect("Invalid base URL");
         let scheme = parsed.scheme().to_string();
         let host = parsed
@@ -146,7 +146,7 @@ impl<M, T: Transport> ChatCompletionsBuilder<M, WithoutUrl, T> {
             + &parsed.port().map(|p| format!(":{p}")).unwrap_or_default();
         let base_path = parsed.path().trim_end_matches('/').to_string();
 
-        ChatCompletionsBuilder {
+        CompletionsBuilder {
             model_name: self.model_name,
             api_key: self.api_key,
             scheme,
@@ -161,16 +161,16 @@ impl<M, T: Transport> ChatCompletionsBuilder<M, WithoutUrl, T> {
     }
 }
 
-impl<T: Transport> ChatCompletionsBuilder<WithModel, WithUrl, T> {
+impl<T: Transport> CompletionsBuilder<WithModel, WithUrl, T> {
     /// Build the client.
     ///
     /// Panics if no transport is set and `T` is not the default `ReqwestTransport`.
-    pub fn build(self) -> ChatCompletionsClient<T> {
+    pub fn build(self) -> CompletionsClient<T> {
         let transport = self.transport.expect(
             "No transport provided. Call .with_transport() or rely on the default ReqwestTransport.",
         );
 
-        ChatCompletionsClient {
+        CompletionsClient {
             model_name: self.model_name.unwrap(),
             api_key: self.api_key,
             scheme: self.scheme,

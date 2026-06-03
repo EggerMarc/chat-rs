@@ -17,7 +17,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 #[derive(Debug, Serialize)]
-pub struct ChatCompletionsRequest {
+pub struct CompletionsRequest {
     pub model: String,
     pub messages: Vec<Value>,
 
@@ -49,7 +49,7 @@ pub struct CompletionsRequestConfig<'a> {
     pub output_shape: Option<&'a Schema>,
 }
 
-impl ChatCompletionsRequest {
+impl CompletionsRequest {
     pub fn from_core(config: CompletionsRequestConfig<'_>) -> Result<Self, ChatError> {
         let CompletionsRequestConfig {
             model_name,
@@ -221,12 +221,12 @@ fn push_content(content: &Content, out: &mut Vec<Value>) {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ChatCompletionsEmbeddingRequest {
+pub struct CompletionsEmbeddingRequest {
     pub model: String,
     pub input: Value,
 }
 
-impl ChatCompletionsEmbeddingRequest {
+impl CompletionsEmbeddingRequest {
     pub fn from_core(model_name: &str, messages: &Messages) -> Result<Self, ChatError> {
         let last_content = messages
             .0
@@ -269,7 +269,7 @@ mod tests {
     #[test]
     fn user_message_serializes_to_string_content() {
         let msgs = messages::from_user(vec!["hello"]);
-        let req = ChatCompletionsRequest::from_core(CompletionsRequestConfig {
+        let req = CompletionsRequest::from_core(CompletionsRequestConfig {
             model_name: "llama3",
             messages: &msgs,
             tool_declarations: None,
@@ -290,7 +290,7 @@ mod tests {
         msgs.0
             .push(messages::content::from_system(vec!["you are helpful"]));
         msgs.0.push(messages::content::from_user(vec!["hi"]));
-        let req = ChatCompletionsRequest::from_core(CompletionsRequestConfig {
+        let req = CompletionsRequest::from_core(CompletionsRequestConfig {
             model_name: "m",
             messages: &msgs,
             tool_declarations: None,

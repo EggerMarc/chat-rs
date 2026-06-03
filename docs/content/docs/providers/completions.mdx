@@ -12,19 +12,19 @@ Together, Fireworks, your own gateway, or anything else that answers on
 
 It is also the foundation the vendor helpers build on. `chat-ollama`,
 `chat-deepseek`, `chat-cerebras`, and `chat-huggingface` are thin crates that
-wrap `ChatCompletionsBuilder` and preset a base URL and an API key convention.
+wrap `CompletionsBuilder` and preset a base URL and an API key convention.
 If you understand this page, you understand all of them.
 
 ## Direct use
 
-Build a client with `ChatCompletionsBuilder`, hand it a base URL and a model,
+Build a client with `CompletionsBuilder`, hand it a base URL and a model,
 then pass it straight to `ChatBuilder::with_model`.
 
 ```rust
-use chat_completions::ChatCompletionsBuilder;
+use chat_completions::CompletionsBuilder;
 use chat_core::{builder::ChatBuilder, types::messages, types::outcome::ChatOutcome};
 
-let client = ChatCompletionsBuilder::new()
+let client = CompletionsBuilder::new()
     .with_base_url("http://localhost:11434/v1")
     .with_model("llama3")
     .build();
@@ -39,7 +39,7 @@ if let ChatOutcome::Complete(res) = chat.complete(&mut msgs).await? {
 
 The builder uses type-state, so both pieces are required before `build()` is
 available. `with_base_url` moves you into `WithUrl`, `with_model` into
-`WithModel`, and only `ChatCompletionsBuilder<WithModel, WithUrl, _>` exposes
+`WithModel`, and only `CompletionsBuilder<WithModel, WithUrl, _>` exposes
 `build()`. Leave either out and the code will not compile, which keeps a
 half-configured client from ever existing.
 
@@ -54,7 +54,7 @@ let base_url = std::env::var("CHAT_COMPLETIONS_BASE_URL")
 let model = std::env::var("CHAT_COMPLETIONS_MODEL")
     .unwrap_or_else(|_| "llama3".to_string());
 
-let mut builder = ChatCompletionsBuilder::new()
+let mut builder = CompletionsBuilder::new()
     .with_base_url(base_url)
     .with_model(model);
 
@@ -82,7 +82,7 @@ it is not, the request simply omits that header.
 
 ## Capabilities
 
-`ChatCompletionsClient` implements `CompletionProvider`, so it plugs into the
+`CompletionsClient` implements `CompletionProvider`, so it plugs into the
 normal chat loop with tools and structured output. Under the `stream` feature it
 also implements the streaming provider, and it implements the embeddings
 provider for servers that expose `/embeddings`.
@@ -102,22 +102,22 @@ let vectors = client.embed(&mut input).await?;
 ## Building your own provider on top
 
 A vendor helper is usually a small `chat-<vendor>` crate that wraps
-`ChatCompletionsBuilder`. The recipe is short:
+`CompletionsBuilder`. The recipe is short:
 
 1. Preset the base URL (and read a host override from an env var if it makes
    sense).
 2. Preset the API key env var the vendor uses.
 3. Re-export a friendly builder, optionally adding vendor-specific niceties.
-4. Have `build()` return a `ChatCompletionsClient`, so all the chat, streaming,
+4. Have `build()` return a `CompletionsClient`, so all the chat, streaming,
    tool, and embedding logic stays in this crate.
 
 `chat-ollama` is a good model to follow. Its `OllamaBuilder` defaults to
 `http://localhost:11434` (honoring `OLLAMA_HOST`), and at build time it hands the
-work back to `ChatCompletionsBuilder`:
+work back to `CompletionsBuilder`:
 
 ```rust
 let base_url = format!("{}://{}/v1", self.scheme, self.host);
-let mut b = ChatCompletionsBuilder::new()
+let mut b = CompletionsBuilder::new()
     .with_base_url(base_url)
     .with_model(model)
     .with_transport(transport);
@@ -150,9 +150,9 @@ need are re-exported from the crate root: `Transport`, `ReqwestTransport`,
 `Request`, `Response`, and `TransportError`.
 
 ```rust
-use chat_completions::{ChatCompletionsBuilder, Transport};
+use chat_completions::{CompletionsBuilder, Transport};
 
-let client = ChatCompletionsBuilder::new()
+let client = CompletionsBuilder::new()
     .with_base_url("http://localhost:8000/v1")
     .with_model("my-model")
     .with_transport(my_transport)

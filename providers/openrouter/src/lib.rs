@@ -12,7 +12,7 @@
 //!   round-trip), so response-id reuse is disabled and the full
 //!   conversation is sent each turn.
 //! - **Chat Completions** — opt in with [`OpenRouterBuilder::with_completions`];
-//!   wraps [`chat_completions`] and builds a [`ChatCompletionsClient`].
+//!   wraps [`chat_completions`] and builds a [`CompletionsClient`].
 //!
 //! Both wire clients already implement `CompletionProvider` (and
 //! `StreamProvider` under the `stream` feature), so streaming is free
@@ -38,8 +38,8 @@
 use std::env;
 use std::marker::PhantomData;
 
-use chat_completions::ChatCompletionsBuilder;
-pub use chat_completions::{ChatCompletionsClient, ReqwestTransport};
+use chat_completions::CompletionsBuilder;
+pub use chat_completions::{CompletionsClient, ReqwestTransport};
 use chat_core::transport::Transport;
 use chat_responses::ResponsesBuilder;
 pub use chat_responses::ResponsesClient;
@@ -196,9 +196,9 @@ impl<T: Transport> OpenRouterBuilder<WithModel, Responses, T> {
 
 impl<T: Transport> OpenRouterBuilder<WithModel, Completions, T> {
     /// Build a Chat Completions client.
-    pub fn build(mut self) -> ChatCompletionsClient<T> {
+    pub fn build(mut self) -> CompletionsClient<T> {
         let api_key = self.resolve_api_key();
-        let mut cb = ChatCompletionsBuilder::new()
+        let mut cb = CompletionsBuilder::new()
             .with_base_url(self.base_url)
             .with_model(self.model.expect("model set"))
             .with_api_key(api_key)

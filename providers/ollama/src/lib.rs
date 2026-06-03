@@ -26,7 +26,7 @@
 use std::marker::PhantomData;
 
 use chat_completions::{
-    ChatCompletionsBuilder, ChatCompletionsClient, ChatError, Request, ReqwestTransport, Transport,
+    CompletionsBuilder, CompletionsClient, ChatError, Request, ReqwestTransport, Transport,
     TransportError,
 };
 use serde::Deserialize;
@@ -40,7 +40,7 @@ const OLLAMA_HOST_ENV: &str = "OLLAMA_HOST";
 pub struct WithoutModel;
 pub struct WithModel;
 
-/// Ollama-flavored builder. Wraps [`ChatCompletionsBuilder`] and adds
+/// Ollama-flavored builder. Wraps [`CompletionsBuilder`] and adds
 /// `/api/pull` integration so a model can be fetched at build time.
 pub struct OllamaBuilder<M = WithoutModel, T: Transport = ReqwestTransport> {
     scheme: String,
@@ -160,12 +160,12 @@ impl<T: Transport> OllamaBuilder<WithoutModel, T> {
 
 impl<T: Transport> OllamaBuilder<WithModel, T> {
     /// Build the client without contacting the daemon.
-    pub fn build(self) -> ChatCompletionsClient<T> {
+    pub fn build(self) -> CompletionsClient<T> {
         let transport = self.transport.expect("transport set");
         let model = self.model.expect("model set");
 
         let base_url = format!("{}://{}/v1", self.scheme, self.host);
-        let mut b = ChatCompletionsBuilder::new()
+        let mut b = CompletionsBuilder::new()
             .with_base_url(base_url)
             .with_model(model)
             .with_transport(transport);
