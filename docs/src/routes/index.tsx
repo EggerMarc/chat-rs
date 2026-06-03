@@ -1,26 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { HomeLayout } from "fumadocs-ui/layouts/home";
 import { baseOptions } from "@/lib/layout.shared";
+import { CodeGallery } from "@/components/code-gallery";
 
 export const Route = createFileRoute("/")({
   component: Home,
 });
-
-const SAMPLE = `use chat_rs::{ChatBuilder, openrouter::OpenRouterBuilder, parts, types::messages};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let client = OpenRouterBuilder::new()
-        .with_model("anthropic/claude-sonnet-4")
-        .build();
-
-    let mut chat = ChatBuilder::new().with_model(client).build();
-    let mut msgs = messages::from_user(parts!["Say hello in one sentence."]);
-
-    let res = chat.complete(&mut msgs).await?.expect_complete();
-    println!("{:#?}", res.content);
-    Ok(())
-}`;
 
 const PRIMITIVES = [
   {
@@ -147,16 +132,9 @@ function Home() {
           </div>
         </section>
 
-        {/* Code sample */}
-        <section className="border-t border-fd-border bg-fd-card">
-          <div className="flex items-center gap-2 border-b border-fd-border px-4 py-2.5 sm:px-6">
-            <span className="font-label text-xs uppercase tracking-[0.2em] text-fd-muted-foreground">
-              main.rs
-            </span>
-          </div>
-          <pre className="overflow-x-auto px-4 py-5 text-sm leading-relaxed sm:px-6">
-            <code>{SAMPLE}</code>
-          </pre>
+        {/* Code gallery */}
+        <section className="border-t border-fd-border px-4 py-8 sm:px-6">
+          <CodeGallery />
         </section>
 
         {/* 01 — Primitives */}

@@ -76,6 +76,28 @@ code {
   border-width: 1.5px;
 }
 
+/* Code gallery: a progress fill that sweeps left→right behind the tabs. */
+@keyframes gallery-sweep {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+/* Typewriter cursor for the code gallery. */
+.gallery-cursor {
+  color: var(--color-fd-primary);
+  font-weight: 400;
+  animation: gallery-blink 1s steps(2, start) infinite;
+}
+@keyframes gallery-blink {
+  to {
+    opacity: 0;
+  }
+}
+
 /* Brand mark / wordmark swap: light asset on dark stock, dark on paper. */
 .brand-on-light {
   display: block;
