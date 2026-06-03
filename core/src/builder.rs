@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use tools_rs::ToolCollection;
 
 #[cfg(feature = "stream")]
-use crate::chat::state::{InputStreamed, Streamed};
+use crate::chat::state::InputStreamed;
 use crate::{
     chat::{
         Chat,
@@ -57,31 +57,6 @@ impl<CP: CompletionProvider> ChatBuilder<CP, Unstructured> {
             before_strategy: self.before_strategy,
             after_strategy: self.after_strategy,
             output_shape: Some(shape),
-            scoped_collections: self.scoped_collections,
-            model_options: self.model_options,
-            _output: std::marker::PhantomData,
-        }
-    }
-
-    #[cfg(feature = "stream")]
-    pub fn with_streamed_response(self) -> ChatBuilder<CP, Streamed>
-    where
-        CP: StreamProvider,
-    {
-        if self.output_shape.is_some() {
-            println!(
-                "Warning: Cannot call streamed responses with structured outputs. Output shape will be set to None"
-            );
-        }
-
-        ChatBuilder {
-            model: self.model,
-            max_steps: self.max_steps,
-            max_retries: self.max_retries,
-            retry_strategy: self.retry_strategy,
-            before_strategy: self.before_strategy,
-            after_strategy: self.after_strategy,
-            output_shape: None,
             scoped_collections: self.scoped_collections,
             model_options: self.model_options,
             _output: std::marker::PhantomData,

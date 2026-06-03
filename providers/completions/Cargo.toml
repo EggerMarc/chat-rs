@@ -1,6 +1,6 @@
 [package]
 name = "chat-completions"
-version = "0.2.4"
+version = "0.3.0"
 description = "Generic OpenAI-compatible Chat Completions client for chat-rs. Bring your own server (Ollama, vLLM, llama.cpp, LiteLLM, etc.)."
 edition.workspace = true
 authors.workspace = true

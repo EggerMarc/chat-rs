@@ -1,6 +1,6 @@
 [package]
 name = "chat-huggingface"
-version = "0.2.4"
+version = "0.2.5"
 description = "Hugging Face Inference Providers (Router) for chat-rs."
 edition.workspace = true
 authors.workspace = true
@@ -10,7 +10,7 @@ rust-version.workspace = true
 
 
 [dependencies]
-chat-completions = { path = "../completions", version = "0.2.4" }
+chat-completions = { path = "../completions", version = "0.3.0" }
 
 [dev-dependencies]
 chat-core = { path = "../../core", version = "0.4.0", features = ["reqwest-transport"] }
