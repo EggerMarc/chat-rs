@@ -7,76 +7,75 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const PRIMITIVES = [
+const FEATURES: {
+  label: string;
+  title: string;
+  body: string;
+  tag?: string;
+}[] = [
   {
-    label: "Messages",
-    body: "The unit of exchange. Roles, turns, and ordering, consistent across every provider.",
-  },
-  {
-    label: "Content",
-    body: "Text, images, audio, video, documents, and structured data — text is never privileged.",
-  },
-  {
-    label: "Tools",
-    body: "Definitions, invocations, and results. The mechanism, not the policy.",
-  },
-  {
-    label: "Streams",
-    body: "Interaction as an event stream — produced and consumed incrementally.",
-  },
-  {
-    label: "Events",
-    body: "One StreamEvent surface for text, reasoning, tool calls, and structured output.",
-  },
-  {
-    label: "Embeddings",
-    body: "Vector representations exposed as a first-class capability of a provider.",
-  },
-];
-
-const MODEL = [
-  {
-    label: "Streaming",
-    title: "Streaming is the core interaction model",
-    body: "Not an optional feature. A model may emit text, reasoning, tool calls, structured outputs, or multimodal content; applications may supply information incrementally rather than as a single request. The same model serves conversational, voice, robotic, and realtime systems without new abstractions.",
+    label: "Providers",
+    title: "One API, every provider",
+    body: "OpenAI, Claude, Gemini, Ollama, DeepSeek, OpenRouter and more. Change one builder and your call sites never move.",
   },
   {
     label: "Multimodal",
-    title: "No privileged data type",
-    body: "Messages carry multiple forms of content. Provider-specific representations are translated into a common internal one, so applications reason about content consistently — without provider formats leaking into your code.",
+    title: "Every modality is a Part",
+    body: "Text, images, audio, video, and documents mix in a single message, with no per-type plumbing.",
+  },
+  {
+    label: "Images",
+    title: "Generate images, too",
+    tag: "Beta",
+    body: "Ask a capable model for pictures, not just words. The same call returns image parts alongside text.",
+  },
+  {
+    label: "Duplex",
+    title: "Talk back mid-stream",
+    body: "Push new input while the model is still responding. It merges into context and the model carries on. True full duplex.",
   },
   {
     label: "Tools",
-    title: "Tool execution is model interaction",
-    body: "A model may request information or actions; the application decides which tools exist and how they run. The runtime represents definitions, invocations, and results — it does not define planners, retries, or approval systems.",
+    title: "Tools your model can call",
+    body: "Annotate an async fn with #[tool]. The loop runs it, returns the result, and can pause for a human to approve.",
   },
   {
-    label: "Providers",
-    title: "Capabilities, not vendors",
-    body: "Reason about streaming, embeddings, structured outputs, multimodal inputs, and tool calling without coupling to a specific vendor. Integrations preserve a stable programming model as providers evolve.",
+    label: "Structured",
+    title: "Typed output, every time",
+    body: "Constrain any model to a Rust type and get it back deserialized. No parsing, no guesswork, no surprises at runtime.",
+  },
+  {
+    label: "Type-state",
+    title: "The compiler checks your wiring",
+    body: "Missing configuration is a compile error, not a 2am panic. Structured chats return your type; streamed chats stream.",
+  },
+  {
+    label: "Responses",
+    title: "One response shape, always",
+    body: "complete, resume, and stream return the same content and metadata, so you can switch modes without a rewrite.",
+  },
+  {
+    label: "Routing",
+    title: "Route and recover",
+    body: "Send each request to the right model by cost or capability, with automatic fallback when a provider is down.",
   },
 ];
 
-const IS = [
-  "model interaction",
-  "content representation",
-  "streaming",
-  "events",
-  "tool invocation",
-  "embeddings",
-  "provider integration",
-  "capability abstraction",
+const IN_BOX = [
+  "Messages & multimodal content",
+  "Streaming & duplex input",
+  "Tools & human-in-the-loop",
+  "Structured output & embeddings",
+  "Provider routing & fallback",
+  "Pluggable HTTP / WebSocket transport",
 ];
 
-const IS_NOT = [
-  "agent frameworks",
-  "workflow engines",
-  "DAG execution",
-  "planning systems",
-  "memory architectures",
-  "vector storage",
-  "business logic",
-  "application state",
+const BRING_YOUR_OWN = [
+  "Agents & planners",
+  "Workflows & DAGs",
+  "Memory & vector stores",
+  "Business logic",
+  "Application state",
 ];
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -89,7 +88,7 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 
 function SectionBar({ index, title }: { index: string; title: string }) {
   return (
-    <div className="border-b border-fd-border px-4 py-3 sm:px-6">
+    <div className="border-b border-fd-border px-4 py-4 sm:px-6 sm:py-5">
       <h2 className="font-label flex items-baseline gap-3 text-lg sm:text-2xl">
         <span className="text-fd-primary">{index}</span>
         <span className="tracking-tight text-fd-foreground">{title}</span>
@@ -103,17 +102,17 @@ function Home() {
     <HomeLayout {...baseOptions()}>
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col border-x border-fd-border">
         {/* Hero */}
-        <section className="flex flex-col gap-6 px-4 py-20 sm:px-6 sm:py-28">
+        <section className="flex flex-col gap-7 px-4 py-24 sm:px-6 sm:py-36">
           <Eyebrow>A Creology runtime · Rust</Eyebrow>
           <h1 className="max-w-3xl text-balance text-3xl font-medium leading-[1.1] tracking-tight sm:text-5xl">
-            A runtime for model interaction.
+            One Rust API for every model.
           </h1>
-          <p className="max-w-2xl text-base leading-relaxed text-fd-muted-foreground">
-            <span className="text-fd-foreground">chat-rs</span> provides one
-            consistent set of abstractions for working with language models and
-            other intelligent systems — regardless of provider, modality, or
-            deployment target. It is the interaction layer, and nothing above
-            it.
+          <p className="max-w-2xl text-balance text-base leading-relaxed text-fd-muted-foreground">
+            <span className="text-fd-foreground">chat-rs</span> is the
+            interaction layer between your app and any language model. Streaming,
+            multimodal content, tools, structured output, and multi-provider
+            routing, behind one type-safe API across OpenAI, Claude, Gemini,
+            Ollama, and more.
           </p>
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <Link
@@ -129,112 +128,101 @@ function Home() {
             >
               View on GitHub
             </a>
+            <span className="inline-flex items-center gap-2.5 border border-fd-border bg-fd-card px-4 py-2.5">
+              <span className="font-label text-xs text-fd-primary">$</span>
+              <code className="text-sm">cargo add chat-rs</code>
+            </span>
           </div>
         </section>
 
         {/* Code gallery */}
-        <section className="border-t border-fd-border px-4 py-8 sm:px-6">
+        <section className="border-t border-fd-border px-4 py-12 sm:px-6 sm:py-16">
           <CodeGallery />
         </section>
 
-        {/* 01 — Primitives */}
+        {/* 01 - Features */}
         <section className="border-t border-fd-border">
-          <SectionBar index="01" title="The primitives" />
-          <p className="max-w-2xl px-4 pt-6 text-sm leading-relaxed text-fd-muted-foreground sm:px-6">
-            Model interaction is a more stable abstraction than most
-            application-level AI concepts. chat-rs focuses on the lower-level
-            concepts that appear regardless of orchestration strategy, and makes
-            them available in a consistent, composable way.
+          <SectionBar index="01" title="Everything you need to talk to models" />
+          <p className="max-w-2xl px-4 pt-8 text-sm leading-relaxed text-fd-muted-foreground sm:px-6">
+            From a one-line completion to streaming, tools, and typed output,
+            chat-rs hands you the whole interaction surface and keeps it
+            identical across every provider you reach for.
           </p>
-          <div className="mt-6 grid grid-cols-1 gap-px border-t border-fd-border bg-fd-border sm:grid-cols-2 lg:grid-cols-3">
-            {PRIMITIVES.map((p, i) => (
-              <div key={p.label} className="bg-fd-background p-5 sm:p-6">
-                <div className="mb-3 flex items-baseline gap-2">
+          <div className="mt-8 grid grid-cols-1 gap-px border-t border-fd-border bg-fd-border sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((f, i) => (
+              <div key={f.label} className="bg-fd-background p-6 sm:p-8">
+                <div className="mb-4 flex items-center gap-2">
                   <span className="font-label text-xs text-fd-primary">
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="font-label text-xs uppercase tracking-[0.2em] text-fd-muted-foreground">
-                    {p.label}
-                  </h3>
-                </div>
-                <p className="text-sm leading-relaxed text-fd-foreground">
-                  {p.body}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* 02 — Interaction model */}
-        <section className="border-t border-fd-border">
-          <SectionBar index="02" title="The interaction model" />
-          <div className="grid grid-cols-1 gap-px bg-fd-border lg:grid-cols-2">
-            {MODEL.map((m, i) => (
-              <div key={m.label} className="bg-fd-background p-5 sm:p-8">
-                <div className="mb-4 flex items-baseline gap-2">
-                  <span className="font-label text-xs text-fd-primary">
-                    {String(i + 1).padStart(2, "0")}
+                  <span className="font-label text-xs uppercase tracking-[0.2em] text-fd-muted-foreground">
+                    {f.label}
                   </span>
-                  <Eyebrow>{m.label}</Eyebrow>
+                  {f.tag && (
+                    <span className="font-label ml-auto border border-fd-primary px-1.5 py-0.5 text-[10px] uppercase tracking-[0.15em] text-fd-primary">
+                      {f.tag}
+                    </span>
+                  )}
                 </div>
                 <h3 className="mb-2 text-base font-semibold tracking-tight">
-                  {m.title}
+                  {f.title}
                 </h3>
-                <p className="max-w-md text-sm leading-relaxed text-fd-muted-foreground">
-                  {m.body}
+                <p className="text-sm leading-relaxed text-fd-muted-foreground">
+                  {f.body}
                 </p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* 03 — Scope */}
+        {/* 02 - Small on purpose */}
         <section className="border-t border-fd-border">
-          <SectionBar index="03" title="Scope" />
-          <div className="grid grid-cols-1 gap-px bg-fd-border md:grid-cols-2">
-            <div className="bg-fd-background p-5 sm:p-8">
-              <Eyebrow>Responsible for</Eyebrow>
-              <ul className="mt-5 space-y-2.5">
-                {IS.map((item, i) => (
+          <SectionBar index="02" title="Small on purpose" />
+          <p className="max-w-2xl px-4 pt-8 text-sm leading-relaxed text-fd-muted-foreground sm:px-6">
+            chat-rs is the runtime, not the framework. You get a rock-solid
+            interaction layer; agents, workflows, and memory stay yours to build
+            on top, however you like, with whatever architecture fits.
+          </p>
+          <div className="mt-8 grid grid-cols-1 gap-px border-t border-fd-border bg-fd-border md:grid-cols-2">
+            <div className="bg-fd-background p-6 sm:p-10">
+              <Eyebrow>In the box</Eyebrow>
+              <ul className="mt-6 space-y-3">
+                {IN_BOX.map((item) => (
                   <li key={item} className="flex items-baseline gap-3 text-sm">
-                    <span className="font-label text-xs text-fd-primary">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
+                    <span className="font-label text-xs text-fd-primary">+</span>
                     <span className="text-fd-foreground">{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="bg-fd-background p-5 sm:p-8">
-              <Eyebrow>Not responsible for</Eyebrow>
-              <ul className="mt-5 space-y-2.5">
-                {IS_NOT.map((item, i) => (
+            <div className="bg-fd-background p-6 sm:p-10">
+              <Eyebrow>Bring your own</Eyebrow>
+              <ul className="mt-6 space-y-3">
+                {BRING_YOUR_OWN.map((item) => (
                   <li key={item} className="flex items-baseline gap-3 text-sm">
                     <span className="font-label text-xs text-fd-muted-foreground">
-                      {String(i + 1).padStart(2, "0")}
+                      ·
                     </span>
-                    <span className="text-fd-muted-foreground line-through decoration-fd-border">
-                      {item}
-                    </span>
+                    <span className="text-fd-muted-foreground">{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
           </div>
-          <p className="max-w-2xl px-4 py-6 text-sm leading-relaxed text-fd-muted-foreground sm:px-6">
-            These systems can be built using chat-rs, but they do not belong to
-            the runtime itself. The preferred approach is to strengthen existing
-            primitives rather than introduce new layers of orchestration.
-          </p>
         </section>
 
         {/* CTA */}
-        <section className="border-t border-fd-border px-4 py-16 sm:px-6">
+        <section className="border-t border-fd-border px-4 py-20 sm:px-6 sm:py-28">
           <Eyebrow>Start here</Eyebrow>
-          <h2 className="mt-4 max-w-2xl text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-            A stable programming model as providers evolve.
+          <h2 className="mt-5 max-w-2xl text-balance text-2xl font-medium tracking-tight sm:text-3xl">
+            Ship your first completion in five minutes.
           </h2>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <p className="mt-5 max-w-xl text-sm leading-relaxed text-fd-muted-foreground">
+            Add the crate, pick a provider, and call <code>complete</code>. Swap
+            in streaming, tools, or routing whenever you're ready. The API stays
+            the same.
+          </p>
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link
               to="/docs/$"
               params={{ _splat: "getting-started" }}
@@ -252,7 +240,7 @@ function Home() {
         </section>
 
         {/* Colophon */}
-        <footer className="flex flex-col gap-4 border-t border-fd-border px-4 py-10 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <footer className="flex flex-col gap-4 border-t border-fd-border px-4 py-12 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-16">
           <span className="font-label text-xs uppercase tracking-[0.2em] text-fd-muted-foreground">
             Open source · MIT
           </span>
