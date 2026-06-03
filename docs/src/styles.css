@@ -180,17 +180,3 @@ code {
     opacity: 0;
   }
 }
-
-/* Brand mark / wordmark swap: light asset on dark stock, dark on paper. */
-.brand-on-light {
-  display: block;
-}
-.brand-on-dark {
-  display: none;
-}
-.dark .brand-on-light {
-  display: none;
-}
-.dark .brand-on-dark {
-  display: block;
-}

@@ -420,21 +420,9 @@ function Home() {
           </span>
           <a
             href="https://creology.co"
-            className="inline-flex items-center gap-2 text-muted-foreground transition-opacity hover:opacity-80"
+            className="text-xs text-muted-foreground/70 transition-colors hover:text-muted-foreground"
           >
-            <span className="font-label text-xs uppercase tracking-[0.2em]">
-              Built by
-            </span>
-            <img
-              src="/logo-light.webp"
-              alt="Creology"
-              className="brand-on-dark h-6 w-auto"
-            />
-            <img
-              src="/logo-dark.webp"
-              alt="Creology"
-              className="brand-on-light h-6 w-auto"
-            />
+            Built by Creology
           </a>
         </footer>
       </main>
