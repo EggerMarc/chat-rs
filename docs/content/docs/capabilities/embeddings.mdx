@@ -1,0 +1,83 @@
+---
+title: Embeddings
+description: Turn text into vectors with the same chat builder you already use, via with_embeddings and chat.embed.
+---
+
+Embeddings turn text into a vector of floats you can use for search, clustering, or similarity. chat-rs exposes this through the same builder you use for chat, so you do not need a separate client. Opt in with `.with_embeddings()` and call `chat.embed(&mut messages)`.
+
+This works with any provider that implements `EmbeddingsProvider`. Today that includes Gemini, OpenAI, Ollama, and mistral.rs.
+
+## A local Ollama example
+
+`.with_embeddings()` switches the builder into an embedding chat. `embed` returns an `EmbeddingsResponse`, which carries `metadata` and an `embeddings` value.
+
+```rust title="embeddings.rs"
+use chat_rs::{
+    ChatBuilder,
+    ollama::OllamaBuilder,
+    parts,
+    types::messages::{self, content},
+};
+
+let client = OllamaBuilder::new().with_model("nomic-embed-text").build();
+
+let mut chat = ChatBuilder::new()
+    .with_model(client)
+    .with_embeddings()
+    .build();
+
+let mut messages = messages::Messages::default();
+messages.push(content::from_user(parts!["The quick brown fox."]));
+
+let response = chat.embed(&mut messages).await.map_err(|err| err.err)?;
+println!("Dimensions:\t{}", response.embeddings.dimension);
+println!("Embedding[..5]:\t{:?}", &response.embeddings.content[..5]);
+println!("Metadata:\t{:?}", response.metadata);
+```
+
+## The response shape
+
+```rust
+pub struct EmbeddingsResponse {
+    pub metadata: Option<Metadata>,
+    pub embeddings: Embeddings,
+}
+
+pub struct Embeddings {
+    pub content: Vec<f32>,
+    pub dimension: usize,
+}
+```
+
+`content` is the vector itself, and `dimension` tells you how long it is. From here you can store it, compare it, or feed it into a vector index.
+
+## Choosing dimensions with Gemini
+
+Some providers let you ask for a specific vector size. With Gemini you set that on the provider builder via `.with_embeddings(Some(dimensions))`, then opt the chat in as usual.
+
+```rust
+use chat_rs::{
+    ChatBuilder,
+    gemini::GeminiBuilder,
+    parts,
+    types::messages::{self, content},
+};
+
+let client = GeminiBuilder::new()
+    .with_model("gemini-embedding-001")
+    .with_embeddings(Some(126))
+    .build();
+
+let mut chat = ChatBuilder::new()
+    .with_model(client)
+    .with_embeddings()
+    .build();
+
+let mut messages = messages::Messages::default();
+messages.push(content::from_user(parts!["A sentence to embed."]));
+
+let response = chat.embed(&mut messages).await.map_err(|err| err.err)?;
+println!("Model:\t{:?}", response.embeddings);
+```
+
+The pattern is the same across providers: pick an embedding-capable model, opt in with `.with_embeddings()`, and call `embed`.

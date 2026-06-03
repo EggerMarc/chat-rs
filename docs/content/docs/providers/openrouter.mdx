@@ -1,0 +1,67 @@
+---
+title: OpenRouter
+description: Reach hundreds of models from many vendors through a single OpenRouter gateway.
+---
+
+OpenRouter is a unified gateway in front of hundreds of models; the model slug
+selects which one, and it is vendor-prefixed (e.g. `anthropic/claude-sonnet-4`,
+`openai/gpt-4o`). It exposes two OpenAI-compatible wires. By default
+`chat-openrouter` builds on the [Responses](/docs/providers/responses) wire; you
+can opt into [Completions](/docs/providers/completions) with `.with_completions()`.
+
+## Install
+
+```toml title="Cargo.toml"
+chat-rs = { version = "0.5.1", features = ["openrouter"] }
+```
+
+`OpenRouterBuilder::new()` reads `OPENROUTER_API_KEY` at build time and defaults
+to the base URL `https://openrouter.ai/api/v1`.
+
+## Minimal usage
+
+```rust
+use chat_rs::{ChatBuilder, ChatOutcome, openrouter::OpenRouterBuilder, parts, types::messages};
+
+// OPENROUTER_API_KEY is read automatically. Default wire: Responses.
+let client = OpenRouterBuilder::new()
+    .with_model("anthropic/claude-sonnet-4")
+    .build();
+let mut chat = ChatBuilder::new().with_model(client).build();
+
+let mut messages = messages::from_user(parts!["Say hello in one sentence."]);
+if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
+    println!("{:#?}", res.content);
+}
+```
+
+## Picking a wire
+
+The default Responses wire is stateless here, so the full conversation is sent
+each turn. To target Chat Completions instead, add `.with_completions()` before
+`.build()`:
+
+```rust
+use chat_rs::openrouter::OpenRouterBuilder;
+
+let client = OpenRouterBuilder::new()
+    .with_completions()
+    .with_model("openai/gpt-4o")
+    .build();
+```
+
+## Configuration
+
+`with_model(impl Into<String>)` takes a vendor-prefixed slug. A few more helpers:
+
+- `with_api_key(impl Into<String>)` overrides the env var when you want to pass
+  the key explicitly.
+- `with_base_url(impl Into<String>)` points at a different host.
+- `with_reasoning_effort(impl Into<String>)` sets `"low"`, `"medium"`, or
+  `"high"` for reasoning-capable models. This is Responses-wire only; the
+  Completions wire does not carry the field.
+
+## Capabilities
+
+OpenRouter supports completion, streaming, structured output, and tools.
+Streaming needs the `stream` feature and runs as SSE over HTTP on either wire.

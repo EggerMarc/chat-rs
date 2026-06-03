@@ -1,0 +1,85 @@
+---
+title: Native tools
+description: Use provider-built tools like code execution and search alongside your own functions.
+---
+
+Some tools are built into the provider itself: Gemini can run code or query
+Google Search, OpenAI can search the web or generate images. You do not write or
+host these. You turn them on, and the model uses them as part of its turn.
+
+Native tools and your own `#[tool]` functions coexist. Native ones are
+configured on the provider builder, your custom ones are registered on the chat
+builder with `.with_tools(...)`. The model can reach for either.
+
+## Gemini
+
+Call the `with_*` methods on `GeminiBuilder` before `build`:
+
+```rust
+use chat_rs::gemini::GeminiBuilder;
+
+let client = GeminiBuilder::new()
+    .with_model("gemini-2.5-flash")
+    .with_code_execution()
+    .build();
+```
+
+`with_google_maps` takes an optional `(lat, lng)` to anchor results and a bool
+for whether to enable the maps widget. You can stack native tools together:
+
+```rust
+let client = GeminiBuilder::new()
+    .with_model("gemini-2.5-flash")
+    .with_google_maps(Some((34.05048, -118.24853)), false)
+    .with_google_search()
+    .build();
+```
+
+## OpenAI
+
+OpenAI exposes its native tools the same way, on `OpenAIBuilder`. Both
+`with_web_search` and `with_image_generation` take their respective config:
+
+```rust
+use chat_rs::openai::OpenAIBuilder;
+
+let client = OpenAIBuilder::new()
+    .with_model("gpt-4o")
+    .with_web_search(None, None)
+    .build();
+```
+
+`with_web_search` accepts an optional context size and an optional user
+location; passing `None` for both uses the provider defaults.
+`with_image_generation` takes an `ImageGenerationTool` describing the image
+output you want.
+
+## Mixing native and custom tools
+
+Configure native tools on the provider, then attach your own collection to the
+chat builder. Nothing special is needed for them to live together.
+
+```rust
+use chat_rs::{ChatBuilder, ChatOutcome, gemini::GeminiBuilder, parts, types::messages::content};
+use tools_rs::collect_tools;
+
+let client = GeminiBuilder::new()
+    .with_model("gemini-2.5-flash")
+    .with_code_execution()
+    .build();
+
+let mut chat = ChatBuilder::new()
+    .with_model(client)
+    .with_tools(collect_tools())
+    .with_max_steps(5)
+    .build();
+
+let mut messages = content::from_user(parts!["Plot the primes under 50, then save them."]);
+
+if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
+    println!("{:?}", res.content.parts.last());
+}
+```
+
+The model can run code through the native tool and call your saved-data tool in
+the same turn, and chat-rs runs the loop across both.

@@ -1,0 +1,84 @@
+---
+title: Human in the loop
+description: Pause the chat loop so a person can approve, reject, or edit a tool call before it runs.
+---
+
+Some tool calls should not run on their own. Deleting files, sending email, or
+moving money is the kind of thing you may want a person to sign off on first.
+chat-rs supports this by letting a tool's strategy return `Action::RequireApproval`,
+which pauses the loop instead of executing the call.
+
+When that happens, `complete` returns `ChatOutcome::Paused { reason }` rather
+than `Complete`. You resolve the pending tools, then call `resume` to pick the
+same turn back up.
+
+## How a pause is reported
+
+`PauseReason` tells you which tools need attention:
+
+```rust
+pub enum PauseReason {
+    AwaitingApproval { tool_ids: Vec<CallId> },
+    Scheduled { tool_ids: Vec<CallId>, earliest: std::time::SystemTime },
+    Mixed { approvals: Vec<CallId>, scheduled: Vec<(CallId, SystemTime)> },
+}
+```
+
+For human approval you care about `AwaitingApproval`. Each id points at a tool
+sitting in the `Messages` you passed in, waiting for a decision.
+
+## Resolve a pending tool
+
+Look the tool up with `Messages::find_tool_mut`, then call either `approve` or
+`reject` on it. `approve(None)` runs the call as the model asked; pass
+`Some(call)` to run an edited version instead. `reject(Some(reason))` declines it
+and lets the model see why.
+
+```rust
+fn resolve_pending(reason: &PauseReason, messages: &mut Messages) {
+    if let PauseReason::AwaitingApproval { tool_ids } = reason {
+        for id in tool_ids {
+            let Some(tool) = messages.find_tool_mut(id) else { continue };
+            match ask_user(&tool.call.name, &tool.call.arguments) {
+                Decision::Approve => tool.approve(None),
+                Decision::Reject(why) => tool.reject(Some(why)),
+            }
+        }
+    }
+}
+```
+
+## The complete then resume loop
+
+Run `complete`. If it comes back `Paused`, resolve the listed tools and call
+`resume` with the same `Messages`. Keep going until you get `Complete`, since one
+turn can pause more than once.
+
+```rust
+use chat_rs::{ChatOutcome, Messages, PauseReason};
+
+let mut messages = Messages::default();
+messages.push(content::from_user(parts!["Delete the old logs."]));
+
+loop {
+    match chat.complete(&mut messages).await.map_err(|e| e.err)? {
+        ChatOutcome::Complete(res) => {
+            println!("{:?}", res.content.parts.last());
+            break;
+        }
+        ChatOutcome::Paused { reason } => {
+            resolve_pending(&reason, &mut messages);
+            if let ChatOutcome::Complete(res) =
+                chat.resume(&mut messages).await.map_err(|e| e.err)?
+            {
+                println!("{:?}", res.content.parts.last());
+                break;
+            }
+        }
+    }
+}
+```
+
+The decision about which tools require approval lives in the tool's strategy.
+See [Tools with context](/docs/tools/context) for how metadata on each tool
+feeds that strategy.

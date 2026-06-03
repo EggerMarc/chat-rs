@@ -1,0 +1,49 @@
+---
+title: DeepSeek
+description: Chat with DeepSeek's hosted models over their OpenAI-compatible API.
+---
+
+DeepSeek serves an OpenAI-compatible `/v1/chat/completions` endpoint, so
+`chat-deepseek` is a thin layer over [Completions](/docs/providers/completions)
+that presets the base URL and reads the `DEEPSEEK_API_KEY` env var for you.
+
+## Install
+
+```toml title="Cargo.toml"
+chat-rs = { version = "0.5.1", features = ["deepseek"] }
+```
+
+`DeepSeekBuilder::new()` reads `DEEPSEEK_API_KEY` at build time and defaults to
+the base URL `https://api.deepseek.com/v1`.
+
+## Minimal usage
+
+```rust
+use chat_rs::{ChatBuilder, ChatOutcome, deepseek::DeepSeekBuilder, parts, types::messages};
+
+// DEEPSEEK_API_KEY is read automatically.
+let client = DeepSeekBuilder::new().with_model("deepseek-v4-pro").build();
+let mut chat = ChatBuilder::new().with_model(client).build();
+
+let mut messages = messages::from_user(parts!["Say hello in one sentence."]);
+if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
+    println!("{:#?}", res.content);
+}
+```
+
+## Configuration
+
+`with_model(impl Into<String>)` selects the model. A few more helpers:
+
+- `with_api_key(impl Into<String>)` overrides the env var when you want to pass
+  the key explicitly.
+- `with_base_url(impl Into<String>)` points at a different host, handy for a
+  staging environment or a compatible proxy.
+- `with_header(key, value)` adds a custom header to every request.
+
+## Capabilities
+
+Riding on the Completions wire, DeepSeek supports completion, streaming, and
+tools. Streaming needs the `stream` feature. The hosted API returns standard
+OpenAI-shape `tool_calls`, so tool use works the same as any other Completions
+provider.

@@ -55,8 +55,91 @@
   --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
 }
 
+/*
+ * shadcn / Base UI design tokens, mapped onto the same warm Creology palette
+ * as the fumadocs (--color-fd-*) tokens above. These drive the shadcn
+ * components (Button, Card, Badge, Tabs, ...). --radius is 0 — square corners.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+}
+
+:root {
+  --radius: 0px;
+  --background: oklch(0.95 0.006 75);
+  --foreground: oklch(0.25 0.008 75);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.25 0.008 75);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.25 0.008 75);
+  --primary: oklch(0.646 0.222 41.116);
+  --primary-foreground: oklch(0.98 0.016 73.684);
+  --secondary: oklch(0.955 0.01 75);
+  --secondary-foreground: oklch(0.25 0.02 50);
+  --muted: oklch(0.92 0.008 75);
+  --muted-foreground: oklch(0.48 0.02 50);
+  --accent: oklch(0.646 0.222 41.116);
+  --accent-foreground: oklch(0.98 0.016 73.684);
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.84 0.012 75);
+  --input: oklch(0.84 0.012 75);
+  --ring: oklch(0.646 0.222 41.116);
+}
+
+.dark {
+  --background: oklch(0.25 0.008 75);
+  --foreground: oklch(0.95 0.006 75);
+  --card: oklch(0.22 0.005 75);
+  --card-foreground: oklch(0.95 0.006 75);
+  --popover: oklch(0.22 0.005 75);
+  --popover-foreground: oklch(0.95 0.006 75);
+  --primary: oklch(0.705 0.213 47.604);
+  --primary-foreground: oklch(0.98 0.016 73.684);
+  --secondary: oklch(0.27 0.01 75);
+  --secondary-foreground: oklch(0.95 0.006 75);
+  --muted: oklch(0.27 0.01 75);
+  --muted-foreground: oklch(0.7 0.015 75);
+  --accent: oklch(0.705 0.213 47.604);
+  --accent-foreground: oklch(0.98 0.016 73.684);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 16%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.705 0.213 47.604);
+}
+
 body {
   font-family: var(--font-sans);
+}
+
+/*
+ * Square corners everywhere. The brand has no rounded corners, but Fumadocs
+ * ships rounded-* utilities baked into its components, so we flatten globally.
+ */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
 }
 
 /* Orbit — the "engineering drawing" voice for indices, eyebrows, tags. */

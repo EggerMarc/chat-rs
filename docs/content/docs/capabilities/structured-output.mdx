@@ -1,0 +1,64 @@
+---
+title: Structured output
+description: Ask the model to fill in a typed Rust struct and get it back deserialized, not as raw text.
+---
+
+Sometimes you do not want prose, you want data. Structured output lets you describe a Rust type and have the model return a value that fits it. chat-rs sends the type's JSON schema to the provider and deserializes the reply back into your struct, so you work with typed fields instead of parsing strings.
+
+## Describe the shape
+
+Your type needs to derive `schemars::JsonSchema` (so chat-rs can send the schema) and `serde::Deserialize` (so it can read the reply back).
+
+```rust
+use schemars::JsonSchema;
+use serde::Deserialize;
+
+#[derive(JsonSchema, Deserialize, Clone, Debug)]
+struct User {
+    pub name: String,
+    pub likes: Vec<String>,
+}
+```
+
+## Opt in with the type
+
+Call `.with_structured_output::<T>()` on the builder. This changes the result type: instead of a `ChatResponse`, `complete` now yields a `StructuredResponse<T>` whose `.content` field is your `T`. So `res.content.name` reads the field directly.
+
+```rust
+use chat_rs::{
+    ChatBuilder,
+    ChatOutcome,
+    ollama::OllamaBuilder,
+    parts,
+    types::messages::{self, content},
+};
+
+let client = OllamaBuilder::new().with_model("llama3.2").build();
+
+let mut chat = ChatBuilder::new()
+    .with_structured_output::<User>()
+    .with_model(client)
+    .build();
+
+let mut messages = messages::Messages::default();
+messages.push(content::from_system(parts![
+    "Extract structured data about the user. Reply ONLY with JSON.",
+]));
+messages.push(content::from_user(parts![
+    "Hi, I'm Ada and I love trains and tea.",
+]));
+```
+
+## Read the typed fields back
+
+Use the `ChatOutcome::Complete` pattern. Inside the branch, `res.content` is a `User`, so its fields are right there.
+
+```rust
+if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
+    println!("User {} likes {:?}", res.content.name, res.content.likes);
+}
+```
+
+That is the whole flow. The struct you declared is the contract: the schema goes out, a matching value comes back, and you never touch the raw JSON unless you want to.
+
+Structured output composes with the rest of chat-rs too. You can combine `.with_structured_output::<T>()` with tools, so the model can call functions during the turn and still hand you a typed result at the end.

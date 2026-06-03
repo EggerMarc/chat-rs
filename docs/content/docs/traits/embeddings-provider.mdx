@@ -1,0 +1,54 @@
+---
+title: EmbeddingsProvider
+description: The trait that lets a provider turn messages into vector embeddings.
+---
+
+`EmbeddingsProvider` is the capability trait for vector embeddings. Implement it
+and your provider can power the embeddings builder state.
+
+## The trait
+
+```rust
+#[async_trait]
+pub trait EmbeddingsProvider: Send + Sync {
+    async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure>;
+}
+```
+
+`embed` takes the messages to encode and returns an `EmbeddingsResponse`. Note
+it borrows `&self`, not `&mut self`: embedding does not mutate provider state the
+way a completion step can.
+
+## A minimal implementation
+
+```rust
+use async_trait::async_trait;
+
+struct MyEmbedder;
+
+#[async_trait]
+impl EmbeddingsProvider for MyEmbedder {
+    async fn embed(&self, messages: &mut Messages) -> Result<EmbeddingsResponse, ChatFailure> {
+        todo!()
+    }
+}
+```
+
+## Reaching it from the builder
+
+Embeddings are a builder state. Call `.with_embeddings()` to move into the
+`Embedded` state, then `.embed(...)` on the resulting `Chat`:
+
+```rust
+let chat = ChatBuilder::new()
+    .with_model(MyEmbedder)
+    .with_embeddings()
+    .build();
+
+let response = chat.embed(&mut messages).await?;
+```
+
+The `Embedded` state only exposes `embed`, so the type system keeps embedding
+and completion flows from getting tangled. For the full walkthrough, including
+what `EmbeddingsResponse` carries, see
+[Capabilities: Embeddings](/docs/capabilities/embeddings).

@@ -1,43 +1,45 @@
 ---
 title: Introduction
-description: A unified, type-safe Rust framework for Large Language Models.
+description: A unified, type-safe Rust runtime for model interaction.
 ---
 
-**chat-rs** lets you build LLM clients with ease and attach them to your tools.
-It provides one unified, type-safe API across many providers — Google Gemini,
-Anthropic Claude, OpenAI, OpenRouter, and the whole OpenAI-compatible ecosystem
-— with compile-time-safe builders, automatic retry loops, streaming, and native
-tool execution.
+**chat-rs** is a runtime for model interaction. It gives you one consistent,
+type-safe API across every major provider, with streaming, multimodal content,
+tools, structured output, embeddings, and multi-provider routing.
 
 ## Why chat-rs
 
-- **One API, many providers.** Swap providers without rewriting your call sites.
-  Every provider implements the same `CompletionProvider` / `StreamProvider`
-  traits.
+- **One API, every provider.** Swap providers without rewriting your call
+  sites. Every provider implements the same `CompletionProvider` /
+  `StreamProvider` traits.
 - **Type-state builders.** Misconfiguration is a compile error, not a runtime
-  surprise — required fields like the model are enforced by the type system.
-- **Streaming first.** Token-by-token output (SSE and, where supported,
-  WebSocket) behind a single `StreamEvent` enum.
-- **Tools & HITL.** Native tool calling and human-in-the-loop pause/resume
-  flows.
-- **Pluggable transport.** Bring your own HTTP/WS transport, or use the built-in
-  `reqwest` / `tungstenite` implementations.
+  surprise. Required configuration like the model is enforced by the type
+  system.
+- **Streaming first.** Token-by-token output behind a single `StreamEvent`
+  enum, plus full-duplex input streaming.
+- **Tools and human-in-the-loop.** Native tool calling with pause and resume
+  for approvals.
+- **Bring your own provider.** Implement one trait and any backend plugs into
+  the same reason-and-act loop.
 
-## Architecture at a glance
+## How it fits together
 
-`chat-core` defines the shared types and traits. Wire crates implement the
-on-the-wire protocols:
+`chat-core` defines the shared types and traits. Two wire crates implement the
+on-the-wire protocols, and provider crates are thin wrappers on top of them:
 
-- `chat-completions` — the OpenAI Chat Completions wire.
-- `chat-responses` — the OpenAI Responses API wire.
+- `chat-completions` is the OpenAI Chat Completions wire.
+- `chat-responses` is the OpenAI Responses API wire.
+- `chat-router` composes several providers behind one, with fallback.
 
-Provider crates are thin wrappers that preset URLs, auth, and provider-specific
-niceties on top of a wire crate. For example, `chat-openai` and
-`chat-openrouter` wrap `chat-responses`; `chat-deepseek` and `chat-cerebras`
-wrap `chat-completions`.
+For example, `chat-openai` and `chat-openrouter` build on `chat-responses`;
+`chat-ollama`, `chat-deepseek`, `chat-cerebras`, and `chat-huggingface` build on
+`chat-completions`.
 
 <Cards>
   <Card title="Getting started" href="/docs/getting-started" />
+  <Card title="Capabilities" href="/docs/capabilities" />
+  <Card title="Traits" href="/docs/traits" />
+  <Card title="Tools" href="/docs/tools" />
+  <Card title="Middleware" href="/docs/middleware" />
   <Card title="Providers" href="/docs/providers" />
-  <Card title="OpenRouter" href="/docs/openrouter" />
 </Cards>

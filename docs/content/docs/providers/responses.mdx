@@ -1,0 +1,156 @@
+---
+title: Responses
+description: A wire crate for the OpenAI Responses API that powers chat-openai and, by default, chat-openrouter, with input streaming and server-side context.
+---
+
+`chat-responses` is the wire crate for the OpenAI Responses API: it owns the
+`POST /responses` request types and the SSE event stream
+(`response.created`, `response.output_text.delta`, and friends). It is the
+symmetric counterpart to `chat-completions`, and it is what `chat-openai` and
+(by default) `chat-openrouter` build on. If you want OpenAI defaults, native
+tools, and embeddings, reach for `chat-openai`. If you control the endpoint or
+are wrapping a Responses-API server that is not OpenAI, you can use this crate
+directly.
+
+## How it differs from Completions
+
+The Responses API adds a few things on top of the classic chat completions
+shape, and this crate surfaces all of them:
+
+- **Input streaming.** You can push new input into a response while the model
+  is still producing output. This is the headline feature, covered below.
+- **Server-side context** via `previous_response_id`. The server keeps the
+  conversation state, so each turn can resume from the last response without
+  resending the whole history. This is on by default.
+- **Reasoning effort** for reasoning models, set with `with_reasoning_effort`.
+- **Provider-injected native tools.** Wrappers materialize their native tools
+  as JSON and pass them in, so the wire layer stays trait-agnostic.
+
+## Direct use
+
+`ResponsesBuilder::new()` gives you a type-state builder. Both a model and a
+base URL are required to reach `build()` (the `WithModel` and `WithUrl`
+states), and an API key is required too. `build()` panics if you call it
+without one.
+
+```rust
+use chat_responses::ResponsesBuilder;
+use chat_core::{builder::ChatBuilder, types::messages, types::ChatOutcome};
+
+let client = ResponsesBuilder::new()
+    .with_base_url("https://api.openai.com/v1")
+    .with_model("gpt-4o")
+    .with_api_key("sk-...")
+    .build();
+
+let mut chat = ChatBuilder::new().with_model(client).build();
+
+let mut msgs = messages::from_user(vec!["Hello!"]);
+if let ChatOutcome::Complete(res) = chat.complete(&mut msgs).await? {
+    println!("{res:?}");
+}
+```
+
+## Builder methods
+
+The builder covers wire-level configuration:
+
+- `with_base_url(impl Into<String>)` - the server root, for example
+  `https://api.openai.com/v1`. Required (moves to `WithUrl`).
+- `with_model(impl Into<String>)` - the model name. Required (moves to
+  `WithModel`).
+- `with_api_key(impl Into<String>)` - the bearer token. Required; `build()`
+  panics without it.
+- `with_reasoning_effort(impl Into<String>)` - `"low"`, `"medium"`, or
+  `"high"` for reasoning models.
+- `without_previous_response_id()` - turn off server-side context resume. It
+  is on by default, so call this to send the full history yourself instead.
+- `with_store(bool)` - control whether the server persists the response.
+- `with_tool_declaration(serde_json::Value)` - append one pre-materialized
+  native tool as raw JSON.
+- `with_tool_declarations(impl IntoIterator<Item = Value>)` - append several
+  at once.
+- `with_description(impl Into<String>)`, `with_metadata(key, value)`,
+  `with_meta(ProviderMeta)` - attach provider metadata.
+- `with_transport(T2)` - swap the transport (defaults to reqwest HTTP/SSE).
+
+```rust
+let client = ResponsesBuilder::new()
+    .with_base_url("https://api.openai.com/v1")
+    .with_model("o4-mini")
+    .with_api_key("sk-...")
+    .with_reasoning_effort("high")
+    .without_previous_response_id()
+    .build();
+```
+
+## Input streaming
+
+The headline feature is pushing new input mid-response. You opt in with
+`with_input_stream()` on the `ChatBuilder`. Then `chat.stream(&mut messages)`
+returns a `ChatStream` that you iterate for output and `stream.input()` gives
+you a producer handle. Calling `input.send("...")` pushes new input while the
+model is responding, which merges into `Messages` and re-requests with the
+updated context: interrupt-and-restart.
+
+This example pushes a follow-up two seconds into the response:
+
+```rust
+use std::time::Duration;
+use chat_rs::{ChatBuilder, StreamEvent, openai::OpenAIBuilder, types::messages};
+use futures::StreamExt;
+
+let client = OpenAIBuilder::new().with_model("gpt-4o").build();
+
+let mut chat = ChatBuilder::new()
+    .with_model(client)
+    .with_input_stream()
+    .build();
+
+let mut messages = messages::from_user(vec![
+    "Tell me a long story about a rust crab learning async programming.",
+]);
+
+let mut stream = chat.stream(&mut messages).await.map_err(|f| f.err)?;
+
+let input = stream.input();
+tokio::spawn(async move {
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let _ = input.send("Hold on, make the crab wear a tiny hat too.");
+});
+
+while let Some(event) = stream.next().await {
+    match event.map_err(|f| f.err)? {
+        StreamEvent::TextChunk(text) => print!("{text}"),
+        StreamEvent::Done(_) => break,
+        _ => {}
+    }
+}
+```
+
+This surface is the same one a future native bidi provider (such as OpenAI
+Realtime or Gemini Live) would expose, so consumer code written against it
+stays portable across both regimes.
+
+## Trait-agnostic native tools
+
+The wire layer does not depend on any provider-specific tool trait. Wrappers
+like `chat-openai` materialize their native tools (`web_search`,
+`image_generation`, and so on) into `serde_json::Value` and pass them through
+`with_tool_declaration`. The wire crate just drops them into `tools[]`
+opaquely.
+
+```rust
+let client = ResponsesBuilder::new()
+    .with_base_url("https://api.openai.com/v1")
+    .with_model("gpt-4o")
+    .with_api_key("sk-...")
+    .with_tool_declaration(serde_json::json!({ "type": "web_search" }))
+    .build();
+```
+
+## Capabilities
+
+`ResponsesClient` implements `CompletionProvider` and, under the `stream`
+feature, `StreamProvider`. The Responses API has no embeddings endpoint, so if
+you need embeddings, use `chat-openai`, which adds them on top.

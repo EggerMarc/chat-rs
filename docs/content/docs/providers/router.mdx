@@ -1,0 +1,268 @@
+---
+title: Router
+description: Compose several providers behind one, route between them, and fall back automatically when one fails.
+---
+
+The Router lets you treat several providers as a single one. It implements
+`CompletionProvider`, so a Router *is* a provider. You build it, hand it to
+`ChatBuilder::with_model`, and the chat loop, tools, and middleware all work
+exactly as they would with any single provider.
+
+Behind that one surface, the Router holds an ordered list of providers. For each
+request it picks an order, tries them one at a time, and falls back to the next
+one when a provider fails with a retryable error.
+
+## Building a Router
+
+`RouterBuilder` uses a small type-state so you cannot build an empty router. The
+first `add_provider` call moves the builder from `WithoutProvider` to
+`WithProvider`, and only the `WithProvider` state has `build`. After that you can
+add as many providers as you like.
+
+With no strategy set, providers are tried in registration order (the default is
+simply `0..n`). Here is a minimal router that prefers a local Ollama model and
+falls back to a cloud provider:
+
+```rust
+use chat_core::builder::ChatBuilder;
+use chat_core::types::messages::{content, Messages};
+use chat_core::types::response::ChatOutcome;
+use chat_claude::ClaudeBuilder;
+use chat_ollama::OllamaBuilder;
+use chat_router::RouterBuilder;
+
+let local = OllamaBuilder::new()
+    .with_model("llama3.2")
+    .build();
+
+let cloud = ClaudeBuilder::new()
+    .with_model("claude-sonnet-4-20250514")
+    .build();
+
+// Try the local model first; fall back to Claude on retryable errors.
+let router = RouterBuilder::new()
+    .add_provider(local)
+    .add_provider(cloud)
+    .build();
+
+let mut chat = ChatBuilder::new()
+    .with_model(router)
+    .with_max_steps(5)
+    .build();
+
+let mut messages = Messages::default();
+messages.push(content::from_user(vec!["Hello!"]));
+
+if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await? {
+    if let Some(text) = res.content.parts.text_response() {
+        println!("{text}");
+    }
+}
+```
+
+## Fallback semantics
+
+The Router walks providers in the chosen order and reacts to the kind of error
+it gets back:
+
+- On a **retryable** error (`RateLimited`, `Network`), it advances to the next
+  provider.
+- On a **non-retryable** error (`Provider`, `InvalidResponse`, and similar), it
+  returns the error immediately. There is no point routing around a malformed
+  request.
+
+If every provider in the order fails with retryable errors, the last failure is
+returned.
+
+## Routing strategies
+
+A `RoutingStrategy` decides the order providers are tried in. The trait has a
+single method that returns provider indices in preferred order:
+
+```rust
+#[async_trait]
+pub trait RoutingStrategy: Send + Sync {
+    async fn rank(
+        &self,
+        messages: &Messages,
+        providers: &[Option<&ProviderMeta>],
+    ) -> Result<Vec<usize>, StrategyError>;
+}
+```
+
+The `providers` slice lines up with the order you added providers in, so index
+`0` is your first provider. You return those same indices reordered however you
+like, and the Router tries them in that order (still applying fallback).
+
+Here is a full strategy that scores each provider by how many of its keywords
+appear in the last user message, highest score first:
+
+```rust
+use async_trait::async_trait;
+use chat_core::types::messages::Messages;
+use chat_core::types::provider_meta::ProviderMeta;
+use chat_router::{RoutingStrategy, StrategyError};
+
+struct KeywordRouter;
+
+#[async_trait]
+impl RoutingStrategy for KeywordRouter {
+    async fn rank(
+        &self,
+        messages: &Messages,
+        providers: &[Option<&ProviderMeta>],
+    ) -> Result<Vec<usize>, StrategyError> {
+        let query = messages
+            .0
+            .last()
+            .and_then(|c| c.parts.text_response())
+            .map(|t| t.0.to_lowercase())
+            .unwrap_or_default();
+
+        if query.is_empty() {
+            return Ok((0..providers.len()).collect());
+        }
+
+        let mut scored: Vec<(usize, usize)> = providers
+            .iter()
+            .enumerate()
+            .map(|(i, meta)| {
+                let hits = meta
+                    .and_then(|m| m.data.get("keywords"))
+                    .and_then(|v| v.downcast_ref::<Vec<String>>())
+                    .map(|keywords| {
+                        keywords
+                            .iter()
+                            .filter(|kw| query.contains(kw.as_str()))
+                            .count()
+                    })
+                    .unwrap_or(0);
+                (i, hits)
+            })
+            .collect();
+
+        scored.sort_by_key(|b| std::cmp::Reverse(b.1));
+        Ok(scored.into_iter().map(|(idx, _)| idx).collect())
+    }
+}
+```
+
+Pass it with `with_strategy`. Any provider not mentioned in your returned vector
+will simply not be tried, so make sure your ranking covers every index you want
+reachable.
+
+## Provider metadata
+
+Strategies stay generic by reading from `ProviderMeta` rather than knowing about
+specific provider types. You attach metadata when building a provider with
+`.with_metadata(key, value)`, and the strategy reads it back out by key,
+downcasting to the type you stored:
+
+```rust
+let claude = ClaudeBuilder::new()
+    .with_model("claude-sonnet-4-20250514")
+    .with_metadata(
+        "keywords",
+        vec![
+            "analyze".to_string(),
+            "reason".to_string(),
+            "explain".to_string(),
+            "plan".to_string(),
+        ],
+    )
+    .build();
+
+let gemini = GeminiBuilder::new()
+    .with_model("gemini-2.5-flash")
+    .with_metadata(
+        "keywords",
+        vec![
+            "search".to_string(),
+            "quick".to_string(),
+            "summarize".to_string(),
+            "simple".to_string(),
+        ],
+    )
+    .build();
+
+let router = RouterBuilder::new()
+    .add_provider(claude)
+    .add_provider(gemini)
+    .with_strategy(KeywordRouter)
+    .build();
+```
+
+The values are type-erased, so the downcast in the strategy must match the type
+you stored. Booleans work the same way: a capability strategy can store
+`.with_metadata("supports_custom_tools", true)` and read it back with
+`v.downcast_ref::<bool>()` to keep, say, tool-only requests off providers that
+cannot run custom tools.
+
+## Circuit breaker
+
+The circuit breaker stops the Router from hammering a provider that keeps
+failing. It is opt-in via `circuit_breaker`, configured with
+`CircuitBreakerConfig`:
+
+```rust
+use std::time::Duration;
+use chat_router::{CircuitBreakerConfig, RouterBuilder};
+
+let router = RouterBuilder::new()
+    .add_provider(claude)
+    .add_provider(gemini)
+    .circuit_breaker(CircuitBreakerConfig {
+        failure_threshold: 3,
+        recovery_timeout: Duration::from_secs(30),
+    })
+    .build();
+```
+
+The defaults are 3 consecutive failures and a 30 second recovery timeout. After
+a provider hits the failure threshold its circuit opens and the Router skips it
+until `recovery_timeout` elapses, then lets a single probe request through. A
+successful probe (or any success) resets the counter; a failed probe restarts
+the timer.
+
+If a request finds that every provider's circuit is open, the Router does not
+give up. It probes the one whose circuit has been open the longest, since that
+provider is the most likely to have recovered.
+
+## Streaming
+
+For streaming, enable the `stream` feature and use `StreamRouterBuilder`, which
+produces a `StreamRouter`. It works the same way as `RouterBuilder` (same
+type-state, strategy, and circuit breaker) but wraps providers implementing
+`ChatProvider` instead of `CompletionProvider`:
+
+```toml
+chat-router = { version = "0.2.4", features = ["stream"] }
+```
+
+```rust
+use chat_router::StreamRouterBuilder;
+
+let router = StreamRouterBuilder::new()
+    .add_provider(claude)
+    .add_provider(gemini)
+    .with_strategy(KeywordRouter)
+    .build();
+
+let mut chat = ChatBuilder::new()
+    .with_model(router)
+    .with_max_steps(5)
+    .build();
+```
+
+You then drive it with `chat.stream(&mut messages)` and match on `StreamEvent`
+as usual. See `examples/router/stream.rs` for a full streaming loop that prints
+which provider it routed to.
+
+## Advanced: routing by embeddings
+
+Because a strategy can do async work inside `rank`, you are not limited to
+keyword matching. `examples/router/embeddings.rs` embeds a short description of
+each provider at build time, stores the vector under
+`.with_metadata("embedding", vector)`, and at request time embeds the user's
+message and ranks providers by cosine similarity. That gives you semantic
+routing without changing anything about how the Router is built or used.

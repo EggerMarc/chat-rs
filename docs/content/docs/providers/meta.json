@@ -1,0 +1,19 @@
+{
+  "title": "Providers",
+  "pages": [
+    "index",
+    "router",
+    "completions",
+    "responses",
+    "---Vendors---",
+    "claude",
+    "gemini",
+    "openai",
+    "ollama",
+    "deepseek",
+    "cerebras",
+    "huggingface",
+    "mistralrs",
+    "openrouter"
+  ]
+}

@@ -1,4 +1,12 @@
 {
   "title": "Documentation",
-  "pages": ["index", "getting-started", "providers", "openrouter"]
+  "pages": [
+    "index",
+    "getting-started",
+    "capabilities",
+    "traits",
+    "tools",
+    "middleware",
+    "providers"
+  ]
 }

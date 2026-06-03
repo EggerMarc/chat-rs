@@ -1,0 +1,86 @@
+---
+title: Streaming
+description: Receive a model response token by token as it is generated, with typed events for text, reasoning, tool calls, and more.
+---
+
+Streaming lets you show a response as it arrives instead of waiting for the whole thing. Call `chat.stream(&mut messages)` and iterate the result with `futures::StreamExt`. Each item is a `StreamEvent`, so you can react to text, reasoning, and tool activity as they happen.
+
+Streaming needs the `stream` cargo feature, and the provider has to implement `StreamProvider`.
+
+## The simple form
+
+When you use the default chat and the provider supports streaming, `stream` is available without any extra opt-in. Here is the shape from the Ollama example.
+
+```rust title="stream.rs"
+use chat_rs::{
+    ChatBuilder, StreamEvent,
+    ollama::OllamaBuilder,
+    parts,
+    types::messages::{self, content},
+};
+use futures::StreamExt;
+
+let client = OllamaBuilder::new().with_model("llama3.2").pull().await?.build();
+let mut chat = ChatBuilder::new().with_model(client).build();
+
+let mut messages = messages::Messages::default();
+messages.push(content::from_user(parts!["Tell me a short story."]));
+
+let mut stream = chat.stream(&mut messages).await.map_err(|err| err.err)?;
+
+while let Some(chunk_res) = stream.next().await {
+    match chunk_res {
+        Ok(StreamEvent::TextChunk(text)) => print!("{text}"),
+        Ok(StreamEvent::ReasoningChunk(thought)) => print!("{thought}"),
+        Ok(StreamEvent::Done(res)) => println!("\n[usage] {:?}", res.metadata),
+        Ok(_) => {}
+        Err(failure) => {
+            eprintln!("\n[stream error]: {failure:?}");
+            break;
+        }
+    }
+}
+```
+
+## Opting in explicitly
+
+You can also reach for streaming on purpose with `.with_streamed_response()`. This requires the provider to implement `StreamProvider`, and it switches the builder into a streamed chat.
+
+```rust
+let mut chat = ChatBuilder::new()
+    .with_model(client)
+    .with_streamed_response()
+    .build();
+```
+
+## StreamEvent variants
+
+Every item the stream yields is a `StreamEvent`:
+
+```rust
+pub enum StreamEvent {
+    TextChunk(String),
+    ReasoningChunk(String),
+    ToolCall(FunctionCall),
+    ToolResult(FunctionResponse),
+    Structured(serde_json::Value),
+    Paused(PauseReason),
+    Done(ChatResponse),
+}
+```
+
+- `TextChunk` and `ReasoningChunk` are partial fragments. Concatenate them as they arrive.
+- `ToolCall` fires when the model decides to call a tool, and `ToolResult` fires once that tool runs.
+- `Structured` carries a whole `serde_json::Value` you can deserialize directly.
+- `Paused` means a tool needs your action (approval, scheduling). The stream ends; resolve the tools on `Messages` and call `stream` again to continue.
+- `Done` carries the same `ChatResponse` a non-streaming `complete()` call would have returned, so the final state stays equivalent either way.
+
+When you also wire up tools, the loop surfaces tool lifecycle as it goes. This is handy for showing progress in a UI.
+
+```rust
+match event {
+    StreamEvent::ToolCall(call) => println!("[calling {}]", call.name),
+    StreamEvent::ToolResult(res) => println!("[{} finished]", res.name),
+    _ => {}
+}
+```

@@ -18,7 +18,7 @@ export function baseOptions(): BaseLayoutProps {
             alt=""
             className="brand-on-light h-5 w-5"
           />
-          <span className="font-semibold tracking-tight">chat-rs</span>
+          <span className="font-label text-base tracking-tight">chat-rs</span>
         </span>
       ),
     },

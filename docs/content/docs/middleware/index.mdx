@@ -1,0 +1,63 @@
+---
+title: Middleware
+description: Run your own code before and after the loop with before and after strategies.
+---
+
+Middleware lets you run your own async code around a chat run. chat-rs gives you
+two hooks, the **before strategy** and the **after strategy**, plus a
+[retry strategy](/docs/middleware/retries) for handling failures.
+
+## Before and after strategies
+
+A strategy is a closure that receives the `Messages` (which it may mutate
+synchronously) and the most recent `Metadata`, and returns a future for any
+async work. The before strategy runs once before the loop starts; the after
+strategy runs once after it completes successfully.
+
+```rust
+use chat_rs::{ChatBuilder, openai::OpenAIBuilder};
+use chat_rs::types::messages::content;
+use chat_rs::parts;
+
+let client = OpenAIBuilder::new().with_model("gpt-4o").build();
+
+let chat = ChatBuilder::new()
+    .with_model(client)
+    .with_before_strategy(Box::new(|messages, _metadata| {
+        // Synchronous edits to `messages` are fine here.
+        messages.push(content::from_system(parts!["Keep answers short."]));
+        Box::pin(async {})
+    }))
+    .with_after_strategy(Box::new(|_messages, metadata| {
+        let tokens = metadata.and_then(|m| m.usage.total_tokens);
+        Box::pin(async move {
+            println!("run finished, tokens used: {tokens:?}");
+        })
+    }))
+    .build();
+```
+
+### When they run
+
+| Hook | Runs | Receives | Typical use |
+| --- | --- | --- | --- |
+| before strategy | once, before the first model call | `&mut Messages`, `Option<&Metadata>` | inject a system prompt, log the request, trim history |
+| after strategy | once, after the loop completes | `&mut Messages`, `Option<&Metadata>` | record usage, persist the transcript, emit metrics |
+
+Both hooks run on the completion path, the embeddings path, and the streaming
+paths, so the same instrumentation applies no matter how you call the model.
+
+### The shape of a strategy
+
+```rust
+pub type CallbackStrategy =
+    Box<dyn Fn(&mut Messages, Option<&Metadata>) -> CallbackFuture + Send + Sync>;
+```
+
+The returned future is `'static`, so it cannot borrow `messages` across an
+`await`. Do any reading or mutation of `messages` synchronously, then move the
+owned values you need into the async block (as `tokens` is moved above).
+
+<Cards>
+  <Card title="Retries" href="/docs/middleware/retries" />
+</Cards>

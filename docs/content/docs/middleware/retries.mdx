@@ -1,0 +1,50 @@
+---
+title: Retries
+description: Retry failed calls with your own backoff using a retry strategy.
+---
+
+When a model call fails, chat-rs can retry it. You set how many attempts to make
+and, optionally, a **retry strategy** that runs between attempts so you can back
+off, log, or react to the specific failure.
+
+## Set it up
+
+```rust
+use chat_rs::{ChatBuilder, openai::OpenAIBuilder};
+
+let client = OpenAIBuilder::new().with_model("gpt-4o").build();
+
+let chat = ChatBuilder::new()
+    .with_model(client)
+    .with_max_retries(5)
+    .with_retry_strategy(chat_rs::retry_strategy!(|ctx| {
+        println!("retrying, attempt {}", ctx.idx);
+        tokio::time::sleep(
+            tokio::time::Duration::from_millis((400 * ctx.idx).into()),
+        )
+        .await;
+    }))
+    .build();
+```
+
+The `retry_strategy!` macro builds the closure for you and exposes `ctx`, a
+`CallbackRetryContext`:
+
+```rust
+pub struct CallbackRetryContext {
+    pub idx: u16,            // attempt number, starting at 0
+    pub failure: ChatFailure, // the error that triggered this retry
+}
+```
+
+The strategy runs after a failed attempt and before the next one, so it is the
+right place for exponential backoff, jitter, or rate-limit handling. Inspect
+`ctx.failure` to decide how long to wait, or to log what went wrong.
+
+## How it relates to max steps
+
+`with_max_retries` controls how many times a single model call is retried after
+an error. It is different from
+[`with_max_steps`](/docs/tools#hand-them-to-the-chat), which controls how many
+times the agentic loop goes around while the model is calling tools. One handles
+failures; the other handles tool-driven turns.

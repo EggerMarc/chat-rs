@@ -1,0 +1,78 @@
+---
+title: CompletionProvider
+description: The foundational trait every provider implements to run a single completion step.
+---
+
+`CompletionProvider` is the one trait you need to plug a backend into the chat
+loop. Implement it and your provider gets tools, retries, structured output,
+and middleware for free, because the loop only ever talks to providers through
+this trait.
+
+## The trait
+
+```rust
+#[async_trait]
+pub trait CompletionProvider: Send + Sync {
+    async fn complete(
+        &mut self,
+        messages: &mut Messages,
+        tool_declarations: Option<&dyn ToolDeclarations>,
+        options: Option<&ChatOptions>,
+        structured_output: Option<&schemars::Schema>,
+    ) -> Result<ChatResponse, ChatFailure>;
+
+    fn metadata(&self) -> Option<&ProviderMeta> {
+        None
+    }
+}
+```
+
+`complete` runs exactly one step. The loop calls it, inspects the
+`ChatResponse`, runs any tool calls, and calls it again until the conversation
+settles. A few notes on the arguments:
+
+- `messages` is the running conversation. You translate it to your wire format
+  and append the assistant reply.
+- `tool_declarations`, when `Some`, is a view onto every scoped tool collection
+  the chat holds. Call `.json()` on it to get the JSON array of function
+  declarations to splice into your request.
+- `options` carries model settings like temperature.
+- `structured_output`, when `Some`, is the JSON Schema the caller asked the
+  model to conform to.
+
+`metadata` is optional. Override it to surface a `ProviderMeta` if you have one;
+the default returns `None`.
+
+## A minimal implementation
+
+```rust
+use async_trait::async_trait;
+
+struct MyProvider;
+
+#[async_trait]
+impl CompletionProvider for MyProvider {
+    async fn complete(
+        &mut self,
+        messages: &mut Messages,
+        tool_declarations: Option<&dyn ToolDeclarations>,
+        options: Option<&ChatOptions>,
+        structured_output: Option<&schemars::Schema>,
+    ) -> Result<ChatResponse, ChatFailure> {
+        todo!()
+    }
+}
+```
+
+Once it compiles, hand an instance to the builder and you have a working chat:
+
+```rust
+let chat = ChatBuilder::new().with_model(MyProvider).build();
+```
+
+## If your backend speaks OpenAI Chat Completions
+
+You usually do not need to implement this trait from scratch. If your backend
+exposes an OpenAI-compatible Chat Completions endpoint, build on the
+[Completions helper](/docs/providers/completions) instead and skip the wire
+translation.

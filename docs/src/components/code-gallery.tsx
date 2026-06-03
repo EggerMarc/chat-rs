@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { codeToTokens } from "shiki";
+import { Card } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CopyableCode } from "@/components/copyable-code";
 
 /**
  * A self-cycling gallery of real chat-rs snippets across a mix of providers.
@@ -79,35 +82,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }`,
   },
   {
-    id: "duplex",
-    label: "Bidirectional",
-    code: `use chat_rs::{ChatBuilder, StreamEvent, openai::OpenAIBuilder, types::messages};
-use futures::StreamExt;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = OpenAIBuilder::new().with_model("gpt-4o").build();
-    let mut chat = ChatBuilder::new().with_model(client).with_input_stream().build();
-
-    let mut messages = messages::from_user(vec!["Tell me a long story about a rust crab."]);
-    let mut stream = chat.stream(&mut messages).await.map_err(|f| f.err)?;
-
-    // Push new input while the model is still talking. It merges into
-    // context and the model carries on. Full duplex, same API.
-    let input = stream.input();
-    tokio::spawn(async move {
-        input.send("Actually, give the crab a tiny hat.").ok();
-    });
-
-    while let Some(event) = stream.next().await {
-        if let Ok(StreamEvent::TextChunk(text)) = event {
-            print!("{text}");
-        }
-    }
-    Ok(())
-}`,
-  },
-  {
     id: "tools",
     label: "Tools",
     code: `use chat_rs::{ChatBuilder, ChatOutcome, claude::ClaudeBuilder, parts, types::messages};
@@ -166,34 +140,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
         println!("{}: {} ingredients", res.content.title, res.content.ingredients.len());
-    }
-    Ok(())
-}`,
-  },
-  {
-    id: "routing",
-    label: "Routing",
-    code: `use chat_rs::{
-    ChatBuilder, ChatOutcome, claude::ClaudeBuilder, ollama::OllamaBuilder, parts,
-    router::RouterBuilder, types::messages,
-};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let local = OllamaBuilder::new().with_model("llama3.2").build();
-    let cloud = ClaudeBuilder::new().with_model("claude-sonnet-4").build();
-
-    // Try providers in order, falling back on failure. Add a strategy
-    // to route by cost, capability, or keywords, with a circuit breaker.
-    let router = RouterBuilder::new().add_provider(local).add_provider(cloud).build();
-
-    let mut chat = ChatBuilder::new().with_model(router).build();
-    let mut messages = messages::from_user(parts!["Draft a haiku about Rust."]);
-
-    if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
-        if let Some(text) = res.content.parts.text_response() {
-            println!("{text}");
-        }
     }
     Ok(())
 }`,
@@ -306,52 +252,64 @@ export function CodeGallery() {
     }
   }
 
-  return (
-    <div className="border border-fd-border bg-fd-card">
-      <pre className="shiki not-prose min-h-[27rem] overflow-x-auto px-4 py-5 text-sm leading-relaxed sm:px-6">
-        <code>
-          {flat
-            ? runs.map((r, i) => (
-                <span key={i} style={r.style as React.CSSProperties}>
-                  {r.text}
-                </span>
-              ))
-            : codeOf(render.id)}
-          <span className="gallery-cursor" aria-hidden>
-            ▍
-          </span>
-        </code>
-      </pre>
+  const activeId = SNIPPETS[index].id;
 
-      {/* Bottom tabs. The progress fill loads inside the selected tab only. */}
-      <div className="flex flex-wrap border-t border-fd-border">
-        {SNIPPETS.map((s, i) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => select(i)}
-            aria-current={i === index}
-            className={`font-label relative flex-1 overflow-hidden px-4 py-3 text-center text-xs uppercase tracking-[0.2em] transition-colors ${
-              i === index
-                ? "text-fd-primary"
-                : "text-fd-muted-foreground hover:text-fd-foreground"
-            }`}
-          >
-            {auto && dwelling && i === index && (
-              <span
-                className="pointer-events-none absolute inset-y-0 left-0 bg-fd-primary/15"
-                style={{ animation: `gallery-sweep ${DWELL_MS}ms linear forwards` }}
-                onAnimationEnd={() => {
-                  setDwelling(false);
-                  if (autoRef.current)
-                    setIndex((idx) => (idx + 1) % SNIPPETS.length);
-                }}
-              />
-            )}
-            <span className="relative">{s.label}</span>
-          </button>
-        ))}
-      </div>
-    </div>
+  return (
+    <Card className="gap-0 border border-border p-0 ring-0">
+      <CopyableCode code={SNIPPETS[index].code}>
+        <pre className="shiki not-prose min-h-[27rem] overflow-x-auto px-4 py-5 text-sm leading-relaxed sm:px-6">
+          <code>
+            {flat
+              ? runs.map((r, i) => (
+                  <span key={i} style={r.style as React.CSSProperties}>
+                    {r.text}
+                  </span>
+                ))
+              : codeOf(render.id)}
+            <span className="gallery-cursor" aria-hidden>
+              ▍
+            </span>
+          </code>
+        </pre>
+      </CopyableCode>
+
+      {/* Bottom tabs (shadcn / Base UI). The progress fill loads inside the
+          selected tab only; selecting a tab stops the auto-advance. */}
+      <Tabs
+        value={activeId}
+        onValueChange={(value) =>
+          select(SNIPPETS.findIndex((s) => s.id === value))
+        }
+        className="gap-0 border-t border-border"
+      >
+        <TabsList
+          variant="line"
+          className="flex h-auto w-full flex-wrap bg-transparent p-0"
+        >
+          {SNIPPETS.map((s) => (
+            <TabsTrigger
+              key={s.id}
+              value={s.id}
+              className="font-label relative h-auto flex-1 overflow-hidden px-4 py-3 text-xs uppercase tracking-[0.2em] data-active:text-primary"
+            >
+              {auto && dwelling && s.id === activeId && (
+                <span
+                  className="pointer-events-none absolute inset-y-0 left-0 bg-primary/15"
+                  style={{
+                    animation: `gallery-sweep ${DWELL_MS}ms linear forwards`,
+                  }}
+                  onAnimationEnd={() => {
+                    setDwelling(false);
+                    if (autoRef.current)
+                      setIndex((idx) => (idx + 1) % SNIPPETS.length);
+                  }}
+                />
+              )}
+              <span className="relative">{s.label}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+    </Card>
   );
 }

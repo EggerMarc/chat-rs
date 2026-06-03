@@ -1,0 +1,86 @@
+---
+title: Tools in Python
+description: Write tools as Python functions and load them into a chat at runtime.
+---
+
+Tools do not have to be Rust functions. If you have logic that already lives in
+Python, or you simply prefer writing a quick tool as a script, chat-rs can load
+those functions at runtime and hand them to the model just like a native
+`#[tool]`.
+
+This relies on the `python` cargo feature, so enable it on `tools-rs` first:
+
+```toml
+tools-rs = { version = "...", features = ["python"] }
+```
+
+## Write the Python tool
+
+Each script imports `tool` from `tools_rs` and decorates the functions you want
+to expose. The docstring becomes the tool's description, and the type-annotated
+parameters become its schema, so the model knows when and how to call it.
+
+```python
+from tools_rs import tool
+
+
+@tool()
+def get_weather(city: str) -> str:
+    """Get the current weather in a city.
+
+    Args:
+        city: The city to look up.
+    """
+    table = {
+        "London": "rainy, 12C",
+        "Tokyo": "sunny, 22C",
+        "New York": "cloudy, 18C",
+        "Madrid": "hot, 31C",
+    }
+    return table.get(city, f"no data for {city}")
+```
+
+You can put several `@tool()`-decorated functions in one file, and several files
+in one directory. Every decorated function found gets registered.
+
+## Load them and run
+
+`ToolsBuilder` scans a directory for decorated functions and returns a tool
+collection. Point `with_language` at `Language::Python`, give `from_path` the
+folder holding your scripts, and `collect` does the discovery. The result drops
+straight into `.with_tools(...)`.
+
+```rust
+use chat_rs::{ChatBuilder, ChatOutcome, gemini, parts, types::messages::content};
+use tools_rs::{Language, ToolsBuilder};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = gemini::GeminiBuilder::new()
+        .with_model("gemini-2.5-flash")
+        .build();
+
+    let tools = ToolsBuilder::new()
+        .with_language(Language::Python)
+        .from_path("examples/gemini/python_scripts")
+        .collect()?;
+
+    let mut chat = ChatBuilder::new()
+        .with_tools(tools)
+        .with_model(client)
+        .with_max_steps(5)
+        .build();
+
+    let mut messages = content::from_user(parts!["What's the weather in Tokyo?"]);
+
+    if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
+        println!("{:?}", res.content.parts.last());
+    }
+    Ok(())
+}
+```
+
+From here the loop behaves exactly as it does for Rust tools: the model asks for
+`get_weather`, chat-rs runs the Python function, feeds the result back, and lets
+the model continue. The fact that the body is Python is invisible to the rest of
+your code.

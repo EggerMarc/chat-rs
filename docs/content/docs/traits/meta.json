@@ -1,0 +1,4 @@
+{
+  "title": "Traits",
+  "pages": ["index", "completion-provider", "stream-provider", "embeddings-provider"]
+}
