@@ -26,7 +26,7 @@
 use std::marker::PhantomData;
 
 use chat_completions::{
-    CompletionsBuilder, CompletionsClient, ChatError, Request, ReqwestTransport, Transport,
+    ChatError, CompletionsBuilder, CompletionsClient, Request, ReqwestTransport, Transport,
     TransportError,
 };
 use serde::Deserialize;

@@ -16,9 +16,7 @@
 
 use std::marker::PhantomData;
 
-use chat_completions::{
-    CompletionsBuilder, CompletionsClient, ReqwestTransport, Transport,
-};
+use chat_completions::{CompletionsBuilder, CompletionsClient, ReqwestTransport, Transport};
 
 /// Default Cerebras Inference base URL.
 pub const DEFAULT_CEREBRAS_BASE_URL: &str = "https://api.cerebras.ai/v1";

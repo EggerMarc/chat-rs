@@ -30,9 +30,7 @@
 
 use std::marker::PhantomData;
 
-use chat_completions::{
-    CompletionsBuilder, CompletionsClient, ReqwestTransport, Transport,
-};
+use chat_completions::{CompletionsBuilder, CompletionsClient, ReqwestTransport, Transport};
 
 /// Default HF Inference Router base URL.
 pub const DEFAULT_HF_BASE_URL: &str = "https://router.huggingface.co/v1";

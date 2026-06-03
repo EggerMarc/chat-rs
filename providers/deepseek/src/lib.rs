@@ -23,9 +23,7 @@
 
 use std::marker::PhantomData;
 
-use chat_completions::{
-    CompletionsBuilder, CompletionsClient, ReqwestTransport, Transport,
-};
+use chat_completions::{CompletionsBuilder, CompletionsClient, ReqwestTransport, Transport};
 
 /// Default DeepSeek base URL.
 pub const DEFAULT_DEEPSEEK_BASE_URL: &str = "https://api.deepseek.com/v1";

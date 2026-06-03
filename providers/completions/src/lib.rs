@@ -31,8 +31,7 @@ pub struct WithModel;
 pub struct WithoutUrl;
 pub struct WithUrl;
 
-pub struct CompletionsBuilder<M = WithoutModel, U = WithoutUrl, T: Transport = ReqwestTransport>
-{
+pub struct CompletionsBuilder<M = WithoutModel, U = WithoutUrl, T: Transport = ReqwestTransport> {
     model_name: Option<String>,
     api_key: Option<String>,
     scheme: String,
@@ -111,10 +110,7 @@ impl<M, U, T: Transport> CompletionsBuilder<M, U, T> {
 }
 
 impl<U, T: Transport> CompletionsBuilder<WithoutModel, U, T> {
-    pub fn with_model(
-        self,
-        model_name: impl Into<String>,
-    ) -> CompletionsBuilder<WithModel, U, T> {
+    pub fn with_model(self, model_name: impl Into<String>) -> CompletionsBuilder<WithModel, U, T> {
         CompletionsBuilder {
             model_name: Some(model_name.into()),
             api_key: self.api_key,
