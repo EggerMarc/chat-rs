@@ -25,13 +25,6 @@ use chat_rs::{
 use serde::Deserialize;
 use tools_rs::{FunctionCall, ToolCollection, tool};
 
-// ── 1. App-defined metadata schema ────────────────────────────────────────
-//
-// The app decides what attributes it cares about. `serde(default)` means
-// tools that don't declare a field get the default. Unknown attributes
-// declared on the tool (that this schema doesn't consume) are silently
-// ignored.
-
 #[derive(Debug, Default, Clone, Deserialize)]
 #[serde(default)]
 struct ApprovalMeta {
@@ -52,12 +45,6 @@ enum Safety {
     Destructive,
 }
 
-// ── 2. Tools declare attributes at the site ───────────────────────────────
-//
-// Each attribute value is absorbed into `ApprovalMeta` when the
-// collection is built. Typos in keys surface at startup via
-// `collect_tools` returning `ToolError::BadMeta`.
-
 #[tool(requires_approval = true, safety = "destructive")]
 /// Deletes files matching a glob pattern.
 async fn delete_files(pattern: String) -> String {
@@ -76,13 +63,6 @@ async fn read_file(path: String) -> String {
     format!("(pretend) contents of {path}: hello world")
 }
 
-// ── 3. Strategy closure ───────────────────────────────────────────────────
-//
-// Takes a call + metadata, returns an Action. This is where the app
-// translates metadata into loop-flow decisions. The same metadata
-// schema could pair with different strategies per deployment (dev
-// auto-approves, prod gates, staging gates selectively).
-
 fn approval_strategy(_call: &FunctionCall, meta: &ApprovalMeta) -> Action {
     if meta.requires_approval {
         Action::RequireApproval
@@ -90,8 +70,6 @@ fn approval_strategy(_call: &FunctionCall, meta: &ApprovalMeta) -> Action {
         Action::Execute
     }
 }
-
-// ── 4. User interaction ───────────────────────────────────────────────────
 
 fn prompt(label: &str) -> io::Result<String> {
     print!("{label}");
@@ -144,24 +122,16 @@ fn resolve_pending(reason: &PauseReason, messages: &mut Messages) {
             }
         }
         PauseReason::Scheduled { .. } | PauseReason::Mixed { .. } => {
-            // This example only produces RequireApproval pauses; a full
-            // scheduler would persist and wake up at the given time.
             panic!("scheduled / mixed pauses are not handled in this example");
         }
         _ => panic!("unexpected pause reason"),
     }
 }
 
-// ── 5. Main ───────────────────────────────────────────────────────────────
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Build the typed collection. `collect_tools()` fails fast at startup
-    // if any tool's declared attributes don't fit ApprovalMeta.
     let raw_tools: ToolCollection<ApprovalMeta> = ToolCollection::collect_tools()?;
 
-    // Attach the strategy. From here on, the collection is type-erased
-    // behind `dyn TypedCollection` — chat-rs doesn't see ApprovalMeta.
     let scoped = ScopedCollection::new(raw_tools, approval_strategy);
 
     let client = gemini::GeminiBuilder::new()
@@ -184,12 +154,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
          with subject 'cleanup done'. Also read /etc/hostname.",
     ]));
 
-    // ── Pause/resume loop ────────────────────────────────────────────────
-    //
-    // `complete()` drives the model-tool loop internally. It returns when
-    // the conversation is either finished or stuck on a pending decision.
-    // On pause, we resolve pending tools in place and call `resume()`.
-
     let mut outcome = chat.complete(&mut messages).await?;
     loop {
         match outcome {
@@ -203,12 +167,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-
-    // ── Final audit ──────────────────────────────────────────────────────
-    //
-    // Every tool call in the history carries its full lifecycle state on
-    // a single `PartEnum::Tool` part. Persistence layers can serialize
-    // this directly — one row per call, no pair reassembly.
 
     println!("\n--- tool audit ---");
     for content in &messages.0 {

@@ -1,0 +1,67 @@
+---
+title: Traits
+description: The four provider traits and the type-state builder that ties them together.
+---
+
+Everything in chat-rs is built on a small set of traits. A provider advertises
+what it can do by implementing them, and the [`ChatBuilder`](#the-type-state-builder)
+turns a provider into a `Chat` whose methods match exactly what the provider
+supports.
+
+## The provider traits
+
+| Trait | Method | Enables |
+| --- | --- | --- |
+| [`CompletionProvider`](/docs/traits/completion-provider) | `complete` | one completion step (the foundation) |
+| [`StreamProvider`](/docs/traits/stream-provider) | `stream` | token-by-token streaming |
+| `ChatProvider` | both | a supertrait, auto-implemented for providers that do both |
+| [`EmbeddingsProvider`](/docs/traits/embeddings-provider) | `embed` | vector embeddings |
+
+`ChatProvider` has a blanket implementation, so any type that is both a
+`CompletionProvider` and a `StreamProvider` is automatically a `ChatProvider`:
+
+```rust
+pub trait ChatProvider: CompletionProvider + StreamProvider {}
+impl<T: CompletionProvider + StreamProvider> ChatProvider for T {}
+```
+
+## The type-state builder
+
+`ChatBuilder<CP, Output>` carries a second type parameter that tracks the
+output shape. Each builder method moves you into a new state, and only the
+methods valid for that state exist:
+
+| Builder call | State | Method you get |
+| --- | --- | --- |
+| (default) | `Unstructured` | `complete`, `resume`, and `stream` (output) |
+| `.with_structured_output::<T>()` | `Structured<T>` | `complete` returns `T` |
+| `.with_input_stream()` | `InputStreamed` | `stream` (full duplex) |
+| `.with_embeddings()` | `Embedded` | `embed` |
+
+Output streaming needs no special builder call: the default chat exposes
+`stream` whenever the provider implements `StreamProvider`. `with_input_stream`
+and `with_embeddings` are only reachable when the provider implements
+`StreamProvider` and `EmbeddingsProvider` respectively. If you try to stream a
+provider that cannot stream, it is a compile error, not a runtime panic.
+
+```rust
+use chat_rs::{ChatBuilder, openai::OpenAIBuilder};
+
+let client = OpenAIBuilder::new().with_model("gpt-4o").build();
+
+// Unstructured by default: complete + resume.
+let chat = ChatBuilder::new().with_model(client).build();
+```
+
+## Bring your own provider
+
+Because everything is a trait, you can write your own provider. Implement
+`CompletionProvider` and it plugs into the same reason-and-act loop, tools,
+retries, and middleware as the built-in ones. See
+[Providers: bring your own](/docs/providers#bring-your-own-provider).
+
+<Cards>
+  <Card title="CompletionProvider" href="/docs/traits/completion-provider" />
+  <Card title="StreamProvider" href="/docs/traits/stream-provider" />
+  <Card title="EmbeddingsProvider" href="/docs/traits/embeddings-provider" />
+</Cards>

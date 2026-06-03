@@ -60,9 +60,6 @@ pub(crate) fn pump_event(
     match item {
         Ok(StreamEvent::Done(response)) => Ok(Pump::Done(response)),
         Ok(event) => {
-            // Mid-stream Structured events are accumulated into the final
-            // ChatResponse so non-streaming consumers see them in
-            // `content.parts`, preserving `complete()` ⇄ `stream()` equivalence.
             if let StreamEvent::Structured(ref v) = event {
                 structured_buffer.push(v.clone());
             }
@@ -147,13 +144,9 @@ impl<CP: StreamProvider, Output> Chat<CP, Output> {
         try_stream! {
             let max_steps = self.max_steps.unwrap_or(1);
             let mut last_metadata: Option<Metadata> = None;
-            // Goes false permanently once all producers drop; for `None` input
-            // it starts false, so the race path below is never taken.
             let mut input_open = input.is_some();
 
             'step: for _ in 0..max_steps {
-                // Pre-step: drain already-resolved/approved tools, emit their
-                // ToolResults, pause if the caller still has work to do.
                 let (results, pass) = self.stream_tool_pass(messages, &last_metadata).await?;
                 for fr in results {
                     yield StreamEvent::ToolResult(fr);
@@ -168,9 +161,6 @@ impl<CP: StreamProvider, Output> Chat<CP, Output> {
                     .as_ref()
                     .map(|d| d as &dyn crate::types::tools::ToolDeclarations);
 
-                // Restart loop: with input, a burst drops the current provider
-                // stream and re-enters with mutated Messages. Without input it
-                // runs exactly once.
                 'restart: loop {
                     let mut provider_stream = self
                         .model
@@ -182,15 +172,8 @@ impl<CP: StreamProvider, Output> Chat<CP, Output> {
                     let mut structured_buffer: Vec<serde_json::Value> = Vec::new();
 
                     loop {
-                        // Acquire the next provider item. With an open input
-                        // channel, race it against input (restart / cancel /
-                        // close accordingly); otherwise poll the provider
-                        // directly. Both paths feed the same `pump_event`.
                         let item = match input.as_mut().filter(|_| input_open) {
                             Some(rx) => {
-                                // The input future borrows `rx` (which lives
-                                // outside it), so losing the race and being
-                                // dropped is cancel-safe — no input is lost.
                                 let provider_next = provider_stream.next();
                                 let input_next = next_input(rx);
                                 match futures::future::select(
@@ -247,7 +230,6 @@ impl<CP: StreamProvider, Output> Chat<CP, Output> {
                             return;
                         }
                         if pass.executed {
-                            // Tools ran; another turn so the model reacts.
                             continue 'step;
                         }
 
@@ -258,8 +240,6 @@ impl<CP: StreamProvider, Output> Chat<CP, Output> {
                         return;
                     }
 
-                    // No final response and no restart — let the step loop
-                    // decide whether to retry.
                     break 'restart;
                 }
             }

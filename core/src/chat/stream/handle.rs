@@ -39,9 +39,6 @@ use crate::{
 /// handle is `Clone + Send + 'static` precisely so that loop can live in a
 /// task. If the library ever owns the pumping, that's a differently-named
 /// method; `send` means "send a thing", not "attach a firehose".
-// `Cancel` is unit while `Content`/`Item` carry payloads, but `Input` is a
-// short-lived channel message (one per `send`), so the size gap is irrelevant;
-// boxing would only churn the public variant for no real gain.
 #[allow(clippy::large_enum_variant)]
 pub enum Input {
     /// A single part. Text/file/structured parts become user content

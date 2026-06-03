@@ -171,8 +171,6 @@ where
     fn decide(&self, call: &FunctionCall) -> Action {
         match self.tools.meta(&call.name) {
             Some(meta) => (self.strategy)(call, meta),
-            // Tool isn't in this collection — router shouldn't have sent
-            // it here. Fail-safe: require approval so the mistake surfaces.
             None => Action::RequireApproval,
         }
     }
@@ -204,7 +202,6 @@ mod tests {
         let coll: ToolCollection<NoMeta> = ToolCollection::default();
         let scoped = ScopedCollection::auto_execute(coll);
         let erased: Box<dyn TypedCollection> = Box::new(scoped);
-        // No tool registered, so decide() falls through to the safe default.
         let action = erased.decide(&fc("anything"));
         assert!(matches!(action, Action::RequireApproval));
     }

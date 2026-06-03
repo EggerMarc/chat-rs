@@ -1,0 +1,75 @@
+---
+title: Tools
+description: Give the model functions it can call, and let chat-rs run the loop.
+---
+
+A tool is a function the model can ask to run. You declare tools, hand them to
+the builder, and chat-rs runs the loop: the model asks for a tool, chat-rs runs
+it, feeds the result back, and lets the model keep going until it has an answer.
+
+## Declare a tool
+
+Annotate an async function with `#[tool]` from the `tools-rs` crate. The doc
+comment becomes the tool's description, and the parameters become its schema.
+
+```rust
+use tools_rs::{collect_tools, tool};
+
+#[tool]
+/// Look up the current weather for a city.
+async fn get_weather(city: String) -> String {
+    format!("It's 22C and sunny in {city}.")
+}
+```
+
+## Hand them to the chat
+
+`collect_tools()` gathers every `#[tool]` in scope. `with_tools` registers them
+with an always-run strategy, and `with_max_steps` bounds how many times the loop
+may go around.
+
+```rust
+use chat_rs::{ChatBuilder, ChatOutcome, ollama::OllamaBuilder, parts, types::messages};
+use tools_rs::collect_tools;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = OllamaBuilder::new().with_model("llama3.2").build();
+
+    let mut chat = ChatBuilder::new()
+        .with_tools(collect_tools())
+        .with_model(client)
+        .with_max_steps(5)
+        .build();
+
+    let mut messages = messages::from_user(parts!["What's the weather in Lisbon?"]);
+
+    if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
+        if let Some(text) = res.content.parts.text_response() {
+            println!("{text}");
+        }
+    }
+    Ok(())
+}
+```
+
+`with_max_steps(n)` caps the agentic loop at `n` iterations. It defaults to `1`,
+which means no tool loop, so set it when you expect the model to call tools.
+
+## Going further
+
+- [Tools in Python](/docs/tools/python): write tools as Python functions and
+  load them at runtime.
+- [Human in the loop](/docs/tools/human-in-the-loop): pause for a person to
+  approve, reject, or edit a call before it runs.
+- [Native tools](/docs/tools/native): provider-built tools like code execution
+  and search, running alongside your own.
+- [Tools with context](/docs/tools/context): attach metadata to tools and
+  decide per call what should happen.
+
+<Cards>
+  <Card title="Tools in Python" href="/docs/tools/python" />
+  <Card title="Human in the loop" href="/docs/tools/human-in-the-loop" />
+  <Card title="Native tools" href="/docs/tools/native" />
+  <Card title="Tools with context" href="/docs/tools/context" />
+</Cards>

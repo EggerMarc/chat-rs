@@ -102,9 +102,9 @@ impl<M, C, T: Transport> GeminiBuilder<M, C, T> {
 }
 
 impl<C, T: Transport> GeminiBuilder<WithoutModel, C, T> {
-    pub fn with_model(self, model_name: String) -> GeminiBuilder<WithModel, C, T> {
+    pub fn with_model(self, model_name: impl Into<String>) -> GeminiBuilder<WithModel, C, T> {
         GeminiBuilder {
-            model_name: Some(model_name),
+            model_name: Some(model_name.into()),
             api_key: self.api_key,
             native_tools: self.native_tools,
             function_config: self.function_config,

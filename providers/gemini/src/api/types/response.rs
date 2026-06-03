@@ -92,7 +92,6 @@ impl GeminiCompletionResponse {
                     let thought_signature = part.thought_signature.clone();
 
                     if let Some(text) = part.text {
-                        // 2. Stable Rust compatible boolean check
                         if part.thought.unwrap_or(false) {
                             core_parts.push(PartEnum::Reasoning(Reasoning {
                                 text,

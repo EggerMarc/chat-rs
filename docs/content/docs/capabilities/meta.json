@@ -1,0 +1,11 @@
+{
+  "title": "Capabilities",
+  "pages": [
+    "index",
+    "streaming",
+    "multimodal",
+    "structured-output",
+    "embeddings",
+    "transports"
+  ]
+}

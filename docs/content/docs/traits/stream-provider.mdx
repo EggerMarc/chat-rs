@@ -1,0 +1,67 @@
+---
+title: StreamProvider
+description: The trait that adds token-by-token streaming on top of a completion provider.
+---
+
+`StreamProvider` adds streaming to a provider. It lives behind the `stream`
+feature, so enable that feature to use it.
+
+## The trait
+
+```rust
+#[cfg(feature = "stream")]
+#[async_trait]
+pub trait StreamProvider: Send + Sync {
+    async fn stream(
+        &mut self,
+        messages: &mut Messages,
+        tool_declarations: Option<&dyn ToolDeclarations>,
+        options: Option<&ChatOptions>,
+    ) -> Result<BoxStream<'static, Result<StreamEvent, ChatError>>, ChatError>;
+
+    fn on_stream_done(&mut self, _response: &ChatResponse) {}
+}
+```
+
+`stream` mirrors `complete` from
+[`CompletionProvider`](/docs/traits/completion-provider), but instead of
+returning a single `ChatResponse` it returns a `BoxStream` of `StreamEvent`
+values. The caller pulls events with `.next()` until the stream ends.
+
+`on_stream_done` runs after the stream has been fully consumed, with the final
+assembled `ChatResponse`. The default does nothing. Override it if your provider
+needs to store state from the completed turn, for example usage counters or a
+response id.
+
+## ChatProvider and the blanket impl
+
+A provider that does both completion and streaming is a `ChatProvider`. You
+never implement `ChatProvider` directly; it is a supertrait with a blanket
+implementation, so any type that is both a `CompletionProvider` and a
+`StreamProvider` becomes one automatically:
+
+```rust
+#[cfg(feature = "stream")]
+pub trait ChatProvider: CompletionProvider + StreamProvider {}
+
+#[cfg(feature = "stream")]
+impl<T: CompletionProvider + StreamProvider> ChatProvider for T {}
+```
+
+This is why `chat.stream(...)` is only available when your provider implements
+`StreamProvider`. The `stream` method is bound on that trait, so streaming a
+provider that cannot stream is a compile error rather than a runtime surprise. No
+extra builder call is needed: a normal chat exposes `stream` whenever the
+provider supports it.
+
+```rust
+// `stream` exists because the provider implements StreamProvider.
+let mut chat = ChatBuilder::new().with_model(client).build();
+let mut stream = chat.stream(&mut messages).await.map_err(|e| e.err)?;
+```
+
+For pushing input while the response streams, transition with
+`.with_input_stream()` (see [Responses](/docs/providers/responses)).
+
+See [Embeddings](/docs/traits/embeddings-provider) for the other optional
+capability trait.

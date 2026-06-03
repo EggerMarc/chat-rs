@@ -181,6 +181,21 @@ impl<CP: CompletionProvider, Output> ChatBuilder<CP, Output> {
         self
     }
 
+    /// Run a strategy before the loop starts. It receives the outgoing
+    /// `Messages` (which it may mutate synchronously) and the most recent
+    /// `Metadata`, and returns a future for any async side effects.
+    pub fn with_before_strategy(mut self, before_strategy: CallbackStrategy) -> Self {
+        self.before_strategy = Some(before_strategy);
+        self
+    }
+
+    /// Run a strategy after the loop completes successfully. It receives the
+    /// final `Messages` and the run's `Metadata`.
+    pub fn with_after_strategy(mut self, after_strategy: CallbackStrategy) -> Self {
+        self.after_strategy = Some(after_strategy);
+        self
+    }
+
     pub fn with_model(mut self, model: CP) -> Self {
         self.model = Some(model);
         self
@@ -192,10 +207,6 @@ impl<CP: CompletionProvider, Output> ChatBuilder<CP, Output> {
     }
 
     pub fn build(self) -> Chat<CP, Output> {
-        // Build routing table: tool name → index into scoped_collections.
-        // Collisions across collections are a programming error — we
-        // keep the first and ignore later ones with a warning. (Could
-        // be promoted to a hard error via a builder method later.)
         let mut routing: HashMap<String, usize> = HashMap::new();
         for (idx, coll) in self.scoped_collections.iter().enumerate() {
             for name in coll.names() {

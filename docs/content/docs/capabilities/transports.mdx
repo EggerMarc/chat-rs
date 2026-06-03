@@ -1,0 +1,74 @@
+---
+title: Transports
+description: Swap the HTTP layer for WebSocket, your own protocol, or anything else, without touching provider code.
+---
+
+A transport is how a provider actually moves bytes. By default chat-rs speaks
+HTTP over reqwest, but the transport is pluggable. Every provider builder is
+generic over `T: Transport`, so you can swap in WebSocket, wire up something like
+gRPC, or write your own, and none of your provider or call-site code changes.
+
+## The default
+
+Providers default to `ReqwestTransport` (HTTP), so most of the time you never
+think about transports at all.
+
+## Built-in transports
+
+| Transport | Feature | Use |
+| --- | --- | --- |
+| `ReqwestTransport` | `reqwest-transport` | HTTP, the default |
+| `WsTransport` | `tungstenite` | blocking WebSocket |
+| `AsyncWsTransport` | `tokio-tungstenite` | async WebSocket |
+
+Swap one in with `.with_transport(...)` on the provider builder. For example,
+OpenAI over an async WebSocket (enable the `tokio-tungstenite` feature):
+
+```rust title="websocket.rs"
+use chat_rs::{ChatBuilder, openai::OpenAIBuilder, transport::AsyncWsTransport};
+
+let ws = AsyncWsTransport::new().with_message_type("response.create");
+
+let client = OpenAIBuilder::new()
+    .with_model("gpt-4o-mini")
+    .with_transport(ws)
+    .build();
+
+let chat = ChatBuilder::new().with_model(client).build();
+```
+
+`with_transport` changes the builder's transport type parameter, so everything
+downstream stays the same. The chat, the loop, tools, and streaming all behave
+identically; only the wire underneath is different.
+
+## Write your own
+
+A transport implements two methods: `send` for a single request and response,
+and `stream` for an event stream.
+
+```rust
+use std::future::Future;
+use chat_rs::transport::{EventStream, Request, Response, Transport, TransportError};
+
+pub trait Transport: Send + Sync {
+    fn send(
+        &self,
+        req: Request,
+    ) -> impl Future<Output = Result<Response, TransportError>> + Send;
+
+    fn stream(
+        &self,
+        req: Request,
+    ) -> impl Future<Output = Result<EventStream, TransportError>> + Send;
+}
+```
+
+A `Request` carries headers and a body (`Vec<u8>`), and a `Response` carries
+headers and a body. `send` delivers one request and returns the full response;
+`stream` returns a stream of events (an HTTP transport parses SSE, a WebSocket
+transport yields frames). Implement those two methods on your type and hand it
+to `.with_transport(...)`.
+
+This is the path for a custom protocol, a gRPC backend over Tonic, a mock
+transport for tests, or a proxy that adds signing or logging. The provider does
+not know or care which one it is talking to.

@@ -1,0 +1,94 @@
+---
+title: Tools with context
+description: Attach metadata to tools and decide per call what the loop should do with them.
+---
+
+Sometimes you want different rules for different tools: read-only ones run on
+their own, destructive ones wait for approval, expensive ones get deferred.
+chat-rs lets each tool carry metadata, and lets you pair a tool collection with
+a strategy that reads that metadata to decide what happens on every call.
+
+One thing to keep clear up front: metadata informs the strategy's decision; it
+is never passed into the tool's body. It only changes how the loop interacts with
+the tool, not what the tool does.
+
+## Describe the metadata
+
+Add `#[tool(key = value)]` attributes to your tools and define a struct that
+deserializes them. Anything not set falls back to the struct's defaults.
+
+```rust
+use serde::Deserialize;
+use tools_rs::tool;
+
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(default)]
+struct ApprovalMeta {
+    requires_approval: bool,
+}
+
+#[tool(requires_approval = true)]
+/// Deletes files matching a glob pattern.
+async fn delete_files(pattern: String) -> String {
+    format!("(pretend) deleted files matching: {pattern}")
+}
+
+#[tool]
+/// Reads the contents of a file.
+async fn read_file(path: String) -> String {
+    format!("(pretend) contents of {path}: hello world")
+}
+```
+
+## Write a strategy
+
+A strategy is a plain closure, `Fn(&FunctionCall, &M) -> Action`. It inspects the
+call and its metadata and returns one of the loop-flow actions:
+
+- `Action::Execute` runs the tool now.
+- `Action::RequireApproval` pauses for a human (see [Human in the loop](/docs/tools/human-in-the-loop)).
+- `Action::Defer { at }` pauses until a later time.
+- `Action::Reject { reason }` declines the call and tells the model why.
+
+```rust
+use chat_rs::Action;
+use tools_rs::FunctionCall;
+
+fn approval_strategy(_call: &FunctionCall, meta: &ApprovalMeta) -> Action {
+    if meta.requires_approval {
+        Action::RequireApproval
+    } else {
+        Action::Execute
+    }
+}
+```
+
+## Wire it up
+
+Collect the tools as a typed collection with `collect_tools::<M>()`, pair it with
+your strategy via `ScopedCollection::new`, and register it with
+`with_scoped_tools`. You can add more than one scoped collection; each tool call
+routes to the collection that owns its name.
+
+```rust
+use chat_rs::{ChatBuilder, ScopedCollection, claude::ClaudeBuilder};
+use tools_rs::ToolCollection;
+
+let raw_tools: ToolCollection<ApprovalMeta> = ToolCollection::collect_tools()?;
+let scoped = ScopedCollection::new(raw_tools, approval_strategy);
+
+let client = ClaudeBuilder::new()
+    .with_model("claude-sonnet-4-20250514")
+    .build();
+
+let mut chat = ChatBuilder::new()
+    .with_model(client)
+    .with_scoped_tools(scoped)
+    .with_max_steps(8)
+    .build();
+```
+
+Now, on every tool call, the loop looks up that tool's metadata and asks your
+strategy what to do. Because the strategy is an ordinary closure, it can also
+close over things outside the metadata, like feature flags, rate-limit buckets,
+or the current user's session, when deciding how a tool should run.

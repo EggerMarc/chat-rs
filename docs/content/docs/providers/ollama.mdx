@@ -1,0 +1,66 @@
+---
+title: Ollama
+description: Talk to models running on a local (or remote) Ollama daemon over its OpenAI-compatible endpoint.
+---
+
+Ollama runs open models on your own machine and serves them over an
+OpenAI-compatible `/v1/chat/completions` endpoint, so `chat-ollama` is a thin
+layer on top of [Completions](/docs/providers/completions). It points at the
+local daemon by default, reads `OLLAMA_HOST`, and adds a `pull()` helper that
+fetches a model before the first request. No API key needed.
+
+## Install
+
+```toml title="Cargo.toml"
+chat-rs = { version = "0.5.1", features = ["ollama"] }
+```
+
+`OllamaBuilder::new()` reads `OLLAMA_HOST` if set, otherwise defaults to
+`http://localhost:11434`. Start the daemon first with `ollama serve`.
+
+## Minimal usage
+
+```rust
+use chat_rs::{ChatBuilder, ChatOutcome, ollama::OllamaBuilder, parts, types::messages};
+
+let client = OllamaBuilder::new().with_model("llama3.2").build();
+let mut chat = ChatBuilder::new().with_model(client).build();
+
+let mut messages = messages::from_user(parts!["Say hello in one sentence."]);
+if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
+    println!("{:#?}", res.content);
+}
+```
+
+## Configuration
+
+`with_model(impl Into<String>)` selects the model. A few more helpers worth
+knowing:
+
+- `with_host(impl AsRef<str>)` points at a remote daemon, e.g.
+  `OllamaBuilder::with_host("http://10.0.0.5:11434")`. A trailing `/v1` is fine;
+  it gets stripped.
+- `with_api_key(impl Into<String>)` and `with_header(key, value)` help when the
+  daemon sits behind an authenticating proxy.
+- `ping()` confirms the daemon is reachable before you build, returning a clear
+  error with an install hint if the connection is refused.
+- `pull()` downloads the model if it is missing. It is async and chainable, so it
+  slots right into the build chain. Already-present models return near-instantly.
+
+```rust
+use chat_rs::ollama::OllamaBuilder;
+
+// Make sure the model is on disk, then build.
+let client = OllamaBuilder::new()
+    .with_model("llama3.2")
+    .pull().await?
+    .build();
+```
+
+## Capabilities
+
+Because it rides on the Completions wire, Ollama supports completion, streaming,
+structured output, embeddings, and tools. Streaming needs the `stream` feature;
+embeddings need `.with_embeddings()` on the chat builder and an embed model such
+as `nomic-embed-text`. Tool support depends on the model you load (Llama 3.1+ and
+Qwen2.5 work well).

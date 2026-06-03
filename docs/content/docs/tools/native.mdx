@@ -1,0 +1,78 @@
+---
+title: Native tools
+description: Use provider-built tools like code execution and search alongside your own functions.
+---
+
+Some tools are built into the provider itself: Gemini can run code or query
+Google Search, OpenAI can search the web or generate images. You do not write or
+host these. You turn them on, and the model uses them as part of its turn.
+
+Native tools are configured on the provider builder, while your own `#[tool]`
+functions are registered on the chat builder with `.with_tools(...)`. Whether the
+two can be used together in the same request depends on the provider, and Gemini
+is finicky here. See [combining native and custom tools](#combining-native-and-custom-tools)
+before you mix them.
+
+## Gemini
+
+Call the `with_*` methods on `GeminiBuilder` before `build`:
+
+```rust
+use chat_rs::gemini::GeminiBuilder;
+
+let client = GeminiBuilder::new()
+    .with_model("gemini-2.5-flash")
+    .with_code_execution()
+    .build();
+```
+
+`with_google_maps` takes an optional `(lat, lng)` to anchor results and a bool
+for whether to enable the maps widget. You can stack native tools together:
+
+```rust
+let client = GeminiBuilder::new()
+    .with_model("gemini-2.5-flash")
+    .with_google_maps(Some((34.05048, -118.24853)), false)
+    .with_google_search()
+    .build();
+```
+
+## OpenAI
+
+OpenAI exposes its native tools the same way, on `OpenAIBuilder`. Both
+`with_web_search` and `with_image_generation` take their respective config:
+
+```rust
+use chat_rs::openai::OpenAIBuilder;
+
+let client = OpenAIBuilder::new()
+    .with_model("gpt-4o")
+    .with_web_search(None, None)
+    .build();
+```
+
+`with_web_search` accepts an optional context size and an optional user
+location; passing `None` for both uses the provider defaults.
+`with_image_generation` takes an `ImageGenerationTool` describing the image
+output you want.
+
+## Combining native and custom tools
+
+Stacking several native tools on one provider is fine (the Gemini Maps plus
+Search example above does exactly that). Combining native tools with your own
+`#[tool]` functions is the part that varies by provider.
+
+<Callout type="warn">
+Gemini does not allow native tools and custom `#[tool]` functions in the same
+request. If you enable, say, code execution and also attach a custom tool
+collection, the request will not work as you expect. With Gemini, choose native
+or custom per request.
+</Callout>
+
+When you need both with Gemini, you have two options: split the work across
+turns (one request uses the native tool, the next uses your custom tools), or
+route tool-calling requests to a provider that does support custom tools, while
+sending the rest to Gemini. The [router](/docs/providers/router) is built for
+exactly this kind of capability-based routing; its
+[capability example](/docs/providers/router) excludes Gemini whenever custom
+tools are in play.

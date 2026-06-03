@@ -1,0 +1,108 @@
+---
+title: Gemini
+description: Google's Gemini models, with native tools, embeddings, multimodal input, and structured output.
+---
+
+`GeminiBuilder` presets the Google Generative Language endpoint and auth, and
+exposes Gemini's native tools and embeddings through the builder. Hand the built
+client to `ChatBuilder::with_model` and the rest of chat-rs works the same as
+any other provider.
+
+## Install
+
+Enable the `gemini` feature (crate `chat-gemini`):
+
+```toml
+chat-rs = { version = "0.5.1", features = ["gemini"] }
+```
+
+By default the client reads your key from the `GEMINI_API_KEY` environment
+variable. You can also set it explicitly with `with_api_key`.
+
+## Usage
+
+```rust
+use chat_rs::{ChatBuilder, ChatOutcome, gemini::GeminiBuilder, parts, types::messages};
+
+let client = GeminiBuilder::new()
+    .with_model("gemini-2.5-flash")
+    .build();
+
+let mut chat = ChatBuilder::new().with_model(client).build();
+
+let mut messages = messages::from_user(parts!["Hey there!"]);
+
+if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
+    println!("{:?}", res.content.parts.last());
+}
+```
+
+## Configuration
+
+The builder methods cover the Gemini-specific surface:
+
+- `with_model(impl Into<String>)` selects the model and moves the builder into
+  its ready-to-build state.
+- `with_api_key(String)` supplies the key directly instead of reading
+  `GEMINI_API_KEY`.
+- `with_thoughts(bool)` toggles Gemini's reasoning, surfaced while streaming as
+  `StreamEvent::ReasoningChunk`.
+- `with_image_output()` requests `TEXT` and `IMAGE` response modalities so the
+  model can return generated images. This is experimental and only works on
+  models that support image output.
+- `with_description(impl Into<String>)`, `with_metadata(key, value)`, and
+  `with_transport(transport)` attach metadata or swap in a custom transport.
+
+Native tools (see [native tools](/docs/tools/native)) are added on the builder:
+
+- `with_code_execution()` lets the model run code in a sandbox.
+- `with_google_search()` enables grounded search;
+  `with_google_search_threshold(f32)` does the same with a dynamic retrieval
+  threshold.
+- `with_google_maps(Option<(f32, f32)>, bool)` enables Maps grounding, taking an
+  optional `(lat, lng)` and whether to emit a map widget.
+- `with_function_calling_mode(&str, Option<Vec<String>>)` sets the calling mode
+  (for example `"ANY"`) and an optional allow-list of function names.
+
+You can combine several native tools on one client:
+
+```rust
+let client = GeminiBuilder::new()
+    .with_model("gemini-2.5-flash")
+    .with_google_maps(Some((34.05048, -118.24853)), false)
+    .with_google_search()
+    .build();
+```
+
+<Callout type="warn">
+Gemini does not allow native tools and your own `#[tool]` functions in the same
+request. Use one or the other per request, or route tool-calling work to another
+provider. See [combining native and custom tools](/docs/tools/native#combining-native-and-custom-tools).
+</Callout>
+
+For embeddings, switch the builder into embedding mode:
+
+- `with_embeddings(Option<usize>)` enables embeddings with an optional output
+  dimension count.
+- `with_embeddings_task(task)` sets the embedding task type.
+
+```rust
+let client = GeminiBuilder::new()
+    .with_model("gemini-embedding-001")
+    .with_embeddings(Some(128))
+    .build();
+
+let mut chat = ChatBuilder::new().with_model(client).with_embeddings().build();
+let response = chat.embed(&mut messages).await.map_err(|e| e.err)?;
+println!("{:?}", response.embeddings);
+```
+
+## Capabilities
+
+- Completion and [streaming](/docs/capabilities/streaming) are both supported.
+- [Embeddings](/docs/capabilities/embeddings) and
+  [structured output](/docs/capabilities/structured-output) are supported.
+- [Multimodal](/docs/capabilities/multimodal) input (such as images) works by
+  attaching file parts to a user message.
+- [Native tools](/docs/tools/native): code execution, Google Search, and Google
+  Maps grounding.

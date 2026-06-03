@@ -1,0 +1,45 @@
+---
+title: Introduction
+description: A unified, type-safe Rust runtime for model interaction.
+---
+
+**chat-rs** is a runtime for model interaction. It gives you one consistent,
+type-safe API across every major provider, with streaming, multimodal content,
+tools, structured output, embeddings, and multi-provider routing.
+
+## Why chat-rs
+
+- **One API, every provider.** Swap providers without rewriting your call
+  sites. Every provider implements the same `CompletionProvider` /
+  `StreamProvider` traits.
+- **Type-state builders.** Misconfiguration is a compile error, not a runtime
+  surprise. Required configuration like the model is enforced by the type
+  system.
+- **Streaming first.** Token-by-token output behind a single `StreamEvent`
+  enum, plus full-duplex input streaming.
+- **Tools and human-in-the-loop.** Native tool calling with pause and resume
+  for approvals.
+- **Bring your own provider.** Implement one trait and any backend plugs into
+  the same reason-and-act loop.
+
+## How it fits together
+
+`chat-core` defines the shared types and traits. Two wire crates implement the
+on-the-wire protocols, and provider crates are thin wrappers on top of them:
+
+- `chat-completions` is the OpenAI Chat Completions wire.
+- `chat-responses` is the OpenAI Responses API wire.
+- `chat-router` composes several providers behind one, with fallback.
+
+For example, `chat-openai` and `chat-openrouter` build on `chat-responses`;
+`chat-ollama`, `chat-deepseek`, `chat-cerebras`, and `chat-huggingface` build on
+`chat-completions`.
+
+<Cards>
+  <Card title="Getting started" href="/docs/getting-started" />
+  <Card title="Capabilities" href="/docs/capabilities" />
+  <Card title="Traits" href="/docs/traits" />
+  <Card title="Tools" href="/docs/tools" />
+  <Card title="Middleware" href="/docs/middleware" />
+  <Card title="Providers" href="/docs/providers" />
+</Cards>

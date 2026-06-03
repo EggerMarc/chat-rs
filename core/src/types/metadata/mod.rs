@@ -39,7 +39,6 @@ impl Metadata {
     pub fn extend(&mut self, metadata: &Metadata) -> &Self {
         self.add_usage(&metadata.usage);
 
-        // TODO: rethink multiple metadatas per call
         if let Some(other) = metadata.duration_ms {
             let current = self.duration_ms.get_or_insert(0);
             *current += other;

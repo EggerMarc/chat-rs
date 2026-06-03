@@ -45,8 +45,6 @@ impl SseParser {
             }
 
             if let Some(event_type) = line.strip_prefix("event: ") {
-                // A new event: line while we still have buffered data means the
-                // previous event ended without a blank line — flush it first.
                 if !self.current_data.is_empty() {
                     let data = self.current_data.trim().to_string();
                     self.current_data.clear();

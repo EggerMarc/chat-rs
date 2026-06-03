@@ -50,7 +50,6 @@ impl CircuitBreaker {
         if circuit.consecutive_failures < self.config.failure_threshold {
             return true;
         }
-        // Circuit is open — check if recovery timeout has elapsed (half-open)
         match circuit.last_failure_at {
             Some(at) => at.elapsed() >= self.config.recovery_timeout,
             None => true,
@@ -109,9 +108,9 @@ mod tests {
             1,
         );
         cb.record_failure(0);
-        assert!(cb.is_available(0)); // 1 < 2
+        assert!(cb.is_available(0));
         cb.record_failure(0);
-        assert!(!cb.is_available(0)); // 2 >= 2, just failed
+        assert!(!cb.is_available(0));
     }
 
     #[test]
@@ -140,7 +139,6 @@ mod tests {
             1,
         );
         cb.record_failure(0);
-        // With 0ms timeout, should immediately be half-open
         assert!(cb.is_available(0));
     }
 
@@ -156,7 +154,6 @@ mod tests {
         cb.record_failure(1);
         cb.record_failure(2);
         cb.record_failure(0);
-        // Provider 1 failed first → oldest
         assert_eq!(cb.longest_open(), Some(1));
     }
 }

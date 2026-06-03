@@ -59,7 +59,6 @@ fn find_youtube_urls(text: &str) -> Vec<Url> {
 /// ```
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // TODO: add from path
     let client = gemini::GeminiBuilder::new()
         .with_model("gemini-2.5-flash".to_string())
         .build();

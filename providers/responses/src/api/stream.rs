@@ -88,10 +88,6 @@ impl<T: Transport> StreamProvider for ResponsesClient<T> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// SSE event data shapes (matching OpenAI Responses API wire format)
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Deserialize)]
 struct SseResponseWrapper {
     response: SseResponseData,
@@ -121,10 +117,6 @@ struct SseFcArgsDelta {
     item_id: Option<String>,
     delta: String,
 }
-
-// ---------------------------------------------------------------------------
-// Stream state — accumulates parts across SSE events
-// ---------------------------------------------------------------------------
 
 struct StreamState {
     parts: Parts,

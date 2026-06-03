@@ -22,10 +22,6 @@ use crate::circuit_breaker::CircuitBreaker;
 pub struct WithoutProvider;
 pub struct WithProvider;
 
-// ---------------------------------------------------------------------------
-// RouterBuilder — completion-only router
-// ---------------------------------------------------------------------------
-
 pub struct RouterBuilder<M = WithoutProvider> {
     providers: Vec<Box<dyn CompletionProvider>>,
     strategy: Option<Box<dyn RoutingStrategy>>,
@@ -91,10 +87,6 @@ impl RouterBuilder<WithProvider> {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// StreamRouterBuilder — streaming router (all providers must support stream)
-// ---------------------------------------------------------------------------
 
 #[cfg(feature = "stream")]
 pub struct StreamRouterBuilder<M = WithoutProvider> {

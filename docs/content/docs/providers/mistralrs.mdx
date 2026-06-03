@@ -1,0 +1,83 @@
+---
+title: mistral.rs
+description: Run open-weight models locally in-process through the mistral.rs engine.
+---
+
+`chat-mistralrs` runs models in-process via [mistral.rs](https://github.com/EricLBuehler/mistral.rs),
+loading weights from a Hugging Face repo and serving them without a separate
+daemon or network hop. It is a good fit for fully local, offline, or
+privacy-sensitive setups, and it speaks vision and audio in addition to text.
+
+## Install
+
+```toml title="Cargo.toml"
+chat-rs = { version = "0.5.1", features = ["mistralrs"] }
+```
+
+On macOS, enable GPU acceleration with the Metal backend; on Linux use `cuda`:
+
+```bash
+cargo run --features "mistralrs chat-mistralrs/metal"
+```
+
+Set `HF_TOKEN` if you need a gated repo. First run downloads the weights into
+`~/.cache/huggingface/`; later runs are warm-cache fast.
+
+## Minimal usage
+
+`build()` is async and fallible here, because it actually downloads and loads the
+model into memory.
+
+```rust
+use chat_mistralrs::MistralRsBuilder;
+use chat_rs::{ChatBuilder, ChatOutcome, parts, types::messages};
+
+let client = MistralRsBuilder::new()
+    .with_model("Qwen/Qwen2.5-0.5B-Instruct-GGUF")
+    .with_gguf_file("qwen2.5-0.5b-instruct-q4_k_m.gguf")
+    .with_tok_model_id("Qwen/Qwen2.5-0.5B-Instruct")
+    .build().await?;
+
+let mut chat = ChatBuilder::new().with_model(client).build();
+
+let mut messages = messages::from_user(parts!["Write a haiku about the ocean."]);
+if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
+    println!("{:#?}", res.content);
+}
+```
+
+## Configuration
+
+`with_model(impl Into<String>)` takes a Hugging Face repo id. The auto-detect
+loader handles safetensors repos; the helpers below switch loaders or tune the
+run:
+
+- `with_gguf_file(impl Into<String>)` selects a `.gguf` file inside the repo and
+  uses the GGUF loader. Pair it with `with_tok_model_id(impl Into<String>)` when
+  the GGUF repo ships no tokenizer, pointing at the original safetensors repo.
+- `with_multimodal()` switches to the multimodal loader for vision and audio
+  models (Qwen2.5-VL, Gemma 3n, and friends).
+- `with_isq(IsqType)` applies in-situ quantization, e.g. `IsqType::Q4K` for
+  roughly 4-bit weights, which helps large models fit in memory.
+- `with_device(DeviceChoice)` accepts `Auto` (honors the compiled-in backend) or
+  `Cpu`. Select GPU at compile time via the `metal` or `cuda` feature.
+- `with_logging()` surfaces mistral.rs's download and load progress, useful on a
+  cold cache where the process is otherwise silent for a while.
+
+```rust
+use chat_mistralrs::{IsqType, MistralRsBuilder};
+
+let client = MistralRsBuilder::new()
+    .with_model("Qwen/Qwen2.5-VL-3B-Instruct")
+    .with_multimodal()
+    .with_isq(IsqType::Q4K)
+    .with_logging()
+    .build().await?;
+```
+
+## Capabilities
+
+mistral.rs supports completion, streaming, embeddings, structured output,
+multimodal (vision and audio), and tools. Streaming needs the `stream` feature.
+Multimodal turns attach files via `File::from_path` or `File::from_bytes_with_mime`,
+which then flow through the normal message parts.

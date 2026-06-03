@@ -42,7 +42,6 @@ impl RoutingStrategy for CapabilityRouter {
             .collect();
 
         if capable.is_empty() {
-            // No provider declared support — try all in order
             Ok((0..providers.len()).collect())
         } else {
             Ok(capable)

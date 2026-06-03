@@ -5,13 +5,6 @@ pub struct Usage {
     pub input_tokens: usize,
     pub output_tokens: usize,
     pub total_tokens: usize,
-    /*#[serde(default)]
-    pub reasoning_tokens: usize,
-    #[serde(default)]
-    pub cache_creation_input_tokens: usize,
-    #[serde(default)]
-    pub cache_read_input_tokens: usize,
-    */
 }
 
 #[cfg(test)]
@@ -24,9 +17,6 @@ mod tests {
         assert_eq!(usage.input_tokens, 0);
         assert_eq!(usage.output_tokens, 0);
         assert_eq!(usage.total_tokens, 0);
-        //assert_eq!(usage.reasoning_tokens, 0);
-        //assert_eq!(usage.cache_creation_input_tokens, 0);
-        //assert_eq!(usage.cache_read_input_tokens, 0);
     }
 
     #[test]
@@ -48,7 +38,6 @@ mod tests {
             output_tokens: 50,
             total_tokens: 170,
         };
-        //assert_eq!(usage.reasoning_tokens, 20);
         assert_eq!(usage.total_tokens, 170);
     }
 
@@ -136,9 +125,6 @@ mod tests {
             input_tokens: 1_000_000,
             output_tokens: 500_000,
             total_tokens: 1_500_000,
-            //reasoning_tokens: 50_000,
-            //cache_creation_input_tokens: 10_000,
-            //cache_read_input_tokens: 5_000,
         };
         assert_eq!(usage.input_tokens, 1_000_000);
         assert_eq!(usage.total_tokens, 1_500_000);

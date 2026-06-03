@@ -1,0 +1,97 @@
+---
+title: Providers
+description: The backends chat-rs can talk to, and the helpers that compose them.
+---
+
+A provider is an implementation of model capabilities. You build one, hand it to
+`ChatBuilder::with_model`, and everything else, the loop, tools, streaming,
+retries, and middleware, works the same way regardless of which provider you
+chose.
+
+## Helpers
+
+Three providers are not tied to a single vendor. They get the most attention
+because you can build a lot on top of them.
+
+<Cards>
+  <Card title="Router" href="/docs/providers/router" />
+  <Card title="Completions" href="/docs/providers/completions" />
+  <Card title="Responses" href="/docs/providers/responses" />
+</Cards>
+
+- The [**Router**](/docs/providers/router) composes several providers behind a
+  single one, with a routing strategy, fallback, and a circuit breaker.
+- [**Completions**](/docs/providers/completions) is the OpenAI Chat Completions
+  wire. Point it at any OpenAI-compatible server, or use it to build your own
+  provider.
+- [**Responses**](/docs/providers/responses) is the OpenAI Responses API wire,
+  with input streaming and reasoning effort.
+
+## Vendors
+
+Each vendor provider presets the URL, auth, and any vendor-specific niceties.
+
+| Provider | Builder | Feature | Wraps |
+| --- | --- | --- | --- |
+| [Claude](/docs/providers/claude) | `ClaudeBuilder` | `claude` | native |
+| [Gemini](/docs/providers/gemini) | `GeminiBuilder` | `gemini` | native |
+| [OpenAI](/docs/providers/openai) | `OpenAIBuilder` | `openai` | responses |
+| [Ollama](/docs/providers/ollama) | `OllamaBuilder` | `ollama` | completions |
+| [DeepSeek](/docs/providers/deepseek) | `DeepSeekBuilder` | `deepseek` | completions |
+| [Cerebras](/docs/providers/cerebras) | `CerebrasBuilder` | `cerebras` | completions |
+| [HuggingFace](/docs/providers/huggingface) | `HuggingFaceBuilder` | `huggingface` | completions |
+| [mistral.rs](/docs/providers/mistralrs) | `MistralRsBuilder` | `mistralrs` | local |
+| [OpenRouter](/docs/providers/openrouter) | `OpenRouterBuilder` | `openrouter` | responses / completions |
+
+### Capabilities at a glance
+
+| Provider | Stream | Embeddings | Structured | Native tools |
+| --- | --- | --- | --- | --- |
+| Claude | yes | no | yes | thinking |
+| Gemini | yes | yes | yes | code exec, search, maps |
+| OpenAI | yes | yes | yes | web search, image gen |
+| Ollama | yes | yes | yes | no |
+| DeepSeek | yes | no | yes | no |
+| Cerebras | yes | no | yes | no |
+| HuggingFace | yes | no | yes | no |
+| mistral.rs | yes | yes | yes | no |
+| OpenRouter | yes | no | yes | no |
+
+Enable a provider with its cargo feature:
+
+```toml title="Cargo.toml"
+chat-rs = { version = "0.5.1", features = ["claude", "gemini", "openai"] }
+```
+
+## Bring your own provider
+
+A provider is just one trait. Implement `CompletionProvider` and your backend
+plugs into the same loop as everything else. It does not need to speak Chat
+Completions or the Responses API.
+
+```rust
+use async_trait::async_trait;
+use chat_rs::{
+    ChatFailure, ChatResponse, CompletionProvider, Messages,
+    types::{options::ChatOptions, tools::ToolDeclarations},
+};
+
+struct MyProvider;
+
+#[async_trait]
+impl CompletionProvider for MyProvider {
+    async fn complete(
+        &mut self,
+        messages: &mut Messages,
+        tools: Option<&dyn ToolDeclarations>,
+        options: Option<&ChatOptions>,
+        schema: Option<&schemars::Schema>,
+    ) -> Result<ChatResponse, ChatFailure> {
+        // Call your model, then hand back a ChatResponse.
+        todo!()
+    }
+}
+```
+
+If you target an OpenAI-compatible endpoint, you usually do not need to write
+this by hand: build on [Completions](/docs/providers/completions) instead.

@@ -73,9 +73,6 @@ impl CompletionProvider for StreamRouter {
                     return Ok(response);
                 }
                 Err(failure) => {
-                    // Non-retryable errors won't fare better elsewhere and
-                    // shouldn't be masked — surface immediately. Only retryable
-                    // failures fall through to the next provider.
                     if !failure.err.is_retryable() {
                         return Err(failure);
                     }
@@ -167,8 +164,6 @@ impl StreamProvider for StreamRouter {
                     return Ok(stream);
                 }
                 Err(err) => {
-                    // Non-retryable errors short-circuit; only retryable ones
-                    // fall through to the next provider.
                     if !err.is_retryable() {
                         return Err(err);
                     }

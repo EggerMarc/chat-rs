@@ -1,0 +1,29 @@
+---
+title: Capabilities
+description: What a chat-rs model can do, and how each capability is exposed.
+---
+
+A capability is something a model can do that chat-rs exposes the same way
+across every provider that supports it. You opt into a capability on the
+builder, and the type system makes sure you only call what you set up.
+
+| Capability | Opt in with | You call |
+| --- | --- | --- |
+| [Streaming](/docs/capabilities/streaming) | the `stream` feature | `chat.stream(&mut messages)` |
+| [Multimodal](/docs/capabilities/multimodal) | nothing, it is built in | `parts!["text", file]` |
+| [Structured output](/docs/capabilities/structured-output) | `.with_structured_output::<T>()` | `chat.complete(&mut messages)` returns `T` |
+| [Embeddings](/docs/capabilities/embeddings) | `.with_embeddings()` | `chat.embed(&mut messages)` |
+| [Transports](/docs/capabilities/transports) | `.with_transport(...)` | swap HTTP for WebSocket or your own |
+
+Not every provider supports every capability. The
+[providers](/docs/providers) section lists what each one can do. Capabilities
+are backed by [traits](/docs/traits): a provider advertises a capability by
+implementing the matching trait.
+
+<Cards>
+  <Card title="Streaming" href="/docs/capabilities/streaming" />
+  <Card title="Multimodal" href="/docs/capabilities/multimodal" />
+  <Card title="Structured output" href="/docs/capabilities/structured-output" />
+  <Card title="Embeddings" href="/docs/capabilities/embeddings" />
+  <Card title="Transports" href="/docs/capabilities/transports" />
+</Cards>

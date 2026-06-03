@@ -1,0 +1,83 @@
+---
+title: Claude
+description: Anthropic's Claude models, with native reasoning blocks, streaming, and structured output.
+---
+
+`ClaudeBuilder` presets the Anthropic endpoint, auth, and API version, and gives
+you Claude's native "thinking" out of the box. Hand the built client to
+`ChatBuilder::with_model` and the rest of chat-rs works the same as any other
+provider.
+
+## Install
+
+Enable the `claude` feature (crate `chat-claude`):
+
+```toml
+chat-rs = { version = "0.5.1", features = ["claude"] }
+```
+
+By default the client reads your key from the `CLAUDE_API_KEY` environment
+variable. You can also set it explicitly with `with_api_key`.
+
+## Usage
+
+```rust
+use chat_rs::{ChatBuilder, ChatOutcome, claude::ClaudeBuilder, parts, types::messages};
+
+let client = ClaudeBuilder::new()
+    .with_model("claude-sonnet-4-20250514")
+    .build();
+
+let mut chat = ChatBuilder::new().with_model(client).build();
+
+let mut messages = messages::from_user(parts!["Hey there!"]);
+
+if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
+    if let Some(text) = res.content.parts.text_response() {
+        println!("{}", text);
+    }
+}
+```
+
+## Configuration
+
+The builder methods cover the Claude-specific surface:
+
+- `with_model(impl Into<String>)` selects the model and moves the builder into
+  its ready-to-build state.
+- `with_api_key(String)` supplies the key directly instead of reading
+  `CLAUDE_API_KEY`.
+- `with_api_version(String)` overrides the Anthropic API version (defaults to
+  `2023-06-01`).
+- `with_thoughts(bool)` toggles Claude's reasoning blocks. This is on by
+  default; turning it off also disables the thinking budget.
+- `with_thinking_budget(u32)` caps the tokens Claude may spend thinking
+  (defaults to `10000`). Only applies while thoughts are enabled.
+- `with_description(impl Into<String>)` and `with_metadata(key, value)` attach
+  provider metadata, handy when routing across several providers.
+- `with_transport(transport)` swaps in a custom transport in place of the
+  default `ReqwestTransport`.
+
+When reasoning is enabled, streaming surfaces it as `StreamEvent::ReasoningChunk`
+alongside the usual `StreamEvent::TextChunk`:
+
+```rust
+use chat_rs::StreamEvent;
+use futures::StreamExt;
+
+let mut stream = chat.stream(&mut messages).await.map_err(|e| e.err)?;
+while let Some(event) = stream.next().await {
+    match event? {
+        StreamEvent::TextChunk(text) => print!("{}", text),
+        StreamEvent::ReasoningChunk(thought) => print!("{}", thought),
+        _ => {}
+    }
+}
+```
+
+## Capabilities
+
+- Completion and [streaming](/docs/capabilities/streaming) are both supported.
+- [Structured output](/docs/capabilities/structured-output) is supported.
+- Native thinking is built in and on by default.
+- Embeddings are not supported by this provider.

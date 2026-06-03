@@ -101,10 +101,6 @@ impl<P, Output> Chat<P, Output> {
     pub(crate) async fn tool_call(&self, content: &mut Content) -> Result<ToolCallPass, ChatError> {
         let mut pass = ToolCallPass::default();
 
-        // Phase 1: strategy decisions + execution. Walk tools in order;
-        // every unresolved, non-approved tool gets its strategy consulted.
-        // Tools already in `Approved` state (typically from a resume
-        // after human review) skip straight to execution.
         let mut idx = 0;
         while idx < content.parts.0.len() {
             let part = &mut content.parts.0[idx];
@@ -121,8 +117,6 @@ impl<P, Output> Chat<P, Output> {
                 continue;
             }
 
-            // Approved either by human review on resume, or programmatically.
-            // Skip strategy — execute directly.
             let already_approved = matches!(tool.status, ToolStatus::Approved { .. });
 
             let action = if already_approved {
@@ -139,7 +133,6 @@ impl<P, Output> Chat<P, Output> {
 
             match action {
                 Action::Execute => {
-                    // Run the tool via its owning collection.
                     let coll = self.collection_for(&tool.call.name).ok_or_else(|| {
                         ChatError::InvalidResponse(format!(
                             "no scoped collection owns tool `{}`",
@@ -155,40 +148,34 @@ impl<P, Output> Chat<P, Output> {
                     }
                     pass.executed = true;
                 }
-                Action::RequireApproval => {
-                    // Leave Pending. Collect id for pause.
-                    match &mut pass.pause {
-                        None => {
-                            pass.pause = Some(PauseReason::AwaitingApproval {
-                                tool_ids: vec![tool.id.clone()],
+                Action::RequireApproval => match &mut pass.pause {
+                    None => {
+                        pass.pause = Some(PauseReason::AwaitingApproval {
+                            tool_ids: vec![tool.id.clone()],
+                        });
+                    }
+                    Some(PauseReason::AwaitingApproval { tool_ids }) => {
+                        tool_ids.push(tool.id.clone());
+                    }
+                    Some(PauseReason::Scheduled { .. }) => {
+                        let prev = pass
+                            .pause
+                            .replace(PauseReason::AwaitingApproval { tool_ids: vec![] });
+                        if let Some(PauseReason::Scheduled {
+                            tool_ids: sch_ids,
+                            earliest,
+                        }) = prev
+                        {
+                            pass.pause = Some(PauseReason::Mixed {
+                                approvals: vec![tool.id.clone()],
+                                scheduled: sch_ids.into_iter().map(|id| (id, earliest)).collect(),
                             });
                         }
-                        Some(PauseReason::AwaitingApproval { tool_ids }) => {
-                            tool_ids.push(tool.id.clone());
-                        }
-                        Some(PauseReason::Scheduled { .. }) => {
-                            let prev = pass
-                                .pause
-                                .replace(PauseReason::AwaitingApproval { tool_ids: vec![] });
-                            if let Some(PauseReason::Scheduled {
-                                tool_ids: sch_ids,
-                                earliest,
-                            }) = prev
-                            {
-                                pass.pause = Some(PauseReason::Mixed {
-                                    approvals: vec![tool.id.clone()],
-                                    scheduled: sch_ids
-                                        .into_iter()
-                                        .map(|id| (id, earliest))
-                                        .collect(),
-                                });
-                            }
-                        }
-                        Some(PauseReason::Mixed { approvals, .. }) => {
-                            approvals.push(tool.id.clone());
-                        }
                     }
-                }
+                    Some(PauseReason::Mixed { approvals, .. }) => {
+                        approvals.push(tool.id.clone());
+                    }
+                },
                 Action::Defer { at } => match &mut pass.pause {
                     None => {
                         pass.pause = Some(PauseReason::Scheduled {

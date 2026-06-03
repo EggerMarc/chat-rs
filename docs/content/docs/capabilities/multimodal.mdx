@@ -1,0 +1,74 @@
+---
+title: Multimodal content
+description: Mix text, images, files, and other content in a single message using parts and the File type.
+---
+
+In chat-rs, text is not a privileged kind of content. A message is a list of parts, and text is just one of them. That means you can hand a model an image, a document, or a mix of text and files in the same turn without reaching for a special API.
+
+## The PartEnum variants
+
+Every item in a message is a `PartEnum`:
+
+```rust
+pub enum PartEnum {
+    Reasoning(Reasoning),
+    Text(Text),
+    Tool(Tool),
+    Structured(serde_json::Value),
+    File(File),
+    Embeddings(Embeddings),
+}
+```
+
+You rarely construct these by hand. The `parts!` macro builds a heterogeneous list for you, converting each item through `Into<PartEnum>`. String literals become `Text`, and a `File` becomes `File`.
+
+## Loading files
+
+The `File` type carries any non-text blob along with its mimetype. You can build one a few ways:
+
+```rust
+use chat_rs::types::messages::file::File;
+
+let from_disk = File::from_path("diagram.png")?;
+let from_web = File::from_url("https://example.com/cat.jpg", Some("image/jpeg"))?;
+let from_memory = File::from_bytes(bytes);
+```
+
+`from_path` and `from_bytes` sniff the mimetype from the content, while `from_url` lets you pass a hint (it defaults to `application/octet-stream` when none is given). Once you have a `File`, classification helpers tell you what it is:
+
+```rust
+if file.is_image() { /* ... */ }
+// also: is_audio(), is_video(), is_document()
+```
+
+## A message that mixes text and an image
+
+Because `File` implements `Into<PartEnum>`, you can drop it straight into `parts!` alongside text.
+
+```rust
+use chat_rs::{
+    parts,
+    types::messages::{self, file::File},
+};
+
+messages.push(messages::from_user(parts![
+    "What's in this picture?",
+    File::from_path("diagram.png")?,
+]));
+```
+
+## Building parts dynamically
+
+`parts!` returns a plain `Vec<PartEnum>`, so you can start with some text and extend it with files you gather at runtime. Each `File` converts with `.into()`.
+
+```rust
+let mut user_parts = parts!["What do you see?"];
+user_parts.extend(image_paths.into_iter().map(|path| {
+    File::from_path(path)
+        .expect("Failed to load image file")
+        .into()
+}));
+messages.push(content::from_user(user_parts));
+```
+
+From here you send the message like any other. The provider handles turning each part into the right wire format, so the same code works whether you attach one image or several files of different kinds.

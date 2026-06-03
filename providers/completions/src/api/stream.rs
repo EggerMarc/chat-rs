@@ -49,8 +49,6 @@ impl<T: Transport> StreamProvider for ChatCompletionsClient<T> {
             output_shape: None,
         })?;
         request_body.stream = Some(true);
-        // Ask the server to include usage in the final chunk. OpenAI honors
-        // this; most clones either honor it or ignore the field harmlessly.
         request_body.stream_options = Some(json!({"include_usage": true}));
 
         let body = serde_json::to_vec(&request_body)
@@ -68,10 +66,6 @@ impl<T: Transport> StreamProvider for ChatCompletionsClient<T> {
         Ok(parse_event_stream(event_stream))
     }
 }
-
-// ---------------------------------------------------------------------------
-// SSE chunk shape
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct StreamChunk {
@@ -122,10 +116,6 @@ struct StreamToolCallFunctionDelta {
     #[serde(default)]
     arguments: Option<String>,
 }
-
-// ---------------------------------------------------------------------------
-// Stream state
-// ---------------------------------------------------------------------------
 
 #[derive(Default)]
 struct ToolCallState {
@@ -201,7 +191,6 @@ impl StreamState {
                         }
                     }
 
-                    // Announce the tool call once we have at least a name.
                     if !state.announced && !state.name.is_empty() {
                         state.announced = true;
                         events.push(StreamEvent::ToolCall(FunctionCall {
@@ -226,8 +215,6 @@ impl StreamState {
         }
 
         if !self.text_buf.is_empty() {
-            // If the model streamed valid JSON, surface it as Structured
-            // so structured-output consumers can downstream-deserialize.
             if let Ok(parsed) = serde_json::from_str::<Value>(&self.text_buf)
                 && (parsed.is_object() || parsed.is_array())
             {
@@ -280,8 +267,6 @@ fn parse_event_stream(
         while let Some(event_res) = events.next().await {
             let (_event_type, data) = event_res.map_err(ChatError::from)?;
 
-            // SSE parser already strips `[DONE]`. Defensive guard for clones
-            // that emit extra control payloads.
             if data.is_empty() {
                 continue;
             }

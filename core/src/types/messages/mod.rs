@@ -60,7 +60,6 @@ impl Messages {
     /// assert_eq!(msgs.len(), 1);
     /// ```
     pub fn push(&mut self, content: Content) -> &mut Self {
-        // We push only if content diffs from last
         if let Some(last_content) = self.0.last_mut()
             && last_content.role == content.role
         {

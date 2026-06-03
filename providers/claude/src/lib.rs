@@ -99,9 +99,9 @@ impl<M, T: Transport> ClaudeBuilder<M, T> {
 }
 
 impl<T: Transport> ClaudeBuilder<WithoutModel, T> {
-    pub fn with_model(self, model_name: String) -> ClaudeBuilder<WithModel, T> {
+    pub fn with_model(self, model_name: impl Into<String>) -> ClaudeBuilder<WithModel, T> {
         ClaudeBuilder {
-            model_name: Some(model_name),
+            model_name: Some(model_name.into()),
             api_key: self.api_key,
             api_version: self.api_version,
             include_thoughts: self.include_thoughts,

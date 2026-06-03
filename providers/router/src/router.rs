@@ -83,10 +83,6 @@ impl CompletionProvider for Router {
                     return Ok(response);
                 }
                 Err(failure) => {
-                    // Non-retryable errors (bad request, invalid response, …)
-                    // won't fare better on another provider and shouldn't be
-                    // masked behind a later failure — surface immediately. Only
-                    // retryable failures fall through to the next provider.
                     if !failure.err.is_retryable() {
                         return Err(failure);
                     }
@@ -98,7 +94,6 @@ impl CompletionProvider for Router {
             }
         }
 
-        // All circuits were open — try the one open the longest as a last resort
         if !tried_any
             && let Some(cb) = &self.circuit_breaker
             && let Some(idx) = cb.longest_open()

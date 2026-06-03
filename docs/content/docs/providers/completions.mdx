@@ -1,0 +1,163 @@
+---
+title: Completions
+description: The OpenAI Chat Completions wire client you can point at any OpenAI-compatible server.
+---
+
+`chat-completions` is a wire crate for the OpenAI Chat Completions API
+(`POST /v1/chat/completions`). It speaks that one format and nothing more, which
+is exactly what makes it useful: a huge slice of the ecosystem implements the
+same wire spec. Point it at Ollama, vLLM, llama.cpp's server, LiteLLM, Groq,
+Together, Fireworks, your own gateway, or anything else that answers on
+`/v1/chat/completions`.
+
+It is also the foundation the vendor helpers build on. `chat-ollama`,
+`chat-deepseek`, `chat-cerebras`, and `chat-huggingface` are thin crates that
+wrap `ChatCompletionsBuilder` and preset a base URL and an API key convention.
+If you understand this page, you understand all of them.
+
+## Direct use
+
+Build a client with `ChatCompletionsBuilder`, hand it a base URL and a model,
+then pass it straight to `ChatBuilder::with_model`.
+
+```rust
+use chat_completions::ChatCompletionsBuilder;
+use chat_core::{builder::ChatBuilder, types::messages, types::outcome::ChatOutcome};
+
+let client = ChatCompletionsBuilder::new()
+    .with_base_url("http://localhost:11434/v1")
+    .with_model("llama3")
+    .build();
+
+let mut chat = ChatBuilder::new().with_model(client).build();
+
+let mut msgs = messages::from_user(vec!["Say hello in one sentence."]);
+if let ChatOutcome::Complete(res) = chat.complete(&mut msgs).await? {
+    println!("{:#?}", res.content);
+}
+```
+
+The builder uses type-state, so both pieces are required before `build()` is
+available. `with_base_url` moves you into `WithUrl`, `with_model` into
+`WithModel`, and only `ChatCompletionsBuilder<WithModel, WithUrl, _>` exposes
+`build()`. Leave either out and the code will not compile, which keeps a
+half-configured client from ever existing.
+
+### With an optional API key
+
+Many local servers need no auth at all, so the API key is optional. A common
+pattern is to add it only when an env var is present:
+
+```rust
+let base_url = std::env::var("CHAT_COMPLETIONS_BASE_URL")
+    .unwrap_or_else(|_| "http://localhost:11434/v1".to_string());
+let model = std::env::var("CHAT_COMPLETIONS_MODEL")
+    .unwrap_or_else(|_| "llama3".to_string());
+
+let mut builder = ChatCompletionsBuilder::new()
+    .with_base_url(base_url)
+    .with_model(model);
+
+if let Ok(api_key) = std::env::var("CHAT_COMPLETIONS_API_KEY") {
+    builder = builder.with_api_key(api_key);
+}
+
+let client = builder.build();
+```
+
+When a key is set it goes out as an `Authorization: Bearer <key>` header. When
+it is not, the request simply omits that header.
+
+## Builder methods
+
+| Method | What it does |
+| --- | --- |
+| `with_base_url(impl AsRef<str>)` | The server's base URL, e.g. `http://localhost:11434/v1`. The path is kept as a prefix and `/chat/completions` or `/embeddings` is appended. Required. |
+| `with_model(impl Into<String>)` | The model name to request. Required. |
+| `with_api_key(impl Into<String>)` | Bearer token. Omit it for no-auth servers. |
+| `with_header(k, v)` | Add an extra request header. Call it more than once for several. |
+| `with_description(impl Into<String>)` | A human-readable note attached to the provider metadata. |
+| `with_metadata(key, value)` | Stash arbitrary typed metadata on the provider. |
+| `with_transport(T2)` | Swap the HTTP transport. Defaults to `ReqwestTransport`. |
+
+## Capabilities
+
+`ChatCompletionsClient` implements `CompletionProvider`, so it plugs into the
+normal chat loop with tools and structured output. Under the `stream` feature it
+also implements the streaming provider, and it implements the embeddings
+provider for servers that expose `/embeddings`.
+
+```toml title="Cargo.toml"
+chat-completions = { version = "0.2.4", features = ["stream"] }
+```
+
+Embeddings hit the same base URL with `/embeddings` appended, so they work
+wherever the server supports that endpoint:
+
+```rust
+let mut input = messages::from_user(vec!["embed me"]);
+let vectors = client.embed(&mut input).await?;
+```
+
+## Building your own provider on top
+
+A vendor helper is usually a small `chat-<vendor>` crate that wraps
+`ChatCompletionsBuilder`. The recipe is short:
+
+1. Preset the base URL (and read a host override from an env var if it makes
+   sense).
+2. Preset the API key env var the vendor uses.
+3. Re-export a friendly builder, optionally adding vendor-specific niceties.
+4. Have `build()` return a `ChatCompletionsClient`, so all the chat, streaming,
+   tool, and embedding logic stays in this crate.
+
+`chat-ollama` is a good model to follow. Its `OllamaBuilder` defaults to
+`http://localhost:11434` (honoring `OLLAMA_HOST`), and at build time it hands the
+work back to `ChatCompletionsBuilder`:
+
+```rust
+let base_url = format!("{}://{}/v1", self.scheme, self.host);
+let mut b = ChatCompletionsBuilder::new()
+    .with_base_url(base_url)
+    .with_model(model)
+    .with_transport(transport);
+
+if let Some(key) = self.api_key {
+    b = b.with_api_key(key);
+}
+b.build()
+```
+
+On top of that it adds a `.pull()` helper that issues Ollama's native
+`POST /api/pull` to download a model before the first request, then returns the
+builder so it slots into the normal chain:
+
+```rust
+let client = OllamaBuilder::new()
+    .with_model("llama3.2")
+    .pull().await?
+    .build();
+```
+
+That is the whole pattern: lean on `chat-completions` for the wire, and add only
+the convenience that is specific to your vendor.
+
+## Custom transport
+
+By default requests go out over reqwest. To use something else, hand
+`.with_transport(...)` a value implementing the `Transport` trait. The pieces you
+need are re-exported from the crate root: `Transport`, `ReqwestTransport`,
+`Request`, `Response`, and `TransportError`.
+
+```rust
+use chat_completions::{ChatCompletionsBuilder, Transport};
+
+let client = ChatCompletionsBuilder::new()
+    .with_base_url("http://localhost:8000/v1")
+    .with_model("my-model")
+    .with_transport(my_transport)
+    .build();
+```
+
+This is handy for tests (return canned responses), for custom retry or logging
+layers, or for routing requests through a transport your environment requires.

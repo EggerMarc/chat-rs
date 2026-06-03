@@ -103,17 +103,11 @@ fn sse_event_to_part(event_type: &str, json_str: &str) -> Result<Option<PartEnum
                         .and_then(|d| d.get("signature"))
                         .and_then(|t| t.as_str())
                         .unwrap_or("");
-                    // Signature comes as a separate delta — create a reasoning part with
-                    // just the signature so merge_chunk can attach it.
                     Ok(Some(PartEnum::Reasoning(
                         Reasoning::new("").with_signature(sig.to_string()),
                     )))
                 }
-                "input_json_delta" => {
-                    // Tool input streaming — accumulate as text so merge_chunk concatenates.
-                    // We'll reconstruct the FunctionCall at content_block_stop.
-                    Ok(None)
-                }
+                "input_json_delta" => Ok(None),
                 _ => Ok(None),
             }
         }
@@ -162,7 +156,6 @@ fn parse_claude_event_stream(
         let mut input_tokens: usize = 0;
         let mut output_tokens: usize = 0;
 
-        // For accumulating tool input JSON across deltas
         let mut tool_input_buffer = String::new();
 
         while let Some(event_res) = events.next().await {
@@ -181,7 +174,6 @@ fn parse_claude_event_stream(
                             }
                     }
                     "content_block_start" => {
-                        // Check if it's a tool_use block to start accumulating input
                         if let Ok(data) = serde_json::from_str::<Value>(&json_str) {
                             let block_type = data.get("content_block")
                                 .and_then(|c| c.get("type"))
@@ -197,7 +189,6 @@ fn parse_claude_event_stream(
                             }
                     }
                     "content_block_delta" => {
-                        // Handle tool input accumulation separately
                         if let Ok(data) = serde_json::from_str::<Value>(&json_str) {
                             let delta_type = data.get("delta")
                                 .and_then(|d| d.get("type"))
@@ -219,8 +210,6 @@ fn parse_claude_event_stream(
                             }
                     }
                     "content_block_stop" => {
-                        // If we were accumulating tool input, finalize the Tool part's
-                        // call arguments and emit the ToolCall event.
                         if !tool_input_buffer.is_empty() {
                             let input: Value = serde_json::from_str(&tool_input_buffer)
                                 .unwrap_or(Value::Object(Default::default()));
