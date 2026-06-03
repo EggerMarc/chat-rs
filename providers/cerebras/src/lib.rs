@@ -16,9 +16,7 @@
 
 use std::marker::PhantomData;
 
-use chat_completions::{
-    ChatCompletionsBuilder, ChatCompletionsClient, ReqwestTransport, Transport,
-};
+use chat_completions::{CompletionsBuilder, CompletionsClient, ReqwestTransport, Transport};
 
 /// Default Cerebras Inference base URL.
 pub const DEFAULT_CEREBRAS_BASE_URL: &str = "https://api.cerebras.ai/v1";
@@ -113,7 +111,7 @@ impl<T: Transport> CerebrasBuilder<WithModel, T> {
     ///
     /// Resolves the API key in this order: explicit `with_api_key()`, then
     /// the `CEREBRAS_API_KEY` env var. Panics if neither is present.
-    pub fn build(self) -> ChatCompletionsClient<T> {
+    pub fn build(self) -> CompletionsClient<T> {
         let api_key = self
             .api_key
             .or_else(|| std::env::var(CEREBRAS_API_KEY_ENV).ok())
@@ -122,7 +120,7 @@ impl<T: Transport> CerebrasBuilder<WithModel, T> {
         let transport = self.transport.expect("transport set");
         let model = self.model.expect("model set");
 
-        let mut b = ChatCompletionsBuilder::new()
+        let mut b = CompletionsBuilder::new()
             .with_base_url(self.base_url)
             .with_model(model)
             .with_api_key(api_key)

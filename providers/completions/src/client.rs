@@ -1,7 +1,7 @@
 use chat_core::transport::Transport;
 use chat_core::types::provider_meta::ProviderMeta;
 
-pub struct ChatCompletionsClient<T: Transport> {
+pub struct CompletionsClient<T: Transport> {
     pub(crate) model_name: String,
     pub(crate) api_key: Option<String>,
     pub(crate) scheme: String,
@@ -12,7 +12,7 @@ pub struct ChatCompletionsClient<T: Transport> {
     pub(crate) meta: ProviderMeta,
 }
 
-impl<T: Transport> ChatCompletionsClient<T> {
+impl<T: Transport> CompletionsClient<T> {
     pub(crate) fn build_headers(&self) -> Vec<(String, String)> {
         let mut headers = vec![("Content-Type".into(), "application/json".into())];
         if let Some(key) = &self.api_key {

@@ -1,6 +1,6 @@
 [package]
 name = "chat-gemini"
-version = "0.2.4"
+version = "0.2.5"
 description = "Provider implementation of Gemini for chat-rs"
 edition.workspace = true
 authors.workspace = true

@@ -17,7 +17,7 @@ use serde_json::Value;
 use tools_rs::FunctionCall;
 
 #[derive(Debug, Deserialize)]
-pub struct ChatCompletionsResponse {
+pub struct CompletionsResponse {
     pub id: Option<String>,
     pub model: Option<String>,
     pub choices: Vec<Choice>,
@@ -151,7 +151,7 @@ fn append_content_value(value: &Value, parts: &mut Parts) {
     }
 }
 
-impl ChatCompletionsResponse {
+impl CompletionsResponse {
     pub fn into_core_chat_response(self) -> Result<ChatResponse, ChatError> {
         let choice = self
             .choices
@@ -186,7 +186,7 @@ impl ChatCompletionsResponse {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ChatCompletionsEmbeddingResponse {
+pub struct CompletionsEmbeddingResponse {
     pub data: Vec<EmbeddingData>,
     pub model: Option<String>,
     pub usage: Option<CompletionsUsage>,
@@ -197,7 +197,7 @@ pub struct EmbeddingData {
     pub embedding: Vec<f32>,
 }
 
-impl ChatCompletionsEmbeddingResponse {
+impl CompletionsEmbeddingResponse {
     pub fn into_core_embeddings_response(self) -> Result<EmbeddingsResponse, ChatError> {
         let mut data = self.data.into_iter();
         let first = data
@@ -245,7 +245,7 @@ mod tests {
             }],
             "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}
         }"#;
-        let resp: ChatCompletionsResponse = serde_json::from_str(body).unwrap();
+        let resp: CompletionsResponse = serde_json::from_str(body).unwrap();
         let core = resp.into_core_chat_response().unwrap();
         assert_eq!(core.content.complete_reason, CompleteReasonEnum::Stop);
         let txt = core
@@ -276,7 +276,7 @@ mod tests {
                 "finish_reason": "tool_calls"
             }]
         }"#;
-        let resp: ChatCompletionsResponse = serde_json::from_str(body).unwrap();
+        let resp: CompletionsResponse = serde_json::from_str(body).unwrap();
         let core = resp.into_core_chat_response().unwrap();
         assert_eq!(core.content.complete_reason, CompleteReasonEnum::ToolCall);
         let tool = core.content.parts.tools().next().expect("expected a tool");

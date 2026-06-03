@@ -5,7 +5,7 @@ description: Receive a model response token by token as it is generated, with ty
 
 Streaming lets you show a response as it arrives instead of waiting for the whole thing. Call `chat.stream(&mut messages)` and iterate the result with `futures::StreamExt`. Each item is a `StreamEvent`, so you can react to text, reasoning, and tool activity as they happen.
 
-Streaming needs the `stream` cargo feature, and the provider has to implement `StreamProvider`.
+Streaming needs the `stream` cargo feature, and the provider has to implement `StreamProvider`. `stream` is bound on that trait, so it appears on the default chat only for providers that can stream; a completion-only provider has no `stream` method, and calling it is a compile error rather than a runtime failure.
 
 ## The simple form
 

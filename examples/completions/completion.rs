@@ -1,6 +1,6 @@
 //! Bring-your-own OpenAI-compatible server.
 //!
-//! Point `ChatCompletionsBuilder` at any server that implements the
+//! Point `CompletionsBuilder` at any server that implements the
 //! `/v1/chat/completions` wire spec (vLLM, llama.cpp's llama-server,
 //! LiteLLM, Cerebras, Groq, Together, Fireworks, Ollama, etc.).
 //!
@@ -13,7 +13,7 @@
 //! cargo run --example completions-completion --features completions
 //! ```
 
-use chat_rs::{ChatBuilder, completions::ChatCompletionsBuilder, parts, types::messages};
+use chat_rs::{ChatBuilder, completions::CompletionsBuilder, parts, types::messages};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .unwrap_or_else(|_| "http://localhost:11434/v1".to_string());
     let model = std::env::var("CHAT_COMPLETIONS_MODEL").unwrap_or_else(|_| "llama3".to_string());
 
-    let mut builder = ChatCompletionsBuilder::new()
+    let mut builder = CompletionsBuilder::new()
         .with_base_url(base_url)
         .with_model(model);
 

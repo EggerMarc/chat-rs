@@ -33,16 +33,18 @@ methods valid for that state exist:
 
 | Builder call | State | Method you get |
 | --- | --- | --- |
-| (default) | `Unstructured` | `complete`, `resume`, and `stream` (output) |
+| (default) | `Unstructured` | `complete`, `resume`, plus `stream` when `CP: StreamProvider` |
 | `.with_structured_output::<T>()` | `Structured<T>` | `complete` returns `T` |
 | `.with_input_stream()` | `InputStreamed` | `stream` (full duplex) |
 | `.with_embeddings()` | `Embedded` | `embed` |
 
-Output streaming needs no special builder call: the default chat exposes
-`stream` whenever the provider implements `StreamProvider`. `with_input_stream`
-and `with_embeddings` are only reachable when the provider implements
-`StreamProvider` and `EmbeddingsProvider` respectively. If you try to stream a
-provider that cannot stream, it is a compile error, not a runtime panic.
+Output streaming needs no special builder call, and there is no "streaming
+state". `stream` lives on the default chat but is bound on `CP: StreamProvider`,
+so it only appears when the provider can actually stream. A completion-only
+provider exposes `complete` and `resume` and nothing else; calling `.stream()`
+on it is a compile error, not a runtime panic. Likewise `with_input_stream` and
+`with_embeddings` are only reachable when the provider implements
+`StreamProvider` and `EmbeddingsProvider` respectively.
 
 ```rust
 use chat_rs::{ChatBuilder, openai::OpenAIBuilder};
