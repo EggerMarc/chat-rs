@@ -65,6 +65,34 @@ public func afm_complete(_ requestJSON: UnsafePointer<CChar>?) -> UnsafeMutableP
     return cString(completeJSON(String(cString: requestJSON)))
 }
 
+/// Run one streaming completion. Takes a `CompleteRequest` JSON and a
+/// callback invoked once per event JSON (`delta` / `done` / `error`).
+/// Blocks until the stream finishes; the callback may be invoked from a
+/// different thread and the event pointer is only valid for the duration
+/// of each invocation (copy it out).
+@_cdecl("afm_respond_stream")
+public func afm_respond_stream(
+    _ requestJSON: UnsafePointer<CChar>?,
+    _ onEvent: (@convention(c) (UnsafeMutableRawPointer?, UnsafePointer<CChar>?) -> Void)?,
+    _ context: UnsafeMutableRawPointer?
+) {
+    guard let onEvent else { return }
+
+    struct RawContext: @unchecked Sendable {
+        let pointer: UnsafeMutableRawPointer?
+    }
+    let rawContext = RawContext(pointer: context)
+    let emit: @Sendable (String) -> Void = { event in
+        event.withCString { onEvent(rawContext.pointer, $0) }
+    }
+
+    guard let requestJSON else {
+        emit(encodeJSON(StreamErrorEvent(error: ErrorBody(kind: "decode", message: "null request"))))
+        return
+    }
+    streamJSON(String(cString: requestJSON), emit: emit)
+}
+
 /// Release a string previously returned by this bridge.
 @_cdecl("afm_string_free")
 public func afm_string_free(_ ptr: UnsafeMutablePointer<CChar>?) {

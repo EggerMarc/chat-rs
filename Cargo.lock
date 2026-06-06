@@ -755,8 +755,10 @@ dependencies = [
 name = "chat-applefm"
 version = "0.1.0"
 dependencies = [
+ "async-stream",
  "async-trait",
  "chat-core",
+ "futures",
  "schemars 1.2.1",
  "serde",
  "serde_json",

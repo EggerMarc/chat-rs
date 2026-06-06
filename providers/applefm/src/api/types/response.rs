@@ -20,11 +20,7 @@ pub(crate) fn into_core(model_slug: &str, reply_json: &str) -> Result<ChatRespon
         )))
     })?;
 
-    let complete_reason = match reply.finish.as_str() {
-        "stop" => CompleteReasonEnum::Stop,
-        "max_tokens" => CompleteReasonEnum::MaxTokens,
-        other => CompleteReasonEnum::Other(other.to_owned()),
-    };
+    let complete_reason = map_finish(&reply.finish);
 
     Ok(ChatResponse {
         metadata: Some(Metadata {
@@ -39,15 +35,26 @@ pub(crate) fn into_core(model_slug: &str, reply_json: &str) -> Result<ChatRespon
     })
 }
 
+pub(crate) fn map_finish(finish: &str) -> CompleteReasonEnum {
+    match finish {
+        "stop" => CompleteReasonEnum::Stop,
+        "max_tokens" => CompleteReasonEnum::MaxTokens,
+        other => CompleteReasonEnum::Other(other.to_owned()),
+    }
+}
+
 /// The bridge's error kinds, mapped onto chat-rs error semantics. All are
 /// non-retryable `Provider` errors except `internal`, which is `Other`.
-fn map_error(reply: ErrorReply) -> ChatFailure {
-    let ErrorReply { error } = reply;
-    let err = match error.kind.as_str() {
+pub(crate) fn error_to_chat(error: super::ErrorBody) -> ChatError {
+    match error.kind.as_str() {
         "internal" => ChatError::Other(format!("applefm bridge: {}", error.message)),
         kind => ChatError::Provider(format!("applefm {kind}: {}", error.message)),
-    };
-    ChatFailure::from_err(err)
+    }
+}
+
+fn map_error(reply: ErrorReply) -> ChatFailure {
+    let ErrorReply { error } = reply;
+    ChatFailure::from_err(error_to_chat(error))
 }
 
 #[cfg(test)]

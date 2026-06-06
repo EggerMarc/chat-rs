@@ -35,12 +35,30 @@ struct CompleteReply: Codable, Sendable {
     var finish: String
 }
 
-struct ErrorBody: Codable, Sendable {
+struct ErrorBody: Codable, Sendable, Error {
     var kind: String
     var message: String
 }
 
 struct ErrorReply: Codable, Sendable {
+    var error: ErrorBody
+}
+
+// Stream events, discriminated by `type`.
+
+struct StreamDeltaEvent: Codable, Sendable {
+    var type = "delta"
+    var text: String
+}
+
+struct StreamDoneEvent: Codable, Sendable {
+    var type = "done"
+    var text: String
+    var finish: String
+}
+
+struct StreamErrorEvent: Codable, Sendable {
+    var type = "error"
     var error: ErrorBody
 }
 

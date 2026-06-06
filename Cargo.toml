@@ -119,7 +119,7 @@ openrouter = ["dep:chat-openrouter"]
 router = ["dep:chat-router"]
 applefm = ["dep:chat-applefm"]
 python = ["tools-rs/python"]
-stream = ["chat-core/stream", "chat-completions?/stream", "chat-responses?/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-ollama?/stream", "chat-huggingface?/stream", "chat-cerebras?/stream", "chat-deepseek?/stream", "chat-mistralrs?/stream", "chat-openrouter?/stream", "chat-router?/stream"]
+stream = ["chat-core/stream", "chat-completions?/stream", "chat-responses?/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-ollama?/stream", "chat-huggingface?/stream", "chat-cerebras?/stream", "chat-deepseek?/stream", "chat-mistralrs?/stream", "chat-openrouter?/stream", "chat-router?/stream", "chat-applefm?/stream"]
 tungstenite = ["chat-core/tungstenite"]
 tokio-tungstenite = ["chat-core/tokio-tungstenite"]
 
@@ -353,6 +353,11 @@ required-features = ["applefm"]
 name = "applefm-completion"
 path = "./examples/applefm/completion.rs"
 required-features = ["applefm"]
+
+[[example]]
+name = "applefm-stream"
+path = "./examples/applefm/stream.rs"
+required-features = ["applefm", "stream"]
 
 [[example]]
 name = "router-embeddings"

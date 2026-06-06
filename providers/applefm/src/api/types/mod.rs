@@ -60,3 +60,43 @@ pub(crate) struct ErrorBody {
 pub(crate) struct ErrorReply {
     pub error: ErrorBody,
 }
+
+/// Events emitted by the bridge's streaming path, discriminated by `type`.
+#[cfg(feature = "stream")]
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub(crate) enum WireStreamEvent {
+    /// A text fragment (already diffed from cumulative snapshots).
+    Delta {
+        text: String,
+    },
+    /// Stream finished; carries the authoritative full text.
+    Done {
+        text: String,
+        finish: String,
+    },
+    Error {
+        error: ErrorBody,
+    },
+}
+
+#[cfg(all(test, feature = "stream"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_stream_events() {
+        let event: WireStreamEvent =
+            serde_json::from_str(r#"{"type":"delta","text":"hi"}"#).unwrap();
+        assert!(matches!(event, WireStreamEvent::Delta { text } if text == "hi"));
+
+        let event: WireStreamEvent =
+            serde_json::from_str(r#"{"type":"done","text":"hi there","finish":"stop"}"#).unwrap();
+        assert!(matches!(event, WireStreamEvent::Done { finish, .. } if finish == "stop"));
+
+        let event: WireStreamEvent =
+            serde_json::from_str(r#"{"type":"error","error":{"kind":"generation","message":"x"}}"#)
+                .unwrap();
+        assert!(matches!(event, WireStreamEvent::Error { error } if error.kind == "generation"));
+    }
+}
