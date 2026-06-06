@@ -2,3 +2,6 @@
 /example-data
 **.DS_Store
 **.env
+
+# SwiftPM scratch/index dirs (editor indexing creates these; cargo builds use target/)
+.build/

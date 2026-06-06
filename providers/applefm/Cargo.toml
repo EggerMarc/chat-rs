@@ -1,0 +1,23 @@
+[package]
+name = "chat-applefm"
+version = "0.1.0"
+description = "Apple on-device foundation model provider for chat-rs, built on the FoundationModels framework."
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chat-core   = { path = "../../core", version = "0.4.0" }
+async-trait.workspace = true
+schemars.workspace    = true
+serde.workspace       = true
+serde_json.workspace  = true
+tokio       = { workspace = true, features = ["rt"] }
+async-stream = { workspace = true, optional = true }
+futures      = { workspace = true, optional = true }
+
+[features]
+default = []
+stream  = ["chat-core/stream", "dep:async-stream", "dep:futures"]

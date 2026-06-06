@@ -15,6 +15,7 @@ members = [
     "providers/mistralrs",
     "providers/openrouter",
     "providers/router",
+    "providers/applefm",
 ]
 
 [workspace.package]
@@ -73,6 +74,7 @@ chat-deepseek    = { path = "providers/deepseek", version = "0.1.3", optional = 
 chat-mistralrs   = { path = "providers/mistralrs", version = "0.1.5", optional = true }
 chat-openrouter  = { path = "providers/openrouter", version = "0.1.0", optional = true }
 chat-router      = { path = "providers/router", version = "0.2.4", optional = true }
+chat-applefm     = { path = "providers/applefm", version = "0.1.0", optional = true }
 tokio.workspace = true
 schemars.workspace = true
 serde.workspace = true
@@ -115,8 +117,9 @@ deepseek = ["dep:chat-deepseek", "dep:chat-completions"]
 mistralrs = ["dep:chat-mistralrs"]
 openrouter = ["dep:chat-openrouter"]
 router = ["dep:chat-router"]
+applefm = ["dep:chat-applefm"]
 python = ["tools-rs/python"]
-stream = ["chat-core/stream", "chat-completions?/stream", "chat-responses?/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-ollama?/stream", "chat-huggingface?/stream", "chat-cerebras?/stream", "chat-deepseek?/stream", "chat-mistralrs?/stream", "chat-openrouter?/stream", "chat-router?/stream"]
+stream = ["chat-core/stream", "chat-completions?/stream", "chat-responses?/stream", "chat-gemini?/stream", "chat-openai?/stream", "chat-claude?/stream", "chat-ollama?/stream", "chat-huggingface?/stream", "chat-cerebras?/stream", "chat-deepseek?/stream", "chat-mistralrs?/stream", "chat-openrouter?/stream", "chat-router?/stream", "chat-applefm?/stream"]
 tungstenite = ["chat-core/tungstenite"]
 tokio-tungstenite = ["chat-core/tokio-tungstenite"]
 
@@ -340,6 +343,21 @@ required-features = ["openai"]
 name = "openai-image-generation"
 path = "./examples/openai/image_generation.rs"
 required-features = ["openai"]
+
+[[example]]
+name = "applefm-availability"
+path = "./examples/applefm/availability.rs"
+required-features = ["applefm"]
+
+[[example]]
+name = "applefm-completion"
+path = "./examples/applefm/completion.rs"
+required-features = ["applefm"]
+
+[[example]]
+name = "applefm-stream"
+path = "./examples/applefm/stream.rs"
+required-features = ["applefm", "stream"]
 
 [[example]]
 name = "router-embeddings"

@@ -13,6 +13,7 @@ All provider crates live under `providers/`. Each implements the core traits (`C
 | `chat-ollama` | `providers/ollama` | — (optional) | Wraps `chat-completions`; adds Ollama's native `/api/pull` and `OLLAMA_HOST` defaults |
 | `chat-huggingface` | `providers/huggingface` | `HF_TOKEN` | Wraps `chat-completions` for HF Inference Providers Router (`https://router.huggingface.co/v1`) |
 | `chat-cerebras` | `providers/cerebras` | `CEREBRAS_API_KEY` | Wraps `chat-completions` for Cerebras Inference (`https://api.cerebras.ai/v1`) |
+| `chat-applefm` | `providers/applefm` | — (on-device) | Apple FoundationModels via embedded Swift bridge (no HTTP); macOS 26+, optional `.fmadapter` LoRA |
 
 ### Wire-spec crates vs provider wrappers
 
