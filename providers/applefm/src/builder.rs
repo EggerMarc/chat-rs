@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use chat_core::error::{ChatError, ChatFailure};
 use chat_core::types::provider_meta::ProviderMeta;
 
 use crate::client::{AppleFMClient, Config, Sampling};
@@ -15,11 +16,13 @@ use crate::client::{AppleFMClient, Config, Sampling};
 /// onto the session's instructions.
 ///
 /// ```no_run
+/// # fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// use chat_applefm::AppleFMBuilder;
 ///
 /// let client = AppleFMBuilder::new()
 ///     .with_lora("adapters/transcripts.fmadapter")
-///     .build();
+///     .build()?;
+/// # Ok(()) }
 /// ```
 #[derive(Debug, Default)]
 pub struct AppleFMBuilder {
@@ -74,12 +77,41 @@ impl AppleFMBuilder {
         self
     }
 
-    /// Build the client. Infallible and cheap — the model is probed and
-    /// the session created at request time. Call
-    /// [`crate::availability`] first to know whether requests can succeed
-    /// on this machine at all.
-    pub fn build(self) -> AppleFMClient {
-        AppleFMClient {
+    /// Build the client, validating the configuration upfront — a missing
+    /// `.fmadapter` path or nonsensical sampling parameters fail here, not
+    /// on the first request. Cheap otherwise: the model is probed and the
+    /// session created at request time. Call [`crate::availability`]
+    /// first to know whether requests can succeed on this machine at all.
+    pub fn build(self) -> Result<AppleFMClient, ChatFailure> {
+        if let Some(lora) = &self.lora
+            && !lora.exists()
+        {
+            return Err(invalid(format!(
+                "LoRA adapter not found at {}",
+                lora.display()
+            )));
+        }
+        if let Some(t) = self.temperature
+            && (!t.is_finite() || t < 0.0)
+        {
+            return Err(invalid(format!("temperature must be >= 0, got {t}")));
+        }
+        if self.max_tokens == Some(0) {
+            return Err(invalid("max_tokens must be >= 1".into()));
+        }
+        match self.sampling {
+            Some(Sampling::TopK { k: 0, .. }) => {
+                return Err(invalid("top-k sampling needs k >= 1".into()));
+            }
+            Some(Sampling::TopP { p, .. }) if !p.is_finite() || p <= 0.0 || p > 1.0 => {
+                return Err(invalid(format!(
+                    "top-p sampling needs p in (0, 1], got {p}"
+                )));
+            }
+            _ => {}
+        }
+
+        Ok(AppleFMClient {
             config: Arc::new(Config {
                 lora: self.lora,
                 temperature: self.temperature,
@@ -90,6 +122,57 @@ impl AppleFMBuilder {
                 description: self.description,
                 ..Default::default()
             }),
-        }
+        })
+    }
+}
+
+fn invalid(message: String) -> ChatFailure {
+    ChatFailure::from_err(ChatError::Provider(format!(
+        "chat-applefm builder: {message}"
+    )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_missing_lora_path() {
+        let err = AppleFMBuilder::new()
+            .with_lora("/definitely/not/here.fmadapter")
+            .build()
+            .unwrap_err();
+        assert!(err.err.to_string().contains("not found"));
+    }
+
+    #[test]
+    fn accepts_existing_lora_path() {
+        // Any path that exists works for the check; the manifest is one.
+        let manifest = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+        assert!(AppleFMBuilder::new().with_lora(manifest).build().is_ok());
+    }
+
+    #[test]
+    fn rejects_bad_sampling_and_options() {
+        assert!(
+            AppleFMBuilder::new()
+                .with_sampling(Sampling::TopP { p: 1.5, seed: None })
+                .build()
+                .is_err()
+        );
+        assert!(
+            AppleFMBuilder::new()
+                .with_sampling(Sampling::TopK { k: 0, seed: None })
+                .build()
+                .is_err()
+        );
+        assert!(
+            AppleFMBuilder::new()
+                .with_temperature(-0.1)
+                .build()
+                .is_err()
+        );
+        assert!(AppleFMBuilder::new().with_max_tokens(0).build().is_err());
+        assert!(AppleFMBuilder::new().build().is_ok());
     }
 }

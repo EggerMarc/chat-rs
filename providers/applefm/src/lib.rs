@@ -42,7 +42,7 @@
 //!
 //! let client = AppleFMBuilder::new()
 //!     .with_lora("adapters/transcripts.fmadapter") // optional fine-tune
-//!     .build();
+//!     .build()?; // validates config (e.g. the adapter path) upfront
 //! // System prompts go through Messages like any other provider; the
 //! // provider maps them onto the session's instructions.
 //! # Ok(()) }

@@ -35,7 +35,7 @@ pub(crate) struct Config {
 /// There is no model slug and no API key: the OS owns the (one) model.
 /// What varies per client is the configuration — instructions and an
 /// optional LoRA adapter. Clone is cheap (`Arc` bumps).
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AppleFMClient {
     pub(crate) config: Arc<Config>,
     /// `Arc` because `ProviderMeta` is not `Clone`.

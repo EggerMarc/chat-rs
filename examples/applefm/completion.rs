@@ -27,7 +27,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         builder = builder.with_lora(lora);
     }
 
-    let mut chat = ChatBuilder::new().with_model(builder.build()).build();
+    let client = builder.build().map_err(|err| err.err)?;
+    let mut chat = ChatBuilder::new().with_model(client).build();
 
     let mut messages = messages::Messages::default();
     messages.push(content::from_system(parts![
