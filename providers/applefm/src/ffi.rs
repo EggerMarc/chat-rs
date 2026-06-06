@@ -44,17 +44,15 @@ mod real {
         };
         // SAFETY: the pointer is valid for the duration of the call and
         // the reply is a bridge-owned string.
-        unsafe { take_bridge_string(afm_complete(request.as_ptr())) }
-            .unwrap_or_else(|| {
-                r#"{"error":{"kind":"internal","message":"bridge returned null"}}"#.to_owned()
-            })
+        unsafe { take_bridge_string(afm_complete(request.as_ptr())) }.unwrap_or_else(|| {
+            r#"{"error":{"kind":"internal","message":"bridge returned null"}}"#.to_owned()
+        })
     }
 }
 
 #[cfg(not(applefm_bridge))]
 mod stub {
-    const STUB_REASON: &str =
-        "chat-applefm was built without the Swift bridge (non-macOS target, docs build, or APPLEFM_SKIP_BRIDGE set)";
+    const STUB_REASON: &str = "chat-applefm was built without the Swift bridge (non-macOS target, docs build, or APPLEFM_SKIP_BRIDGE set)";
 
     pub fn availability_json() -> String {
         format!(r#"{{"available":false,"reason":"{STUB_REASON}"}}"#)

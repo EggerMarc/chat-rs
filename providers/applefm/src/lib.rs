@@ -54,6 +54,10 @@
 //! trained against the on-device base model with Apple's adapter
 //! training toolkit. Adapters are version-locked to the base model:
 //! after a macOS update rolls the model, retrain and reship.
+//!
+//! See `providers/AGENTS.md` for the overall provider architecture.
+
+#![allow(clippy::result_large_err)]
 
 mod api;
 mod builder;
@@ -61,7 +65,7 @@ mod client;
 mod ffi;
 
 pub use builder::AppleFMBuilder;
-pub use client::AppleFMClient;
+pub use client::{AppleFMClient, Sampling};
 
 use serde::Deserialize;
 

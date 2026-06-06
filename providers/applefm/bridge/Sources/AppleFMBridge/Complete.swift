@@ -98,8 +98,18 @@ private func renderPrompt(_ messages: [WireMessage]) -> String {
 @available(macOS 26.0, *)
 private func generationOptions(_ options: WireOptions?) -> GenerationOptions {
     guard let options else { return GenerationOptions() }
+
+    var sampling: GenerationOptions.SamplingMode?
+    if options.greedy == true {
+        sampling = .greedy
+    } else if let k = options.top_k {
+        sampling = .random(top: k, seed: options.seed)
+    } else if let p = options.top_p {
+        sampling = .random(probabilityThreshold: p, seed: options.seed)
+    }
+
     return GenerationOptions(
-        sampling: options.greedy == true ? .greedy : nil,
+        sampling: sampling,
         temperature: options.temperature,
         maximumResponseTokens: options.max_tokens
     )

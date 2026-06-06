@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use chat_core::types::provider_meta::ProviderMeta;
 
-use crate::client::{AppleFMClient, Config};
+use crate::client::{AppleFMClient, Config, Sampling};
 
 /// Builder for [`AppleFMClient`].
 ///
@@ -24,6 +24,9 @@ use crate::client::{AppleFMClient, Config};
 #[derive(Debug, Default)]
 pub struct AppleFMBuilder {
     lora: Option<PathBuf>,
+    temperature: Option<f64>,
+    max_tokens: Option<u32>,
+    sampling: Option<Sampling>,
     description: Option<String>,
 }
 
@@ -43,6 +46,29 @@ impl AppleFMBuilder {
         self
     }
 
+    /// Default decoding temperature. Overridden per call by
+    /// `ChatOptions::temperature`.
+    pub fn with_temperature(mut self, temperature: f64) -> Self {
+        self.temperature = Some(temperature);
+        self
+    }
+
+    /// Default response-length cap. Overridden per call by
+    /// `ChatOptions::max_tokens`.
+    pub fn with_max_tokens(mut self, max_tokens: u32) -> Self {
+        self.max_tokens = Some(max_tokens);
+        self
+    }
+
+    /// Default sampling mode — greedy, top-k, or top-p (the complete set
+    /// FoundationModels exposes). Overridden per call when `ChatOptions`
+    /// carries any sampling key (`top_p`, or `greedy` / `top_k` / `seed`
+    /// in its metadata).
+    pub fn with_sampling(mut self, sampling: Sampling) -> Self {
+        self.sampling = Some(sampling);
+        self
+    }
+
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
         self
@@ -54,7 +80,12 @@ impl AppleFMBuilder {
     /// on this machine at all.
     pub fn build(self) -> AppleFMClient {
         AppleFMClient {
-            config: Arc::new(Config { lora: self.lora }),
+            config: Arc::new(Config {
+                lora: self.lora,
+                temperature: self.temperature,
+                max_tokens: self.max_tokens,
+                sampling: self.sampling,
+            }),
             meta: Arc::new(ProviderMeta {
                 description: self.description,
                 ..Default::default()

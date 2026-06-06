@@ -7,7 +7,11 @@ import Foundation
 struct WireOptions: Codable, Sendable {
     var temperature: Double?
     var max_tokens: Int?
+    // Sampling mode, flattened. Picked as greedy > top_k > top_p.
     var greedy: Bool?
+    var top_k: Int?
+    var top_p: Double?
+    var seed: UInt64?
 }
 
 struct WireMessage: Codable, Sendable {
