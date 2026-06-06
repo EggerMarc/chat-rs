@@ -16,20 +16,52 @@
 //! On non-macOS targets the crate still compiles (with a stub bridge)
 //! and reports the model as unavailable.
 //!
-//! ## Current scope
-//!
-//! This is the first slice: probing model availability.
+//! **Binary crates on macOS need one build.rs line** so the Swift
+//! concurrency runtime resolves at load time:
 //!
 //! ```no_run
-//! let probe = chat_applefm::availability();
-//! if probe.available {
-//!     println!("on-device model ready");
-//! } else {
-//!     println!("unavailable: {}", probe.reason.as_deref().unwrap_or("?"));
-//! }
+//! // build.rs of your binary crate
+//! println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
 //! ```
+//!
+//! ## Current scope
+//!
+//! Text completion (with optional LoRA fine-tune) and availability
+//! probing. Tools, structured output, and streaming are rejected at
+//! request time for now and arrive in later slices.
+//!
+//! ```no_run
+//! # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+//! use chat_applefm::AppleFMBuilder;
+//!
+//! let probe = chat_applefm::availability();
+//! if !probe.available {
+//!     println!("unavailable: {}", probe.reason.as_deref().unwrap_or("?"));
+//!     return Ok(());
+//! }
+//!
+//! let client = AppleFMBuilder::new()
+//!     .with_lora("adapters/transcripts.fmadapter") // optional fine-tune
+//!     .build();
+//! // System prompts go through Messages like any other provider; the
+//! // provider maps them onto the session's instructions.
+//! # Ok(()) }
+//! ```
+//!
+//! ## LoRA fine-tunes
+//!
+//! [`AppleFMBuilder::with_lora`] loads a `.fmadapter` package — a LoRA
+//! trained against the on-device base model with Apple's adapter
+//! training toolkit. Adapters are version-locked to the base model:
+//! after a macOS update rolls the model, retrain and reship.
 
+mod api;
+mod builder;
+mod client;
 mod ffi;
+
+pub use builder::AppleFMBuilder;
+pub use client::AppleFMClient;
 
 use serde::Deserialize;
 

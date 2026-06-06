@@ -54,6 +54,17 @@ public func afm_availability() -> UnsafeMutablePointer<CChar>? {
     cString(availabilityJSON())
 }
 
+/// Run one completion. Takes a `CompleteRequest` JSON, returns a
+/// `CompleteReply` or `ErrorReply` JSON. Blocking — call from a worker
+/// thread.
+@_cdecl("afm_complete")
+public func afm_complete(_ requestJSON: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
+    guard let requestJSON else {
+        return cString(errorJSON("decode", "null request"))
+    }
+    return cString(completeJSON(String(cString: requestJSON)))
+}
+
 /// Release a string previously returned by this bridge.
 @_cdecl("afm_string_free")
 public func afm_string_free(_ ptr: UnsafeMutablePointer<CChar>?) {

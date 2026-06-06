@@ -350,6 +350,11 @@ path = "./examples/applefm/availability.rs"
 required-features = ["applefm"]
 
 [[example]]
+name = "applefm-completion"
+path = "./examples/applefm/completion.rs"
+required-features = ["applefm"]
+
+[[example]]
 name = "router-embeddings"
 path = "./examples/router/embeddings.rs"
 required-features = ["router", "claude", "gemini"]

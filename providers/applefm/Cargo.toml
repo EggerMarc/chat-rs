@@ -9,5 +9,9 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-serde.workspace = true
-serde_json.workspace = true
+chat-core   = { path = "../../core", version = "0.4.0" }
+async-trait.workspace = true
+schemars.workspace    = true
+serde.workspace       = true
+serde_json.workspace  = true
+tokio       = { workspace = true, features = ["rt"] }

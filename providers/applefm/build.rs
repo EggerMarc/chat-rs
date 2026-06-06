@@ -70,5 +70,10 @@ fn main() {
     // every use behind `#available` and reports unavailability instead.
     println!("cargo:rustc-link-arg=-Wl,-weak_framework,FoundationModels");
 
+    // The Swift concurrency runtime is referenced as
+    // @rpath/libswift_Concurrency.dylib; point the rpath at the OS
+    // runtime so binaries resolve it from the dyld shared cache.
+    println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
+
     println!("cargo:rustc-cfg=applefm_bridge");
 }
