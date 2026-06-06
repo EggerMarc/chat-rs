@@ -10,12 +10,16 @@ mod real {
 
     unsafe extern "C" {
         fn afm_availability() -> *mut c_char;
-        fn afm_complete(request_json: *const c_char) -> *mut c_char;
-        fn afm_respond_stream(
+        fn afm_session_create(config_json: *const c_char) -> *mut c_char;
+        fn afm_session_respond(session: u64, request_json: *const c_char) -> *mut c_char;
+        fn afm_session_respond_stream(
+            session: u64,
             request_json: *const c_char,
             on_event: Option<unsafe extern "C" fn(*mut c_void, *const c_char)>,
             context: *mut c_void,
         );
+        fn afm_session_free(session: u64);
+        fn afm_prewarm(session: u64);
         fn afm_string_free(ptr: *mut c_char);
     }
 
@@ -36,30 +40,47 @@ mod real {
         }
     }
 
+    fn null_reply() -> String {
+        r#"{"error":{"kind":"internal","message":"bridge returned null"}}"#.to_owned()
+    }
+
+    fn nul_byte_reply() -> String {
+        r#"{"error":{"kind":"decode","message":"request contained a NUL byte"}}"#.to_owned()
+    }
+
     pub fn availability_json() -> String {
         // SAFETY: afm_availability returns a bridge-owned string.
         unsafe { take_bridge_string(afm_availability()) }
             .unwrap_or_else(|| r#"{"available":false,"reason":"bridge returned null"}"#.to_owned())
     }
 
-    pub fn complete_json(request: &str) -> String {
-        let Ok(request) = CString::new(request) else {
-            return r#"{"error":{"kind":"decode","message":"request contained a NUL byte"}}"#
-                .to_owned();
+    /// Create a long-lived session; returns `{"session": id}` or an
+    /// error reply. Free with [`session_free`].
+    pub fn session_create(config_json: &str) -> String {
+        let Ok(config) = CString::new(config_json) else {
+            return nul_byte_reply();
         };
-        // SAFETY: the pointer is valid for the duration of the call and
-        // the reply is a bridge-owned string.
-        unsafe { take_bridge_string(afm_complete(request.as_ptr())) }.unwrap_or_else(|| {
-            r#"{"error":{"kind":"internal","message":"bridge returned null"}}"#.to_owned()
-        })
+        // SAFETY: valid pointer for the call; bridge-owned reply.
+        unsafe { take_bridge_string(afm_session_create(config.as_ptr())) }
+            .unwrap_or_else(null_reply)
     }
 
-    /// Run one streaming completion, invoking `on_event` once per event
-    /// JSON. Blocks until the stream finishes — call from a worker thread.
-    /// `on_event` may be invoked from a different thread than the caller's.
-    pub fn stream_json(request: &str, on_event: impl FnMut(&str) + Send) {
+    /// One blocking turn against a stored session.
+    pub fn session_respond(session: u64, request_json: &str) -> String {
+        let Ok(request) = CString::new(request_json) else {
+            return nul_byte_reply();
+        };
+        // SAFETY: valid pointer for the call; bridge-owned reply.
+        unsafe { take_bridge_string(afm_session_respond(session, request.as_ptr())) }
+            .unwrap_or_else(null_reply)
+    }
+
+    /// One streaming turn against a stored session, invoking `on_event`
+    /// once per event JSON. Blocks until the stream finishes — call from
+    /// a worker thread. `on_event` may be invoked from another thread.
+    pub fn session_stream(session: u64, request_json: &str, on_event: impl FnMut(&str) + Send) {
         let mut on_event: Box<dyn FnMut(&str) + Send> = Box::new(on_event);
-        let Ok(request) = CString::new(request) else {
+        let Ok(request) = CString::new(request_json) else {
             on_event(
                 r#"{"type":"error","error":{"kind":"decode","message":"request contained a NUL byte"}}"#,
             );
@@ -71,8 +92,8 @@ mod real {
                 return;
             }
             // SAFETY: `context` is the `&mut Box<dyn FnMut>` passed below,
-            // alive for the whole (blocking) `afm_respond_stream` call;
-            // `event` is a NUL-terminated string valid for this invocation.
+            // alive for the whole (blocking) call; `event` is a
+            // NUL-terminated string valid for this invocation.
             unsafe {
                 let on_event = &mut *context.cast::<Box<dyn FnMut(&str) + Send>>();
                 let event = CStr::from_ptr(event).to_string_lossy();
@@ -83,7 +104,19 @@ mod real {
         let context = (&raw mut on_event).cast::<c_void>();
         // SAFETY: the bridge blocks until the stream completes, so the
         // closure outlives every trampoline invocation.
-        unsafe { afm_respond_stream(request.as_ptr(), Some(trampoline), context) }
+        unsafe { afm_session_respond_stream(session, request.as_ptr(), Some(trampoline), context) }
+    }
+
+    pub fn session_free(session: u64) {
+        // SAFETY: trivially safe; unknown ids are ignored bridge-side.
+        unsafe { afm_session_free(session) }
+    }
+
+    /// Hint the OS to stage model resources (0 = no session yet).
+    /// Returns immediately; the bridge detaches the actual work.
+    pub fn prewarm(session: u64) {
+        // SAFETY: trivially safe; unknown ids prewarm a default session.
+        unsafe { afm_prewarm(session) }
     }
 }
 
@@ -95,18 +128,34 @@ mod stub {
         format!(r#"{{"available":false,"reason":"{STUB_REASON}"}}"#)
     }
 
-    pub fn complete_json(_request: &str) -> String {
+    pub fn session_create(_config_json: &str) -> String {
         format!(r#"{{"error":{{"kind":"unavailable","message":"{STUB_REASON}"}}}}"#)
     }
 
-    pub fn stream_json(_request: &str, mut on_event: impl FnMut(&str) + Send) {
+    pub fn session_respond(_session: u64, _request_json: &str) -> String {
+        format!(r#"{{"error":{{"kind":"unavailable","message":"{STUB_REASON}"}}}}"#)
+    }
+
+    pub fn session_stream(
+        _session: u64,
+        _request_json: &str,
+        mut on_event: impl FnMut(&str) + Send,
+    ) {
         on_event(&format!(
             r#"{{"type":"error","error":{{"kind":"unavailable","message":"{STUB_REASON}"}}}}"#
         ));
     }
+
+    pub fn session_free(_session: u64) {}
+
+    pub fn prewarm(_session: u64) {}
 }
 
 #[cfg(applefm_bridge)]
-pub(crate) use real::{availability_json, complete_json, stream_json};
+pub(crate) use real::{
+    availability_json, prewarm, session_create, session_free, session_respond, session_stream,
+};
 #[cfg(not(applefm_bridge))]
-pub(crate) use stub::{availability_json, complete_json, stream_json};
+pub(crate) use stub::{
+    availability_json, prewarm, session_create, session_free, session_respond, session_stream,
+};

@@ -1,4 +1,4 @@
-// Streaming completion against the on-device model.
+// Streaming turn against a stored session.
 //
 // FoundationModels streams *cumulative snapshots* ("The", "The meeting",
 // …), while the wire protocol carries *deltas*. This file diffs
@@ -7,7 +7,7 @@
 // text (so downstream state is correct even if a snapshot revised
 // earlier output).
 //
-// Blocking like the complete path: the function returns only after the
+// Blocking like the respond path: the function returns only after the
 // stream finishes. Events are emitted from the streaming task's thread —
 // the callback must be thread-safe (the Rust side feeds a channel).
 
@@ -16,17 +16,22 @@ import Foundation
 import FoundationModels
 #endif
 
-func streamJSON(_ requestJSON: String, emit: @escaping @Sendable (String) -> Void) {
+func sessionStreamJSON(_ id: UInt64, _ requestJSON: String, emit: @escaping @Sendable (String) -> Void) {
     #if canImport(FoundationModels)
     if #available(macOS 26.0, *) {
         guard let data = requestJSON.data(using: .utf8),
-            let request = try? JSONDecoder().decode(CompleteRequest.self, from: data)
+            let request = try? JSONDecoder().decode(TurnRequest.self, from: data)
         else {
             emit(encodeJSON(StreamErrorEvent(error: ErrorBody(
                 kind: "decode", message: "malformed request JSON"))))
             return
         }
-        runStream(request, emit: emit)
+        guard let session = SessionStore.shared.get(id) else {
+            emit(encodeJSON(StreamErrorEvent(error: ErrorBody(
+                kind: "internal", message: "unknown session \(id)"))))
+            return
+        }
+        runStream(SessionBox(session: session), request, emit: emit)
     } else {
         emit(encodeJSON(StreamErrorEvent(error: ErrorBody(
             kind: "unavailable", message: "macOS 26 or later is required"))))
@@ -40,24 +45,16 @@ func streamJSON(_ requestJSON: String, emit: @escaping @Sendable (String) -> Voi
 
 #if canImport(FoundationModels)
 @available(macOS 26.0, *)
-private func runStream(_ request: CompleteRequest, emit: @escaping @Sendable (String) -> Void) {
+private func runStream(
+    _ box: SessionBox, _ request: TurnRequest, emit: @escaping @Sendable (String) -> Void
+) {
     let semaphore = DispatchSemaphore(value: 0)
 
     Task.detached {
         defer { semaphore.signal() }
-
-        let session: LanguageModelSession
-        switch makeSession(for: request) {
-        case .failure(let body):
-            emit(encodeJSON(StreamErrorEvent(error: body)))
-            return
-        case .success(let s):
-            session = s
-        }
-
         do {
-            let stream = session.streamResponse(
-                to: renderPrompt(request.messages),
+            let stream = box.session.streamResponse(
+                to: request.message,
                 options: generationOptions(request.options)
             )
 

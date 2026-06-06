@@ -122,6 +122,7 @@ impl AppleFMBuilder {
                 description: self.description,
                 ..Default::default()
             }),
+            session: Arc::new(tokio::sync::Mutex::new(crate::client::Session::default())),
         })
     }
 }
