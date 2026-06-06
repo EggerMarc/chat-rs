@@ -752,6 +752,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat-applefm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "chat-cerebras"
 version = "0.2.5"
 dependencies = [
@@ -943,6 +951,7 @@ name = "chat-rs"
 version = "0.5.2"
 dependencies = [
  "async-trait",
+ "chat-applefm",
  "chat-cerebras",
  "chat-claude",
  "chat-completions",

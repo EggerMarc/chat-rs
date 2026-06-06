@@ -100,6 +100,11 @@ pub mod router {
     pub use chat_router::*;
 }
 
+#[cfg(feature = "applefm")]
+pub mod applefm {
+    pub use chat_applefm::*;
+}
+
 pub mod prelude {
     pub use crate::ChatOptions;
     pub use crate::Messages;
@@ -139,4 +144,7 @@ pub mod prelude {
 
     #[cfg(feature = "router")]
     pub use crate::router;
+
+    #[cfg(feature = "applefm")]
+    pub use crate::applefm;
 }

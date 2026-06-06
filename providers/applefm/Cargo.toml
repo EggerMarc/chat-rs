@@ -1,0 +1,13 @@
+[package]
+name = "chat-applefm"
+version = "0.1.0"
+description = "Apple on-device foundation model provider for chat-rs, built on the FoundationModels framework."
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
