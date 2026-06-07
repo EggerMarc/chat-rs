@@ -7,6 +7,10 @@
 //
 // Memory contract: every `char*` returned here is `strdup`-allocated
 // and must be released by the caller via `afm_string_free`.
+//
+// Threading contract: sessions are single-flight — the Rust side holds
+// a lock per session across each call, so a stored session is never
+// used concurrently.
 
 import Foundation
 #if canImport(FoundationModels)
@@ -54,24 +58,37 @@ public func afm_availability() -> UnsafeMutablePointer<CChar>? {
     cString(availabilityJSON())
 }
 
-/// Run one completion. Takes a `CompleteRequest` JSON, returns a
-/// `CompleteReply` or `ErrorReply` JSON. Blocking — call from a worker
-/// thread.
-@_cdecl("afm_complete")
-public func afm_complete(_ requestJSON: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
+/// Create a long-lived session from a `SessionConfig` JSON. Returns
+/// `{"session": id}` or an `ErrorReply`. The session keeps conversation
+/// history; release it with `afm_session_free`.
+@_cdecl("afm_session_create")
+public func afm_session_create(_ configJSON: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
+    guard let configJSON else {
+        return cString(errorJSON("decode", "null config"))
+    }
+    return cString(sessionCreateJSON(String(cString: configJSON)))
+}
+
+/// Run one blocking turn against a stored session. Takes a `TurnRequest`
+/// JSON, returns a `CompleteReply` or `ErrorReply` JSON.
+@_cdecl("afm_session_respond")
+public func afm_session_respond(
+    _ session: UInt64, _ requestJSON: UnsafePointer<CChar>?
+) -> UnsafeMutablePointer<CChar>? {
     guard let requestJSON else {
         return cString(errorJSON("decode", "null request"))
     }
-    return cString(completeJSON(String(cString: requestJSON)))
+    return cString(sessionRespondJSON(session, String(cString: requestJSON)))
 }
 
-/// Run one streaming completion. Takes a `CompleteRequest` JSON and a
-/// callback invoked once per event JSON (`delta` / `done` / `error`).
-/// Blocks until the stream finishes; the callback may be invoked from a
-/// different thread and the event pointer is only valid for the duration
-/// of each invocation (copy it out).
-@_cdecl("afm_respond_stream")
-public func afm_respond_stream(
+/// Run one streaming turn against a stored session. The callback is
+/// invoked once per event JSON (`delta` / `done` / `error`); it may be
+/// invoked from a different thread, and the event pointer is only valid
+/// for the duration of each invocation (copy it out). Blocks until the
+/// stream finishes.
+@_cdecl("afm_session_respond_stream")
+public func afm_session_respond_stream(
+    _ session: UInt64,
     _ requestJSON: UnsafePointer<CChar>?,
     _ onEvent: (@convention(c) (UnsafeMutableRawPointer?, UnsafePointer<CChar>?) -> Void)?,
     _ context: UnsafeMutableRawPointer?
@@ -90,7 +107,21 @@ public func afm_respond_stream(
         emit(encodeJSON(StreamErrorEvent(error: ErrorBody(kind: "decode", message: "null request"))))
         return
     }
-    streamJSON(String(cString: requestJSON), emit: emit)
+    sessionStreamJSON(session, String(cString: requestJSON), emit: emit)
+}
+
+/// Release a session previously created by `afm_session_create`.
+@_cdecl("afm_session_free")
+public func afm_session_free(_ session: UInt64) {
+    sessionFree(session)
+}
+
+/// Hint the OS to stage model resources for an upcoming turn (e.g. while
+/// the user is typing). Pass 0 when no session exists yet. Returns
+/// immediately; never fails.
+@_cdecl("afm_prewarm")
+public func afm_prewarm(_ session: UInt64) {
+    sessionPrewarm(session)
 }
 
 /// Release a string previously returned by this bridge.

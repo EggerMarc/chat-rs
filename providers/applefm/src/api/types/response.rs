@@ -7,7 +7,22 @@ use chat_core::types::messages::text::Text;
 use chat_core::types::metadata::Metadata;
 use chat_core::types::response::ChatResponse;
 
-use super::{CompleteReply, ErrorReply};
+use super::{CompleteReply, ErrorReply, SessionCreated};
+
+/// Parse the reply to `afm_session_create`: a session id or a mapped
+/// error.
+pub(crate) fn parse_session_created(reply_json: &str) -> Result<u64, ChatFailure> {
+    if let Ok(err) = serde_json::from_str::<ErrorReply>(reply_json) {
+        return Err(map_error(err));
+    }
+    serde_json::from_str::<SessionCreated>(reply_json)
+        .map(|created| created.session)
+        .map_err(|e| {
+            ChatFailure::from_err(ChatError::InvalidResponse(format!(
+                "malformed session-create reply ({e}): {reply_json}"
+            )))
+        })
+}
 
 pub(crate) fn into_core(model_slug: &str, reply_json: &str) -> Result<ChatResponse, ChatFailure> {
     if let Ok(err) = serde_json::from_str::<ErrorReply>(reply_json) {

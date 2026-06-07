@@ -1,6 +1,5 @@
-// Shared session plumbing for the complete and stream paths: model
-// construction (base or LoRA-adapted), availability gating, prompt
-// rendering, and generation options.
+// Session construction: model (base or LoRA-adapted), availability
+// gating, and generation options shared by the respond and stream paths.
 
 import Foundation
 #if canImport(FoundationModels)
@@ -10,9 +9,9 @@ import FoundationModels
 /// session over it. Errors come back as an `ErrorBody` so each caller
 /// can wrap them in its own reply shape.
 @available(macOS 26.0, *)
-func makeSession(for request: CompleteRequest) -> Result<LanguageModelSession, ErrorBody> {
+func makeSession(for config: SessionConfig) -> Result<LanguageModelSession, ErrorBody> {
     let model: SystemLanguageModel
-    if let loraPath = request.lora {
+    if let loraPath = config.lora {
         do {
             let adapter = try SystemLanguageModel.Adapter(
                 fileURL: URL(fileURLWithPath: loraPath))
@@ -34,23 +33,10 @@ func makeSession(for request: CompleteRequest) -> Result<LanguageModelSession, E
                 message: "the on-device model is not available on this machine"))
     }
 
-    if let instructions = request.instructions {
+    if let instructions = config.instructions {
         return .success(LanguageModelSession(model: model, instructions: instructions))
     }
     return .success(LanguageModelSession(model: model))
-}
-
-/// Single user turn → pass the text straight through. Multi-turn → render
-/// a role-tagged transcript (v1 flattening; native Transcript
-/// reconstruction arrives with tool support).
-func renderPrompt(_ messages: [WireMessage]) -> String {
-    if messages.count == 1, let only = messages.first {
-        return only.text
-    }
-    return messages.map { message in
-        let tag = message.role == "assistant" ? "Assistant" : "User"
-        return "\(tag): \(message.text)"
-    }.joined(separator: "\n\n")
 }
 
 @available(macOS 26.0, *)

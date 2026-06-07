@@ -14,19 +14,24 @@ struct WireOptions: Codable, Sendable {
     var seed: UInt64?
 }
 
-struct WireMessage: Codable, Sendable {
-    /// "user" | "assistant"
-    var role: String
-    var text: String
-}
-
-struct CompleteRequest: Codable, Sendable {
+/// Configuration for a long-lived session.
+struct SessionConfig: Codable, Sendable {
     var instructions: String?
     /// Filesystem path to a `.fmadapter` package (a trained LoRA for the
     /// on-device base model). Absent → the plain base model.
     var lora: String?
-    var messages: [WireMessage]
+}
+
+/// One turn against an existing session. `message` is either the new
+/// user message (incremental prefill) or a full rendered conversation
+/// (first turn / rebuild) — the session doesn't care.
+struct TurnRequest: Codable, Sendable {
+    var message: String
     var options: WireOptions?
+}
+
+struct SessionCreated: Codable, Sendable {
+    var session: UInt64
 }
 
 struct CompleteReply: Codable, Sendable {

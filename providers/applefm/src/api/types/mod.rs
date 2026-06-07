@@ -25,23 +25,30 @@ pub(crate) struct WireOptions {
     pub seed: Option<u64>,
 }
 
+/// Configuration for a long-lived session (created once per
+/// conversation, reused across turns).
 #[derive(Debug, Serialize)]
-pub(crate) struct WireMessage {
-    /// "user" | "assistant"
-    pub role: &'static str,
-    pub text: String,
-}
-
-#[derive(Debug, Serialize)]
-pub(crate) struct CompleteRequest {
+pub(crate) struct SessionConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instructions: Option<String>,
     /// Filesystem path to a `.fmadapter` LoRA package.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lora: Option<String>,
-    pub messages: Vec<WireMessage>,
+}
+
+/// One turn against an existing session. `message` is the new user
+/// message on the incremental path, or a full rendered conversation on
+/// first turn / rebuild.
+#[derive(Debug, Serialize)]
+pub(crate) struct TurnRequest {
+    pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<WireOptions>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct SessionCreated {
+    pub session: u64,
 }
 
 #[derive(Debug, Deserialize)]

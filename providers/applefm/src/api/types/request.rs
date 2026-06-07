@@ -1,8 +1,12 @@
-//! `Messages` + `ChatOptions` → `CompleteRequest` JSON.
+//! `Messages` + `ChatOptions` → the session/turn wire JSON, plus the
+//! turn-planning logic that decides between incremental and full
+//! prefill.
 //!
 //! All capability rejections live here, mistralrs-style: what the
 //! on-device model can't do fails fast with a clear error instead of
 //! crossing the bridge.
+
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use chat_core::error::{ChatError, ChatFailure};
 use chat_core::types::messages::Messages;
@@ -12,15 +16,24 @@ use chat_core::types::options::ChatOptions;
 
 use crate::client::{Config, Sampling};
 
-use super::{CompleteRequest, WireMessage, WireOptions};
+use super::{SessionConfig, TurnRequest, WireOptions};
 
-pub(crate) fn from_core(
-    config: &Config,
+/// A flattened conversation entry (system messages excluded — they fold
+/// into the session instructions).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ConvoEntry {
+    pub role: &'static str,
+    pub text: String,
+}
+
+/// Validate the request and flatten `Messages` into instructions (from
+/// `System` roles — FoundationModels has no system role in the
+/// conversation itself) plus user/assistant entries.
+pub(crate) fn prepare(
     messages: &Messages,
-    options: Option<&ChatOptions>,
     structured_output: Option<&schemars::Schema>,
     tools_present: bool,
-) -> Result<String, ChatFailure> {
+) -> Result<(Option<String>, Vec<ConvoEntry>), ChatFailure> {
     if tools_present {
         return Err(unsupported("tool declarations"));
     }
@@ -28,10 +41,8 @@ pub(crate) fn from_core(
         return Err(unsupported("structured outputs"));
     }
 
-    // System-role messages fold into the session instructions; the
-    // FoundationModels API has no system role in the conversation itself.
     let mut instructions = String::new();
-    let mut wire_messages = Vec::new();
+    let mut convo = Vec::new();
 
     for content in &messages.0 {
         let text = flatten_text_only(&content.parts.0)?;
@@ -42,31 +53,93 @@ pub(crate) fn from_core(
                 }
                 instructions.push_str(&text);
             }
-            RoleEnum::User => wire_messages.push(WireMessage { role: "user", text }),
-            RoleEnum::Model => wire_messages.push(WireMessage {
+            RoleEnum::User => convo.push(ConvoEntry { role: "user", text }),
+            RoleEnum::Model => convo.push(ConvoEntry {
                 role: "assistant",
                 text,
             }),
         }
     }
 
-    if wire_messages.is_empty() {
+    if convo.is_empty() {
         return Err(ChatFailure::from_err(ChatError::Provider(
             "chat-applefm needs at least one user message".into(),
         )));
     }
 
-    let request = CompleteRequest {
-        instructions: (!instructions.is_empty()).then_some(instructions),
+    Ok(((!instructions.is_empty()).then_some(instructions), convo))
+}
+
+/// How to run this turn against the held session, if any. Decided by
+/// [`crate::client::Session::plan`].
+#[derive(Debug, PartialEq)]
+pub(crate) enum TurnPlan {
+    /// The conversation extends what the session has seen by exactly one
+    /// message: send only that message (incremental prefill).
+    Reuse,
+    /// First turn, edited history, or changed instructions: tear down
+    /// and create a fresh session, sending the full conversation.
+    Rebuild,
+}
+
+pub(crate) fn hash_instructions(instructions: Option<&str>) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    instructions.hash(&mut hasher);
+    hasher.finish()
+}
+
+pub(crate) fn hash_convo(entries: &[ConvoEntry]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for entry in entries {
+        entry.role.hash(&mut hasher);
+        entry.text.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+/// Render a full conversation into one prompt (rebuild path). Single
+/// user turn passes through untagged.
+pub(crate) fn render_full(convo: &[ConvoEntry]) -> String {
+    if let [only] = convo {
+        return only.text.clone();
+    }
+    convo
+        .iter()
+        .map(|entry| {
+            let tag = if entry.role == "assistant" {
+                "Assistant"
+            } else {
+                "User"
+            };
+            format!("{tag}: {}", entry.text)
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+pub(crate) fn session_config_json(
+    instructions: Option<&str>,
+    config: &Config,
+) -> Result<String, ChatFailure> {
+    let session_config = SessionConfig {
+        instructions: instructions.map(str::to_owned),
         lora: config
             .lora
             .as_ref()
             .map(|p| p.to_string_lossy().into_owned()),
-        messages: wire_messages,
-        options: merge_options(config, options),
     };
+    to_json(&session_config)
+}
 
-    serde_json::to_string(&request)
+pub(crate) fn turn_request_json(
+    message: String,
+    options: Option<WireOptions>,
+) -> Result<String, ChatFailure> {
+    to_json(&TurnRequest { message, options })
+}
+
+fn to_json<T: serde::Serialize>(value: &T) -> Result<String, ChatFailure> {
+    serde_json::to_string(value)
         .map_err(|e| ChatFailure::from_err(ChatError::Other(format!("request serialization: {e}"))))
 }
 
@@ -75,7 +148,7 @@ pub(crate) fn from_core(
 /// carries *any* sampling key (`top_p`, or `greedy`/`top_k`/`seed` in
 /// metadata) it replaces the builder's sampling default wholesale, so a
 /// builder top-k never mixes with a per-call top-p.
-fn merge_options(config: &Config, opts: Option<&ChatOptions>) -> Option<WireOptions> {
+pub(crate) fn merge_options(config: &Config, opts: Option<&ChatOptions>) -> Option<WireOptions> {
     let mut wire = WireOptions {
         temperature: config.temperature,
         max_tokens: config.max_tokens,
@@ -159,26 +232,22 @@ mod tests {
     use chat_core::parts;
     use chat_core::types::messages::content;
 
-    fn config() -> Config {
-        Config {
-            lora: Some("adapters/transcripts.fmadapter".into()),
-            ..Default::default()
+    fn entry(role: &'static str, text: &str) -> ConvoEntry {
+        ConvoEntry {
+            role,
+            text: text.to_owned(),
         }
     }
 
     #[test]
-    fn folds_system_into_instructions_and_carries_lora() {
+    fn folds_system_into_instructions() {
         let mut messages = Messages::default();
         messages.push(content::from_system(parts!["Talk like a pirate."]));
         messages.push(content::from_user(parts!["hello"]));
 
-        let json = from_core(&config(), &messages, None, None, false).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(v["instructions"], "Talk like a pirate.");
-        assert_eq!(v["lora"], "adapters/transcripts.fmadapter");
-        assert_eq!(v["messages"][0]["role"], "user");
-        assert_eq!(v["messages"][0]["text"], "hello");
+        let (instructions, convo) = prepare(&messages, None, false).unwrap();
+        assert_eq!(instructions.as_deref(), Some("Talk like a pirate."));
+        assert_eq!(convo, vec![entry("user", "hello")]);
     }
 
     #[test]
@@ -186,9 +255,18 @@ mod tests {
         let mut messages = Messages::default();
         messages.push(content::from_user(parts!["hi"]));
 
-        assert!(from_core(&config(), &messages, None, None, true).is_err());
+        assert!(prepare(&messages, None, true).is_err());
         let schema = schemars::json_schema!({"type": "object"});
-        assert!(from_core(&config(), &messages, None, Some(&schema), false).is_err());
+        assert!(prepare(&messages, Some(&schema), false).is_err());
+    }
+
+    #[test]
+    fn renders_single_and_multi_turn() {
+        assert_eq!(render_full(&[entry("user", "hi")]), "hi");
+        assert_eq!(
+            render_full(&[entry("user", "hi"), entry("assistant", "yo")]),
+            "User: hi\n\nAssistant: yo"
+        );
     }
 
     #[test]
@@ -202,14 +280,11 @@ mod tests {
                 seed: Some(7),
             }),
         };
-        let mut messages = Messages::default();
-        messages.push(content::from_user(parts!["hi"]));
 
         // No call options → builder defaults flow through.
-        let json = from_core(&config, &messages, None, None, false).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(v["options"]["top_k"], 40);
-        assert_eq!(v["options"]["seed"], 7);
+        let wire = merge_options(&config, None).unwrap();
+        assert_eq!(wire.top_k, Some(40));
+        assert_eq!(wire.seed, Some(7));
 
         // A call-level top_p replaces the whole sampling family (no
         // leftover top_k/seed) but per-field merge keeps max_tokens.
@@ -217,29 +292,23 @@ mod tests {
         let mut opts = ChatOptions::default();
         opts.top_p = Some(0.75);
         opts.temperature = Some(0.5);
-        let json = from_core(&config, &messages, Some(&opts), None, false).unwrap();
-        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(v["options"]["top_p"], 0.75);
-        assert!(v["options"]["top_k"].is_null());
-        assert!(v["options"]["seed"].is_null());
-        assert_eq!(v["options"]["max_tokens"], 100);
-        assert_eq!(v["options"]["temperature"], 0.5);
+        let wire = merge_options(&config, Some(&opts)).unwrap();
+        assert_eq!(wire.top_p, Some(0.75));
+        assert_eq!(wire.top_k, None);
+        assert_eq!(wire.seed, None);
+        assert_eq!(wire.max_tokens, Some(100));
+        assert_eq!(wire.temperature, Some(0.5));
     }
 
     #[test]
-    fn maps_options() {
-        let mut messages = Messages::default();
-        messages.push(content::from_user(parts!["hi"]));
-
-        let mut opts = ChatOptions::default();
-        opts.temperature = Some(0.2);
-        opts.max_tokens = Some(64);
-        opts.metadata
-            .insert("greedy".into(), serde_json::Value::Bool(true));
-
-        let json = from_core(&config(), &messages, Some(&opts), None, false).unwrap();
+    fn session_config_carries_lora() {
+        let config = Config {
+            lora: Some("adapters/transcripts.fmadapter".into()),
+            ..Default::default()
+        };
+        let json = session_config_json(Some("sys"), &config).unwrap();
         let v: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(v["options"]["max_tokens"], 64);
-        assert_eq!(v["options"]["greedy"], true);
+        assert_eq!(v["instructions"], "sys");
+        assert_eq!(v["lora"], "adapters/transcripts.fmadapter");
     }
 }
