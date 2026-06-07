@@ -124,14 +124,14 @@ impl CompletionsRequest {
         }
 
         for content in &messages.0 {
-            push_content(content, &mut req.messages);
+            push_content(content, &mut req.messages)?;
         }
 
         Ok(req)
     }
 }
 
-fn push_content(content: &Content, out: &mut Vec<Value>) {
+fn push_content(content: &Content, out: &mut Vec<Value>) -> Result<(), ChatError> {
     let role = match content.role {
         RoleEnum::User => "user",
         RoleEnum::Model => "assistant",
@@ -173,20 +173,48 @@ fn push_content(content: &Content, out: &mut Vec<Value>) {
                     }));
                 }
             }
+            PartEnum::File(file) if file.is_image() => {
+                let url = match &file.source {
+                    FileSource::Url(u) => u.to_string(),
+                    FileSource::Bytes(bytes) => {
+                        let b64 = STANDARD.encode(bytes);
+                        format!("data:{};base64,{}", file.mime, b64)
+                    }
+                };
+                content_parts.push(json!({
+                    "type": "image_url",
+                    "image_url": {"url": url}
+                }));
+            }
+            PartEnum::File(file) if file.is_audio() => {
+                // Chat Completions carries audio only as inline base64 via
+                // the `input_audio` content part — there is no URL form.
+                let FileSource::Bytes(bytes) = &file.source else {
+                    return Err(ChatError::Provider(format!(
+                        "chat-completions cannot send audio by URL ({}): the Chat \
+                         Completions `input_audio` part only accepts inline data — \
+                         fetch the bytes and pass them via File::from_bytes",
+                        file.mime
+                    )));
+                };
+                content_parts.push(json!({
+                    "type": "input_audio",
+                    "input_audio": {
+                        "data": STANDARD.encode(bytes),
+                        "format": audio_format(file.mime.as_str()),
+                    }
+                }));
+            }
+            // Video, documents, and any other non-image/non-audio file:
+            // the Chat Completions wire has no content part for these.
+            // Fail loudly rather than silently dropping the attachment.
             PartEnum::File(file) => {
-                if file.is_image() {
-                    let url = match &file.source {
-                        FileSource::Url(u) => u.to_string(),
-                        FileSource::Bytes(bytes) => {
-                            let b64 = STANDARD.encode(bytes);
-                            format!("data:{};base64,{}", file.mime, b64)
-                        }
-                    };
-                    content_parts.push(json!({
-                        "type": "image_url",
-                        "image_url": {"url": url}
-                    }));
-                }
+                return Err(ChatError::Provider(format!(
+                    "chat-completions cannot represent a file part with mimetype {} \
+                     in a Chat Completions request — only image and audio parts are \
+                     supported on this wire",
+                    file.mime
+                )));
             }
             PartEnum::Structured(_) | PartEnum::Embeddings(_) => {}
         }
@@ -218,6 +246,19 @@ fn push_content(content: &Content, out: &mut Vec<Value>) {
     }
 
     out.extend(tool_results);
+    Ok(())
+}
+
+/// Map an `audio/*` mimetype to the bare format string the Chat
+/// Completions `input_audio` part expects (e.g. `audio/mpeg` -> `mp3`).
+/// Unknown subtypes are passed through verbatim so the server can accept
+/// or reject them explicitly — never silently dropped.
+fn audio_format(mime: &str) -> &str {
+    match mime.strip_prefix("audio/").unwrap_or(mime) {
+        "mpeg" | "mp3" => "mp3",
+        "wav" | "wave" | "x-wav" => "wav",
+        other => other,
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -303,5 +344,74 @@ mod tests {
         assert_eq!(val["messages"][0]["role"], "system");
         assert_eq!(val["messages"][0]["content"], "you are helpful");
         assert_eq!(val["messages"][1]["role"], "user");
+    }
+
+    fn user_with_file(file: messages::file::File) -> messages::Messages {
+        use messages::parts::PartEnum;
+        let mut msgs = messages::Messages::default();
+        let content = messages::content::Content {
+            role: messages::content::RoleEnum::User,
+            parts: messages::parts::Parts(vec![
+                PartEnum::File(file),
+                PartEnum::Text(messages::text::Text::new("transcribe this")),
+            ]),
+            complete_reason: messages::content::CompleteReasonEnum::None,
+        };
+        msgs.0.push(content);
+        msgs
+    }
+
+    fn request_for(msgs: &messages::Messages) -> Result<CompletionsRequest, ChatError> {
+        CompletionsRequest::from_core(CompletionsRequestConfig {
+            model_name: "m",
+            messages: msgs,
+            tool_declarations: None,
+            options: None,
+            output_shape: None,
+        })
+    }
+
+    #[test]
+    fn audio_bytes_serialize_as_input_audio() {
+        let file = messages::file::File::from_bytes_with_mime(b"RIFF...".to_vec(), "audio/wav");
+        let req = request_for(&user_with_file(file)).unwrap();
+
+        let val = serde_json::to_value(&req).unwrap();
+        let parts = &val["messages"][0]["content"];
+        assert_eq!(parts[0]["type"], "input_audio");
+        assert_eq!(parts[0]["input_audio"]["format"], "wav");
+        assert!(parts[0]["input_audio"]["data"].as_str().is_some());
+        // The text part is still present alongside the audio.
+        assert_eq!(parts[1]["type"], "text");
+    }
+
+    #[test]
+    fn audio_mpeg_format_normalizes_to_mp3() {
+        let file = messages::file::File::from_bytes_with_mime(b"ID3".to_vec(), "audio/mpeg");
+        let req = request_for(&user_with_file(file)).unwrap();
+        let val = serde_json::to_value(&req).unwrap();
+        assert_eq!(
+            val["messages"][0]["content"][0]["input_audio"]["format"],
+            "mp3"
+        );
+    }
+
+    #[test]
+    fn audio_by_url_errors_loudly() {
+        let file =
+            messages::file::File::from_url("https://example.com/a.wav", Some("audio/wav")).unwrap();
+        let err = request_for(&user_with_file(file)).unwrap_err();
+        assert!(matches!(err, ChatError::Provider(_)));
+        assert!(err.to_string().contains("audio"));
+    }
+
+    #[test]
+    fn unrepresentable_file_errors_instead_of_dropping() {
+        // A document (PDF) has no Chat Completions content part: the bug
+        // report's core complaint was that this vanished silently.
+        let file = messages::file::File::from_bytes_with_mime(b"%PDF".to_vec(), "application/pdf");
+        let err = request_for(&user_with_file(file)).unwrap_err();
+        assert!(matches!(err, ChatError::Provider(_)));
+        assert!(err.to_string().contains("application/pdf"));
     }
 }
