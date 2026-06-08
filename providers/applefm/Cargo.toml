@@ -1,6 +1,6 @@
 [package]
 name = "chat-applefm"
-version = "0.1.0"
+version = "0.1.1"
 description = "Apple on-device foundation model provider for chat-rs, built on the FoundationModels framework."
 edition.workspace = true
 authors.workspace = true

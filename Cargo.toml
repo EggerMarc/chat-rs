@@ -74,7 +74,7 @@ chat-deepseek    = { path = "providers/deepseek", version = "0.1.5", optional = 
 chat-mistralrs   = { path = "providers/mistralrs", version = "0.1.6", optional = true }
 chat-openrouter  = { path = "providers/openrouter", version = "0.1.2", optional = true }
 chat-router      = { path = "providers/router", version = "0.2.5", optional = true }
-chat-applefm     = { path = "providers/applefm", version = "0.1.0", optional = true }
+chat-applefm     = { path = "providers/applefm", version = "0.1.1", optional = true }
 tokio.workspace = true
 schemars.workspace = true
 serde.workspace = true
