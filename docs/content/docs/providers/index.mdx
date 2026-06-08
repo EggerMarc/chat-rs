@@ -37,6 +37,7 @@ Each vendor provider presets the URL, auth, and any vendor-specific niceties.
 | [Gemini](/docs/providers/gemini) | `GeminiBuilder` | `gemini` | native |
 | [OpenAI](/docs/providers/openai) | `OpenAIBuilder` | `openai` | responses |
 | [Ollama](/docs/providers/ollama) | `OllamaBuilder` | `ollama` | completions |
+| [Apple Foundation Models](/docs/providers/applefm) | `AppleFMBuilder` | `applefm` | on-device |
 | [DeepSeek](/docs/providers/deepseek) | `DeepSeekBuilder` | `deepseek` | completions |
 | [Cerebras](/docs/providers/cerebras) | `CerebrasBuilder` | `cerebras` | completions |
 | [HuggingFace](/docs/providers/huggingface) | `HuggingFaceBuilder` | `huggingface` | completions |
@@ -51,6 +52,7 @@ Each vendor provider presets the URL, auth, and any vendor-specific niceties.
 | Gemini | yes | yes | yes | code exec, search, maps |
 | OpenAI | yes | yes | yes | web search, image gen |
 | Ollama | yes | yes | yes | no |
+| Apple Foundation Models | yes | no | no | no |
 | DeepSeek | yes | no | yes | no |
 | Cerebras | yes | no | yes | no |
 | HuggingFace | yes | no | yes | no |
@@ -60,7 +62,7 @@ Each vendor provider presets the URL, auth, and any vendor-specific niceties.
 Enable a provider with its cargo feature:
 
 ```toml title="Cargo.toml"
-chat-rs = { version = "0.5.1", features = ["claude", "gemini", "openai"] }
+chat-rs = { version = "0.5.3", features = ["claude", "gemini", "openai"] }
 ```
 
 ## Bring your own provider

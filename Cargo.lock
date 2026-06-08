@@ -767,7 +767,7 @@ dependencies = [
 
 [[package]]
 name = "chat-cerebras"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "chat-completions",
  "chat-core",
@@ -776,7 +776,7 @@ dependencies = [
 
 [[package]]
 name = "chat-claude"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -792,7 +792,7 @@ dependencies = [
 
 [[package]]
 name = "chat-completions"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -809,7 +809,7 @@ dependencies = [
 
 [[package]]
 name = "chat-core"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -831,7 +831,7 @@ dependencies = [
 
 [[package]]
 name = "chat-deepseek"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "chat-completions",
  "chat-core",
@@ -840,7 +840,7 @@ dependencies = [
 
 [[package]]
 name = "chat-gemini"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -857,7 +857,7 @@ dependencies = [
 
 [[package]]
 name = "chat-huggingface"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "chat-completions",
  "chat-core",
@@ -866,7 +866,7 @@ dependencies = [
 
 [[package]]
 name = "chat-mistralrs"
-version = "0.1.5"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -884,7 +884,7 @@ dependencies = [
 
 [[package]]
 name = "chat-ollama"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "chat-completions",
  "chat-core",
@@ -896,7 +896,7 @@ dependencies = [
 
 [[package]]
 name = "chat-openai"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -914,7 +914,7 @@ dependencies = [
 
 [[package]]
 name = "chat-openrouter"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "async-stream",
  "chat-completions",
@@ -926,7 +926,7 @@ dependencies = [
 
 [[package]]
 name = "chat-responses"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -943,7 +943,7 @@ dependencies = [
 
 [[package]]
 name = "chat-router"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "async-trait",
  "chat-core",
@@ -954,7 +954,7 @@ dependencies = [
 
 [[package]]
 name = "chat-rs"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "async-trait",
  "chat-applefm",

@@ -223,7 +223,12 @@ function Home() {
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col border-x border-border">
         {/* Hero */}
         <section className="relative overflow-hidden">
-          <div className="pointer-events-none absolute inset-0" aria-hidden>
+          {/* The animation runs at full strength on desktop; on mobile it is
+              dialed back to a faint texture so the copy on top stays legible. */}
+          <div
+            className="pointer-events-none absolute inset-0 opacity-30 sm:opacity-100"
+            aria-hidden
+          >
             <FaultyTerminal
               className="h-full w-full"
               scale={1.6}
@@ -243,13 +248,21 @@ function Home() {
               dpr={1}
             />
           </div>
-          {/* Left-to-right wash: solid page color on the left for legible copy,
-              clearing to transparent by ~40% so the animation shows on the
-              right. A faint bottom fade blends into the next section. */}
+          {/* Mobile: a near-solid wash over the whole hero keeps every line of
+              copy high-contrast while letting just a hint of the animation
+              through underneath. */}
           <div
-            className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background from-0% to-transparent to-[42%]"
+            className="pointer-events-none absolute inset-0 bg-background/85 sm:hidden"
             aria-hidden
           />
+          {/* Desktop: a left-to-right wash — solid page color on the left for
+              legible copy, clearing to transparent by ~42% so the animation
+              shows on the right. */}
+          <div
+            className="pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-background from-0% via-background/95 via-40% to-transparent to-[58%] sm:block"
+            aria-hidden
+          />
+          {/* A faint bottom fade blends into the next section. */}
           <div
             className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-background"
             aria-hidden

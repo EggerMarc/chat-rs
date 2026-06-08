@@ -54,34 +54,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }`,
   },
   {
-    id: "multimodal",
-    label: "Multimodal",
-    code: `use chat_rs::{
-    ChatBuilder, ChatOutcome, gemini::GeminiBuilder, parts,
-    types::messages::{self, file::File},
-};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let client = GeminiBuilder::new().with_model("gemini-2.5-flash").build();
-    let mut chat = ChatBuilder::new().with_model(client).build();
-
-    // Text, images, audio, video, and documents are all just Parts.
-    // One message, mixed modalities, no per-type plumbing.
-    let mut messages = messages::from_user(parts![
-        "What's in this picture?",
-        File::from_path("diagram.png")?,
-    ]);
-
-    if let ChatOutcome::Complete(res) = chat.complete(&mut messages).await.map_err(|e| e.err)? {
-        if let Some(text) = res.content.parts.text_response() {
-            println!("{text}");
-        }
-    }
-    Ok(())
-}`,
-  },
-  {
     id: "tools",
     label: "Tools",
     code: `use chat_rs::{ChatBuilder, ChatOutcome, claude::ClaudeBuilder, parts, types::messages};

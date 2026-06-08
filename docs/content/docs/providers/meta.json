@@ -10,6 +10,7 @@
     "gemini",
     "openai",
     "ollama",
+    "applefm",
     "deepseek",
     "cerebras",
     "huggingface",
